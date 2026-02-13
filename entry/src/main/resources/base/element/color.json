@@ -1,0 +1,176 @@
+{
+  "color": [
+    {
+      "name": "start_window_background",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "page_background",
+      "value": "#F5F7FA"
+    },
+    {
+      "name": "card_background",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "card_background_alpha_60",
+      "value": "#99FFFFFF"
+    },
+    {
+      "name": "text_primary",
+      "value": "#181818"
+    },
+    {
+      "name": "text_secondary",
+      "value": "#404040"
+    },
+    {
+      "name": "divider_color",
+      "value": "#EDECEC"
+    },
+    {
+      "name": "brand_color",
+      "value": "#0A59F7"
+    },
+    {
+      "name": "brand_gradient_start",
+      "value": "#0046C0"
+    },
+    {
+      "name": "brand_gradient_end",
+      "value": "#448AFF"
+    },
+    {
+      "name": "report_card_start",
+      "value": "#B71C1C"
+    },
+    {
+      "name": "report_card_end",
+      "value": "#BF360C"
+    },
+    {
+      "name": "text_on_brand",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "success_color",
+      "value": "#00C853"
+    },
+    {
+      "name": "warning_color",
+      "value": "#FFAB00"
+    },
+    {
+      "name": "card_shadow",
+      "value": "#1A000000"
+    },
+    {
+      "name": "accent_primary",
+      "value": "#0A59F7"
+    },
+    {
+      "name": "text_hint",
+      "value": "#606060"
+    },
+    {
+      "name": "card_bg_enhanced",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "card_border_color",
+      "value": "#0F000000"
+    },
+    {
+      "name": "card_shadow_custom",
+      "value": "#1A000000"
+    },
+    {
+      "name": "tag_bg",
+      "value": "#F1F3F5"
+    },
+    {
+      "name": "vip_gold",
+      "value": "#EDC269"
+    },
+    {
+      "name": "vip_gold_start",
+      "value": "#FBE7B7"
+    },
+    {
+      "name": "vip_gold_end",
+      "value": "#CFA356"
+    },
+    {
+      "name": "vip_text_on_gold",
+      "value": "#302008"
+    },
+    {
+      "name": "new_year_red_start",
+      "value": "#FF2400"
+    },
+    {
+      "name": "new_year_red_end",
+      "value": "#540000"
+    },
+    {
+      "name": "new_year_text_on_red",
+      "value": "#FDE6C8"
+    },
+    {
+      "name": "sub_card_ny_start",
+      "value": "#FFF5F5"
+    },
+    {
+      "name": "sub_card_ny_end",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "sub_card_vip_start",
+      "value": "#FFFAEE"
+    },
+    {
+      "name": "sub_card_vip_end",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "sub_card_ny_text",
+      "value": "#E60012"
+    },
+    {
+      "name": "sub_card_vip_text",
+      "value": "#CFA356"
+    },
+    {
+      "name": "sub_card_ny_title",
+      "value": "#800000"
+    },
+    {
+      "name": "sub_card_vip_title",
+      "value": "#302008"
+    },
+    {
+      "name": "list_item_icon_bg_default",
+      "value": "#1A0A59F7"
+    },
+    {
+      "name": "list_item_icon_text_default",
+      "value": "#0A59F7"
+    },
+    {
+      "name": "list_item_count_background",
+      "value": "#290A59F7"
+    },
+    {
+      "name": "new_year_watermark",
+      "value": "#D32F2F"
+    },
+    {
+      "name": "text_tertiary",
+      "value": "#999999"
+    },
+    {
+      "name": "main_background",
+      "value": "#F5F7FA"
+    }
+  ]
+}

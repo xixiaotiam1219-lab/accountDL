@@ -1,0 +1,156 @@
+{
+  "color": [
+    {
+      "name": "start_window_background",
+      "value": "#000000"
+    },
+    {
+      "name": "page_background",
+      "value": "#000000"
+    },
+    {
+      "name": "card_background",
+      "value": "#1C1C1E"
+    },
+    {
+      "name": "text_primary",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "text_secondary",
+      "value": "#999999"
+    },
+    {
+      "name": "divider_color",
+      "value": "#2C2C2E"
+    },
+    {
+      "name": "brand_color",
+      "value": "#0A59F7"
+    },
+    {
+      "name": "brand_gradient_start",
+      "value": "#303F9F"
+    },
+    {
+      "name": "brand_gradient_end",
+      "value": "#5C6BC0"
+    },
+    {
+      "name": "text_on_brand",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "success_color",
+      "value": "#00E676"
+    },
+    {
+      "name": "warning_color",
+      "value": "#FFD600"
+    },
+    {
+      "name": "card_shadow",
+      "value": "#4D000000"
+    },
+    {
+      "name": "card_bg_enhanced",
+      "value": "#1E1E1E"
+    },
+    {
+      "name": "card_border_color",
+      "value": "#0DFFFFFF"
+    },
+    {
+      "name": "card_shadow_custom",
+      "value": "#00000000"
+    },
+    {
+      "name": "tag_bg",
+      "value": "#2C2C2C"
+    },
+    {
+      "name": "vip_gold",
+      "value": "#EDC269"
+    },
+    {
+      "name": "vip_gold_start",
+      "value": "#CFA356"
+    },
+    {
+      "name": "vip_gold_end",
+      "value": "#FBE7B7"
+    },
+    {
+      "name": "vip_text_on_gold",
+      "value": "#302008"
+    },
+    {
+      "name": "new_year_red_start",
+      "value": "#FF2400"
+    },
+    {
+      "name": "new_year_red_end",
+      "value": "#540000"
+    },
+    {
+      "name": "new_year_text_on_red",
+      "value": "#FDE6C8"
+    },
+    {
+      "name": "sub_card_ny_start",
+      "value": "#2A1A1A"
+    },
+    {
+      "name": "sub_card_ny_end",
+      "value": "#1E1E1E"
+    },
+    {
+      "name": "sub_card_vip_start",
+      "value": "#2A261A"
+    },
+    {
+      "name": "sub_card_vip_end",
+      "value": "#1E1E1E"
+    },
+    {
+      "name": "sub_card_ny_text",
+      "value": "#FF5252"
+    },
+    {
+      "name": "sub_card_vip_text",
+      "value": "#EDC269"
+    },
+    {
+      "name": "sub_card_ny_title",
+      "value": "#FF8A80"
+    },
+    {
+      "name": "sub_card_vip_title",
+      "value": "#FFE082"
+    },
+    {
+      "name": "list_item_icon_bg_default",
+      "value": "#330A59F7"
+    },
+    {
+      "name": "list_item_icon_text_default",
+      "value": "#3F97FF"
+    },
+    {
+      "name": "list_item_count_background",
+      "value": "#660A59F7"
+    },
+    {
+      "name": "new_year_watermark",
+      "value": "#FF8A80"
+    },
+    {
+      "name": "text_tertiary",
+      "value": "#666666"
+    },
+    {
+      "name": "main_background",
+      "value": "#000000"
+    }
+  ]
+}

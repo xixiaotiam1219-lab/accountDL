@@ -1,0 +1,52 @@
+{
+    "string": [
+        {
+            "name": "module_desc",
+            "value": "主入口模块"
+        },
+        {
+            "name": "EntryAbility_label",
+            "value": "记得订阅"
+        },
+        {
+            "name": "EntryAbility_desc",
+            "value": "提供订阅管理核心功能"
+        },
+        {
+            "name": "EntryFormAbility_label",
+            "value": "订阅管理卡片"
+        },
+        {
+            "name": "EntryFormAbility_desc",
+            "value": "快速查看订阅详情"
+        },
+        {
+            "name": "float_ball_permission_reason",
+            "value": "用于在其他界面让用户可以通过点击闪控球快捷截取当前页面并快速返回APP进行订阅信息识别"
+        },
+        {
+            "name": "capture_screen_permission_reason",
+            "value": "用于点击闪控球时快速截取当前屏幕并识别订阅信息"
+        },
+        {
+            "name": "widget_display_name",
+            "value": "订阅列表 (标准版)"
+        },
+        {
+            "name": "widget_desc",
+            "value": "带悬浮按钮，支持快速查看列表并跳转新增界面。"
+        },
+        {
+            "name": "widget_no_add_display_name",
+            "value": "订阅列表 (纯净版)"
+        },
+        {
+            "name": "widget_no_add_desc",
+            "value": "纯净列表展示，仅用于查看当前订阅到期状态。"
+        },
+        {
+            "name": "detect_gesture_reason",
+            "value": "用于“智感握姿”功能，通过识别您的握持方式为您自动对齐Tab栏，提升单手操作便捷性。"
+        }
+    ]
+}

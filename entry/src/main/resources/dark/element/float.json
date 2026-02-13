@@ -1,0 +1,20 @@
+{
+    "float": [
+        {
+            "name": "watermark_opacity_fu",
+            "value": "0.15"
+        },
+        {
+            "name": "watermark_opacity_icon",
+            "value": "0.30"
+        },
+        {
+            "name": "watermark_opacity_text",
+            "value": "0.35"
+        },
+        {
+            "name": "watermark_opacity_deco",
+            "value": "0.20"
+        }
+    ]
+}

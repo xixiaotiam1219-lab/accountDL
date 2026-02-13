@@ -1,0 +1,19 @@
+{
+    "uniform-identifiers": [
+        {
+            "declaration": {
+                "id": "com.accountdl.package",
+                "belongs-to": "general.json",
+                "description": "AccountDL Data Package",
+                "reference": {
+                    "mime-types": [
+                        "application/json"
+                    ],
+                    "filenames-extensions": [
+                        ".json"
+                    ]
+                }
+            }
+        }
+    ]
+}

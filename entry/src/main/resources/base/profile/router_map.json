@@ -1,0 +1,49 @@
+{
+    "routerMap": [
+        {
+            "name": "AddSubscription",
+            "pageSourceFile": "src/main/ets/view/AddSubscription.ets",
+            "buildFunction": "AddSubscriptionBuilder"
+        },
+        {
+            "name": "MonthlyReport",
+            "pageSourceFile": "src/main/ets/view/MonthlyReportPage.ets",
+            "buildFunction": "MonthlyReportPageBuilder"
+        },
+        {
+            "name": "Login",
+            "pageSourceFile": "src/main/ets/view/LoginPage.ets",
+            "buildFunction": "LoginPageBuilder"
+        },
+        {
+            "name": "EditSubscription",
+            "pageSourceFile": "src/main/ets/view/AddSubscription.ets",
+            "buildFunction": "AddSubscriptionBuilder"
+        },
+        {
+            "name": "About",
+            "pageSourceFile": "src/main/ets/view/AboutPage.ets",
+            "buildFunction": "AboutPageBuilder"
+        },
+        {
+            "name": "WebView",
+            "pageSourceFile": "src/main/ets/view/WebViewPage.ets",
+            "buildFunction": "WebViewPageBuilder"
+        },
+        {
+            "name": "OpenSourceLicense",
+            "pageSourceFile": "src/main/ets/view/OpenSourceLicenseView.ets",
+            "buildFunction": "OpenSourceLicenseBuilder"
+        },
+        {
+            "name": "AIConfig",
+            "pageSourceFile": "src/main/ets/view/AIConfigPage.ets",
+            "buildFunction": "AIConfigPageBuilder"
+        },
+        {
+            "name": "SubscriptionMarketplace",
+            "pageSourceFile": "src/main/ets/view/SubscriptionMarketplace.ets",
+            "buildFunction": "SubscriptionMarketplaceBuilder"
+        }
+    ]
+}

@@ -1,0 +1,12 @@
+{
+  "string": [
+    {
+      "name": "app_name",
+      "value": "记得订阅"
+    },
+    {
+      "name": "open_form_manager_button",
+      "value": "添加应用卡片到桌面"
+    }
+  ]
+}

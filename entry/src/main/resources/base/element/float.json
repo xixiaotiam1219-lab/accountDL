@@ -1,0 +1,24 @@
+{
+  "float": [
+    {
+      "name": "page_text_font_size",
+      "value": "50fp"
+    },
+    {
+      "name": "watermark_opacity_fu",
+      "value": "0.04"
+    },
+    {
+      "name": "watermark_opacity_icon",
+      "value": "0.12"
+    },
+    {
+      "name": "watermark_opacity_text",
+      "value": "0.15"
+    },
+    {
+      "name": "watermark_opacity_deco",
+      "value": "0.06"
+    }
+  ]
+}

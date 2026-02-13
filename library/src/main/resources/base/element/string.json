@@ -1,0 +1,56 @@
+{
+  "string": [
+    {
+      "name": "shared_desc",
+      "value": "订阅管理库"
+    },
+    {
+      "name": "widget_desc",
+      "value": "带悬浮按钮，支持快速查看列表并跳转新增界面。"
+    },
+    {
+      "name": "widget_display_name",
+      "value": "订阅列表 (标准版)"
+    },
+    {
+      "name": "widget_no_add_desc",
+      "value": "纯净列表展示，仅用于查看当前订阅到期状态。"
+    },
+    {
+      "name": "widget_no_add_display_name",
+      "value": "订阅列表 (纯净版)"
+    },
+    {
+      "name": "card_list_title",
+      "value": "订阅标题"
+    },
+    {
+      "name": "card_list_content",
+      "value": "订阅详情"
+    },
+    {
+      "name": "widget_4x4_display_name",
+      "value": "订阅列表 (详细版)"
+    },
+    {
+      "name": "widget_4x4_desc",
+      "value": "大尺寸展示更多订阅信息，包含费用与完整日期，支持快速新增。"
+    },
+    {
+      "name": "widget_no_add_4x4_display_name",
+      "value": "订阅列表 (详细纯净版)"
+    },
+    {
+      "name": "widget_no_add_4x4_desc",
+      "value": "大尺寸纯净列表，包含费用与完整日期展示。"
+    },
+    {
+      "name": "expense_widget_display_name",
+      "value": "订阅概览卡片"
+    },
+    {
+      "name": "expense_widget_desc",
+      "value": "显示本月预估支出及近期续费项"
+    }
+  ]
+}
