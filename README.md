@@ -38,7 +38,7 @@
 
 1. **环境准备**：
    - DevEco Studio 5.0.1 或更高版本。
-   - HarmonyOS SDK 版本：API 13 (6.0) 或更高版本。
+   - HarmonyOS SDK 版本：API 21 或更高版本。
 2. **运行步骤**：
    - 使用 DevEco Studio 打开项目。
    - 连接 HarmonyOS 真机或模拟器。
