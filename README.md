@@ -46,7 +46,7 @@
 
 ## 📝 许可证
 
-本项目遵循 [GitCode 远程许可证](https://gitcode.com/xxt1219/accountDL/tree/main?tab=license) 及项目内置的 [用户协议与开源许可](entry/src/main/resources/rawfile/user_agreement.html)。
+本项目遵循 [GitCode 远程许可证](https://gitcode.com/xxt1219/accountDL/tree/main?tab=license) 及项目内置的 [用户协议与开源许可](entry/src/main/resources/rawfile/user_agreement.md)。
 
 ---
 *由 ArkTS Antigravity 辅助构建。*
