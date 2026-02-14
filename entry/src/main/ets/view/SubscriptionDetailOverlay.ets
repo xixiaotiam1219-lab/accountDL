@@ -44,8 +44,20 @@ export struct SubscriptionDetailOverlay {
   }
 
   private async refreshData() {
-     if (this.data && this.data.uuid) {
-       const latest = await SubscriptionRepository.getInstance().findByUuid(this.data.uuid);
+     if (!this.data) return;
+     
+     const uuid = this.data.uuid;
+     const id = this.data.id;
+
+     if (uuid || id) {
+       let latest: SubscriptionModel | null = null;
+       if (uuid) {
+         latest = await SubscriptionRepository.getInstance().findByUuid(uuid);
+       }
+       if (!latest && id) {
+         latest = await SubscriptionRepository.getInstance().findById(id);
+       }
+
        if (latest) {
          this.data = latest;
        }
@@ -155,7 +167,7 @@ export struct SubscriptionDetailOverlay {
                     .fontSize(14)
                     .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.text_primary')))
                     .margin({ right: 4, top: 2 })
-                  Text(this.data.price.toFixed(2))
+                  Text((this.data.price || 0).toFixed(2))
                     .fontSize(24)
                     .fontWeight(FontWeight.Bold)
                     .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.text_primary')))

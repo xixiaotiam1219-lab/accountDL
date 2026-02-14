@@ -233,14 +233,24 @@ export default class EntryAbility extends UIAbility {
                           AppStorage.setOrCreate('targetSubscription', subData);
                           
                           // 2. 后台尝试更新数据 (虽然详情页也会自己刷新，这里更新以保持全局状态一致)
-                          if (subData.uuid) {
+                          const uuid = subData.uuid;
+                          const id = subData.id;
+
+                          if (uuid || id) {
                              // 异步执行，不阻塞 UI 启动
                              setTimeout(async () => {
                                  try {
                                      await SubscriptionRepository.getInstance().init(this.context);
-                                     const latestSub = await SubscriptionRepository.getInstance().findByUuid(subData.uuid);
+                                     let latestSub: SubscriptionModel | null = null;
+                                     if (uuid) {
+                                         latestSub = await SubscriptionRepository.getInstance().findByUuid(uuid);
+                                     }
+                                     if (!latestSub && id) {
+                                         latestSub = await SubscriptionRepository.getInstance().findById(id);
+                                     }
+
                                      if (latestSub) {
-                                         hilog.info(DOMAIN, 'testTag', `Async loaded latest data for UUID: ${subData.uuid}`);
+                                         hilog.info(DOMAIN, 'testTag', `Async loaded latest data for ${uuid ? 'UUID: ' + uuid : 'ID: ' + id}`);
                                          AppStorage.setOrCreate('targetSubscription', latestSub);
                                      }
                                  } catch (err) {

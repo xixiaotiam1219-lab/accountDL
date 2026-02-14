@@ -69,9 +69,15 @@ interface CloudSyncResponse {
  */
 export interface MinimalCardItem {
   id: number | string;
+  uuid?: string;
   recordType: 'subscription' | 'groupBuy';
   usageStatus: 'unused' | 'used' | 'expired';
   name: string;
+  price?: number;
+  currency?: string;
+  platform?: string;
+  merchantName?: string;
+  nextBillingDate?: number;
 }
 
 class SnapshotItem {
@@ -625,11 +631,35 @@ export class SubscriptionRepository {
     }
     
     resultSet.goToFirstRow();
+    const sub = this.mapResultSetToModel(resultSet);
+    resultSet.close();
+    return sub;
+  }
+
+  public async findById(id: number): Promise<SubscriptionModel | null> {
+    await this.ensureInitialized();
+    if (!this.rdbStore) return null;
     
+    const predicates = new relationalStore.RdbPredicates(TABLE_NAME);
+    predicates.equalTo('id', id);
+    
+    const resultSet = await this.rdbStore.query(predicates);
+    if (resultSet.rowCount === 0) {
+        resultSet.close();
+        return null;
+    }
+    
+    resultSet.goToFirstRow();
+    const sub = this.mapResultSetToModel(resultSet);
+    resultSet.close();
+    return sub;
+  }
+
+  private mapResultSetToModel(resultSet: relationalStore.ResultSet): SubscriptionModel {
     const reminderDaysIdx = resultSet.getColumnIndex('reminderDaysBefore');
     const reminderTimeIdx = resultSet.getColumnIndex('reminderTime');
 
-    const sub: SubscriptionModel = {
+    return {
         id: resultSet.getLong(resultSet.getColumnIndex('id')),
         uuid: resultSet.getString(resultSet.getColumnIndex('uuid')),
         name: resultSet.getString(resultSet.getColumnIndex('name')),
@@ -658,8 +688,6 @@ export class SubscriptionRepository {
         usageTime: resultSet.getColumnIndex('usageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageTime')) ? resultSet.getString(resultSet.getColumnIndex('usageTime')) : undefined,
         realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined
     };
-    resultSet.close();
-    return sub;
   }
 
   /**
@@ -695,9 +723,15 @@ export class SubscriptionRepository {
               
               const minimalItem: MinimalCardItem = {
                   id: item.id || 0,
+                  uuid: item.uuid,
                   recordType: item.recordType || 'subscription',
                   usageStatus: item.usageStatus || 'unused',
-                  name: item.name || ''
+                  name: item.name || '',
+                  price: item.price,
+                  currency: item.currency,
+                  platform: item.platform,
+                  merchantName: item.merchantName,
+                  nextBillingDate: item.nextBillingDate
               };
               snapshotItem.originalItem = JSON.stringify(minimalItem);
               return snapshotItem;
