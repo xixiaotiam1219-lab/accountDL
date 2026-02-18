@@ -7,15 +7,15 @@ import { AIVisionManager } from '../utils/AIVisionManager';
 import { common, Want, abilityAccessCtrl, Permissions } from '@kit.AbilityKit';
 import { DateUtil } from '../utils/DateUtil';
 import { resolveIcon, matchMemberService, MemberServiceConfig, searchMemberServices } from '../utils/MemberServiceConfig';
-import { PromptAction, window, display, promptAction, screenshot, curves } from '@kit.ArkUI';
+import { PromptAction, window, display, promptAction, screenshot, curves, LengthMetrics } from '@kit.ArkUI';
 import { util } from '@kit.ArkTS';
-import { BusinessError, Callback } from '@kit.BasicServicesKit';
+import { BusinessError, Callback, deviceInfo } from '@kit.BasicServicesKit';
 import { FloatingBallManager } from '../utils/FloatingBallManager';
 import { photoAccessHelper, PhotoSource, RecentPhotoComponent, RecentPhotoOptions, BaseItemInfo } from '@kit.MediaLibraryKit';
 import { image } from '@kit.ImageKit';
 
 import { fileIo } from '@kit.CoreFileKit';
-import { hdsEffect, HdsNavDestination } from '@kit.UIDesignKit';
+import { hdsEffect, hdsMaterial, HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
 import { ImageCropSheet } from './ImageCropPage';
 import { GlobalBus, EVENT_SYNC_COMPLETED } from '../utils/GlobalBus';
 import { SubscriptionIcon } from './SubscriptionIcon';
@@ -75,7 +75,7 @@ export struct AddSubscription {
   @State realUsageTime: number | undefined = undefined; // 实际核销时间戳
   @State isUsageTimePressed: boolean = false;
   @State usageTimeLight: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
-
+  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
   // 提醒设置
   @State isReminderEnabled: boolean = false;
   @State reminderDaysBefore: number = 1; // 默认提前1天
@@ -403,84 +403,114 @@ export struct AddSubscription {
     .height('100%')
     .backgroundColor($r('app.color.card_background'))
   }
-
-  build() {
-
-    HdsNavDestination() {
-      Stack({ alignContent: Alignment.Top }) {
-        // Universal Background Watermark
-        BackgroundWatermark()
-          .zIndex(0)
-        Scroll() {
+  @Builder addBuilder()
+  {
+    Stack({ alignContent: Alignment.Top }) {
+      // Universal Background Watermark
+      BackgroundWatermark()
+        .zIndex(0)
+      Scroll() {
+        Column() {
           Column() {
-            Column() {
-              Blank()
-                .height(TITLE_BAR_HEIGHT_MINI + this.getUIContext().px2vp(this.topRectHeight))
-            }
+            Blank()
+              .height(TITLE_BAR_HEIGHT_MINI + this.getUIContext().px2vp(this.topRectHeight))
+          }
 
-            // === 订阅/团购模式切换 ===
-            if (this.editId === -1) {
-              Row() {
-                Button() {
-                  Text("添加服务")
-                    .fontSize(14)
-                    .fontWeight(this.recordType === 'subscription' ? FontWeight.Bold : FontWeight.Normal)
-                    .fontColor(this.recordType === 'subscription' ?
-                      (this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
-                      $r('app.color.text_secondary'))
-                }
-                .linearGradient(this.recordType === 'subscription' ?
-                  (this.isNewYearTheme ? { angle: 135, colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]] } :
-                  (this.showVipTheme ? { angle: 135, colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]] } : undefined)) : undefined)
-                .backgroundColor(this.recordType === 'subscription' ?
-                  (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
-                  Color.Transparent)
-                .borderRadius(14)
-                .padding({ left: 20, right: 20, top: 6, bottom: 6 })
-                .onClick(() => {
-                  animateTo({ duration: this.isAnimationEnabled ? 300 : 0, curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear }, () => {
-                    if (this.recordType !== 'subscription') {
-                      this.clearFormData();
-                      this.recordType = 'subscription';
-                    }
-                  });
-                })
-
-                Button() {
-                  Text("添加团购")
-                    .fontSize(14)
-                    .fontWeight(this.recordType === 'groupBuy' ? FontWeight.Bold : FontWeight.Normal)
-                    .fontColor(this.recordType === 'groupBuy' ?
-                      (this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
-                      $r('app.color.text_secondary'))
-                }
-                .linearGradient(this.recordType === 'groupBuy' ?
-                  (this.isNewYearTheme ? { angle: 135, colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]] } :
-                  (this.showVipTheme ? { angle: 135, colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]] } : undefined)) : undefined)
-                .backgroundColor(this.recordType === 'groupBuy' ?
-                  (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
-                  Color.Transparent)
-                .borderRadius(14)
-                .padding({ left: 20, right: 20, top: 6, bottom: 6 })
-                .onClick(() => {
-                  animateTo({ duration: this.isAnimationEnabled ? 300 : 0, curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear }, () => {
-                    if ((this.recordType as string) !== 'groupBuy') {
-                      this.clearFormData();
-                      this.recordType = 'groupBuy';
-                    }
-                  });
-                })
+          // === 订阅/团购模式切换 ===
+          if (this.editId === -1) {
+            Row() {
+              Button() {
+                Text("添加服务")
+                  .fontSize(14)
+                  .fontWeight(this.recordType === 'subscription' ? FontWeight.Bold : FontWeight.Normal)
+                  .fontColor(this.recordType === 'subscription' ?
+                    (this.isNewYearTheme ? '#FFD700' :
+                      (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
+                    $r('app.color.text_secondary'))
               }
-              .backgroundColor($r('app.color.page_background'))
-              .borderRadius(16)
-              .padding(4)
-              .margin({ bottom: 24 })
-              .opacity(this.animStep1 ? 1 : 0)
-              .translate({ y: this.animStep1 ? 0 : 100 })
-              .scale({ x: this.animStep1 ? 1 : 0.9, y: this.animStep1 ? 1 : 0.9 })
-            }
+              .linearGradient(this.recordType === 'subscription' ?
+                (this.isNewYearTheme ? {
+                  angle: 135,
+                  colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
+                } :
+                  (this.showVipTheme ? {
+                    angle: 135,
+                    colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
+                  } : undefined)) : undefined)
+              .backgroundColor(this.recordType === 'subscription' ?
+                (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
+                Color.Transparent)
+              .borderRadius(14)
+              .padding({
+                left: 20,
+                right: 20,
+                top: 6,
+                bottom: 6
+              })
+              .onClick(() => {
+                animateTo({
+                  duration: this.isAnimationEnabled ? 300 : 0,
+                  curve: this.isAnimationEnabled ?
+                    curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
+                }, () => {
+                  if (this.recordType !== 'subscription') {
+                    this.clearFormData();
+                    this.recordType = 'subscription';
+                  }
+                });
+              })
 
-            // 1. OCR 智能扫描区 - 双按钮布局
+              Button() {
+                Text("添加团购")
+                  .fontSize(14)
+                  .fontWeight(this.recordType === 'groupBuy' ? FontWeight.Bold : FontWeight.Normal)
+                  .fontColor(this.recordType === 'groupBuy' ?
+                    (this.isNewYearTheme ? '#FFD700' :
+                      (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
+                    $r('app.color.text_secondary'))
+              }
+              .linearGradient(this.recordType === 'groupBuy' ?
+                (this.isNewYearTheme ? {
+                  angle: 135,
+                  colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
+                } :
+                  (this.showVipTheme ? {
+                    angle: 135,
+                    colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
+                  } : undefined)) : undefined)
+              .backgroundColor(this.recordType === 'groupBuy' ?
+                (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
+                Color.Transparent)
+              .borderRadius(14)
+              .padding({
+                left: 20,
+                right: 20,
+                top: 6,
+                bottom: 6
+              })
+              .onClick(() => {
+                animateTo({
+                  duration: this.isAnimationEnabled ? 300 : 0,
+                  curve: this.isAnimationEnabled ?
+                    curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
+                }, () => {
+                  if ((this.recordType as string) !== 'groupBuy') {
+                    this.clearFormData();
+                    this.recordType = 'groupBuy';
+                  }
+                });
+              })
+            }
+            .backgroundColor($r('app.color.page_background'))
+            .borderRadius(16)
+            .padding(4)
+            .margin({ bottom: 24 })
+            .opacity(this.animStep1 ? 1 : 0)
+            .translate({ y: this.animStep1 ? 0 : 100 })
+            .scale({ x: this.animStep1 ? 1 : 0.9, y: this.animStep1 ? 1 : 0.9 })
+          }
+
+          // 1. OCR 智能扫描区 - 双按钮布局
           if (!this.hasApiKey) {
             Row() {
               SymbolGlyph($r('sys.symbol.info_circle'))
@@ -518,12 +548,14 @@ export struct AddSubscription {
                 } else {
                   SymbolGlyph($r('sys.symbol.camera_fill'))
                     .fontSize(18)
-                    .fontColor([this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)])
+                    .fontColor([this.isNewYearTheme ? '#FFD700' :
+                      (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)])
                     .margin({ right: 6 })
                   Text("相册/拍照")
                     .fontSize(15)
                     .fontWeight(FontWeight.Medium)
-                    .fontColor(this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White))
+                    .fontColor(this.isNewYearTheme ? '#FFD700' :
+                      (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White))
                 }
               }
               .justifyContent(FlexAlign.Center)
@@ -551,12 +583,15 @@ export struct AddSubscription {
               })
               .buildEffect())
             .scale({ x: this.isImagePickerPressed ? 0.98 : 1, y: this.isImagePickerPressed ? 0.98 : 1 })
-            .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
+            .animation({
+              duration: this.isAnimationEnabled ? 150 : 0,
+              curve: curves.springMotion(this.animationResponse, this.animationDamping)
+            })
             .onTouch((event: TouchEvent) => {
               if (event.type === TouchType.Down) {
                 if (this.isAnimationEnabled && this.isPointLightEnabled) {
-                    this.isImagePickerPressed = true;
-                    this.imagePickerLight = hdsEffect.PointLightSourceType.BRIGHT;
+                  this.isImagePickerPressed = true;
+                  this.imagePickerLight = hdsEffect.PointLightSourceType.BRIGHT;
                 }
               } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
                 this.isImagePickerPressed = false;
@@ -564,145 +599,314 @@ export struct AddSubscription {
               }
             })
             .onClick(async () => {
-               let pixelMap: image.PixelMap | undefined = undefined;
-               let imageUri: string | undefined = undefined;
-               try {
-                 const pickResult = await OCRManager.getInstance().pickImageWithUri();
-                 if (!pickResult) return;
-                 pixelMap = pickResult.pixelMap;
-                 imageUri = pickResult.uri;
+              let pixelMap: image.PixelMap | undefined = undefined;
+              let imageUri: string | undefined = undefined;
+              try {
+                const pickResult = await OCRManager.getInstance().pickImageWithUri();
+                if (!pickResult) {
+                  return;
+                }
+                pixelMap = pickResult.pixelMap;
+                imageUri = pickResult.uri;
 
-                 // 使用动画包裹状态变化 - 清空所有 OCR 相关状态
-                 animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) }, () => {
-                   this.ocrMonthlyPrice = '';
-                   this.ocrQuarterlyPrice = '';
-                   this.ocrYearlyPrice = '';
-                   this.ocrLifetimePrice = '';
-                   this.showOCRResult = false;
-                   this.ocrExpireDate = '';
-                   this.icon = '';
-                   this.price = '';
-                   this.subCategory = '';
-                   this.couponImage = ''; // Clear image
-                   this.availableSubCategories = [];
+                // 使用动画包裹状态变化 - 清空所有 OCR 相关状态
+                animateTo({
+                  duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                  curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                }, () => {
+                  this.ocrMonthlyPrice = '';
+                  this.ocrQuarterlyPrice = '';
+                  this.ocrYearlyPrice = '';
+                  this.ocrLifetimePrice = '';
+                  this.showOCRResult = false;
+                  this.ocrExpireDate = '';
+                  this.icon = '';
+                  this.price = '';
+                  this.subCategory = '';
+                  this.couponImage = ''; // Clear image
+                  this.availableSubCategories = [];
 
-                   this.name = '';
-                   this.category = '其他';
-                 });
+                  this.name = '';
+                  this.category = '其他';
+                });
 
-                 this.isOCRLoading = true;
+                this.isOCRLoading = true;
 
-                  // 优先使用 AI 识别
-                 const result = await AIVisionManager.getInstance().recognizeSubscription(pixelMap);
+                // 优先使用 AI 识别
+                const result = await AIVisionManager.getInstance().recognizeSubscription(pixelMap);
 
-                  animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: curves.springMotion(0.4, 0.8) }, () => {
-                    // 检查是否是首次识别（在更新价格之前）
-                    const isFirstScan = !this.ocrMonthlyPrice && !this.ocrQuarterlyPrice && !this.ocrYearlyPrice && !this.ocrLifetimePrice;
+                animateTo({
+                  duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                  curve: curves.springMotion(0.4, 0.8)
+                }, () => {
+                  // 检查是否是首次识别（在更新价格之前）
+                  const isFirstScan = !this.ocrMonthlyPrice && !this.ocrQuarterlyPrice && !this.ocrYearlyPrice &&
+                    !this.ocrLifetimePrice;
 
-                    // 更新价格信息
+                  // 更新价格信息
+                  this.ocrMonthlyPrice = result.monthlyPrice ? result.monthlyPrice.toString() : '';
+                  this.ocrQuarterlyPrice = result.quarterlyPrice ? result.quarterlyPrice.toString() : '';
+                  this.ocrYearlyPrice = result.yearlyPrice ? result.yearlyPrice.toString() : '';
+                  this.ocrLifetimePrice = result.lifetimePrice ? result.lifetimePrice.toString() : '';
+
+                  hilog.info(0x0000, 'AddSubscription',
+                    `AI OCR Prices - Monthly: ${this.ocrMonthlyPrice}, Quarterly: ${this.ocrQuarterlyPrice}, Yearly: ${this.ocrYearlyPrice}, Lifetime: ${this.ocrLifetimePrice}`);
+
+                  // 只在首次识别时采用 AI 推断的周期，后续保留用户选择
+                  if (isFirstScan) {
+                    if (result.billingCycle) {
+                      this.billingCycle = result.billingCycle;
+                    } else if (result.yearlyPrice && !result.monthlyPrice && !result.quarterlyPrice) {
+                      this.billingCycle = 'Yearly';
+                    } else if (result.monthlyPrice && !result.yearlyPrice && !result.quarterlyPrice) {
+                      this.billingCycle = 'Monthly';
+                    }
+                  }
+
+                  // 根据当前选中的周期填充对应价格
+                  if (this.billingCycle === 'Monthly' && this.ocrMonthlyPrice) {
+                    this.price = this.ocrMonthlyPrice;
+                  } else if (this.billingCycle === 'Quarterly' && this.ocrQuarterlyPrice) {
+                    this.price = this.ocrQuarterlyPrice;
+                  } else if (this.billingCycle === 'Yearly' && this.ocrYearlyPrice) {
+                    this.price = this.ocrYearlyPrice;
+                  } else if (this.billingCycle === 'Lifetime' && this.ocrLifetimePrice) {
+                    this.price = this.ocrLifetimePrice;
+                  } else if (result.price) {
+                    this.price = result.price.toString();
+                  }
+
+                  // 更新分类和会员等级 (独立于应用名称)
+                  if (result.category) {
+                    this.category = result.category;
+                  }
+                  if (result.subCategory) {
+                    this.subCategory = result.subCategory;
+                    hilog.info(0x0000, 'AddSubscription', `AI Detected SubCategory: ${result.subCategory}`);
+                  } else {
+                    this.subCategory = '';
+                  }
+
+                  // 更新名称和图标
+                  if (result.appName) {
+                    this.isAIProtected = true; // 关键：开启保护，允许后续 searchHuaweiApps 自动匹配图标和分类，但禁止其覆盖识别出的精准等级
+                    this.name = result.appName;
+                    this.icon = result.serviceIcon || '';
+
+                    // Update available sub-categories based on recognized name
+                    const service = matchMemberService(this.name);
+                    if (service) {
+                      if (service.validSubCategories) {
+                        this.availableSubCategories = service.validSubCategories;
+                      } else {
+                        this.availableSubCategories = [];
+                      }
+
+                      // [Fix] Enforce Fixed Billing Cycle & Default Price (Override AI errors like "285")
+                      if (service.fixedBillingCycle) {
+                        hilog.info(0x0000, 'AddSubscription',
+                          `Enforcing fixed billing cycle: ${service.fixedBillingCycle} for ${service.name}`);
+                        this.billingCycle = service.fixedBillingCycle;
+
+                        // Re-evaluate price based on the enforced cycle
+                        let enforcedPrice = '';
+                        if (this.billingCycle === 'Yearly') {
+                          if (this.ocrYearlyPrice && parseFloat(this.ocrYearlyPrice) > 0) {
+                            enforcedPrice = this.ocrYearlyPrice;
+                          }
+                        } else if (this.billingCycle === 'Quarterly') {
+                          if (this.ocrQuarterlyPrice && parseFloat(this.ocrQuarterlyPrice) > 0) {
+                            enforcedPrice = this.ocrQuarterlyPrice;
+                          }
+                        } else if (this.billingCycle === 'Monthly') {
+                          if (this.ocrMonthlyPrice && parseFloat(this.ocrMonthlyPrice) > 0) {
+                            enforcedPrice = this.ocrMonthlyPrice;
+                          }
+                        }
+
+                        // If no valid price found for the enforced cycle, or if we want to be strict
+                        // Use default price if available and currently found price is empty OR looks suspicious (e.g. absent)
+                        if (!enforcedPrice && service.defaultPrice) {
+                          enforcedPrice = service.defaultPrice.toString();
+                          hilog.info(0x0000, 'AddSubscription',
+                            `Applied default price ${enforcedPrice} because specific cycle price was missing.`);
+                        }
+
+                        // Apply the enforced price
+                        if (enforcedPrice) {
+                          this.price = enforcedPrice;
+                        }
+                      }
+                    } else {
+                      this.availableSubCategories = [];
+                    }
+
+                    this.showOCRResult = true;
+                  } else {
+                    this.name = '';
+                    this.icon = '';
+                    this.showOCRResult = false;
+                    this.availableSubCategories = [];
+                  }
+
+                  // 更新日期
+                  if (result.date) {
+                    this.nextBillingDate = new Date(result.date);
+                    this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
+
+                    // [Smart Inference] 根据到期日反推开始日期
+                    const inferredStart = new Date(this.nextBillingDate);
+                    if (this.billingCycle === 'Monthly') {
+                      // [Rule] 月付按 30 天推算 (用户指定逻辑: Expiration - 30 days)
+                      inferredStart.setDate(inferredStart.getDate() - 30);
+                    } else if (this.billingCycle === 'Quarterly') {
+                      inferredStart.setMonth(inferredStart.getMonth() - 3);
+                    } else if (this.billingCycle === 'Yearly') {
+                      inferredStart.setFullYear(inferredStart.getFullYear() - 1);
+                    } else if (this.billingCycle === 'Lifetime') {
+                      // Lifetime: nextBillingDate is effectively purchase date
+                    }
+                    this.startDate = inferredStart;
+
+                  } else {
+                    // 默认过期时间逻辑
+                    const target = new Date();
+
+                    const sDate = new Date(); // Default start date is today for new entries without date
+
+                    if (this.billingCycle === 'Yearly' ||
+                      (result.yearlyPrice && !result.monthlyPrice && !result.quarterlyPrice)) {
+                      target.setFullYear(target.getFullYear() + 1);
+                    } else if (this.billingCycle === 'Quarterly' ||
+                      (result.quarterlyPrice && !result.monthlyPrice && !result.yearlyPrice)) {
+                      target.setMonth(target.getMonth() + 3);
+                    } else {
+                      target.setMonth(target.getMonth() + 1);
+                    }
+
+                    this.nextBillingDate = target;
+                    this.startDate = sDate; // Set start date to today if no date found
+                    this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
+                  }
+                });
+
+                this.isOCRLoading = false;
+                this.promptAction.showToast({ message: `AI识别完成` });
+
+              } catch (e) {
+                // 级联兜底: AI 失败后尝试本地 OCR
+                console.error('AI识别失败，切换本地OCR:', JSON.stringify(e));
+                this.promptAction.showToast({ message: 'AI服务繁忙，正在使用本地引擎...' });
+
+                try {
+                  if (!pixelMap) {
+                    throw new Error('Image data not available');
+                  }
+                  if (!pixelMap) {
+                    throw new Error('Image data not available');
+                  }
+                  let text = await OCRManager.getInstance().recognizeText(pixelMap);
+                  if (!text) {
+                    throw new Error('本地OCR未识别到文字');
+                  }
+
+                  let result: OCRResult;
+                  if (this.recordType === 'groupBuy') {
+                    result = GroupBuyOCRManager.getInstance().parseText(text);
+                  } else {
+                    result = OCRManager.getInstance().parseText(text);
+                  }
+
+                  animateTo({
+                    duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                    curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                  }, () => {
+                    // Group Buy Specific Logic
+                    if (this.recordType === 'groupBuy') {
+                      if (result.merchantName) {
+                        this.merchantName = result.merchantName;
+                      }
+                      if (result.appName) {
+                        this.name = result.appName;
+                      } // Project Name
+                      if (result.couponCode) {
+                        this.couponCode = result.couponCode;
+                      }
+                      if (result.platform) {
+                        this.platform = result.platform;
+                      }
+
+                      if (result.price) {
+                        this.price = result.price.toString();
+                      }
+
+                      if (result.date) {
+                        this.nextBillingDate = new Date(result.date);
+                        this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
+                        this.startDate = new Date(); // Start date essentially now for coupon
+                      }
+
+                      this.isOCRLoading = false;
+                      this.promptAction.showToast({ message: '团购券识别完成' });
+                      return;
+                    }
+
+                    // Existing Subscription Logic
+                    // 更新基本信息
                     this.ocrMonthlyPrice = result.monthlyPrice ? result.monthlyPrice.toString() : '';
                     this.ocrQuarterlyPrice = result.quarterlyPrice ? result.quarterlyPrice.toString() : '';
                     this.ocrYearlyPrice = result.yearlyPrice ? result.yearlyPrice.toString() : '';
                     this.ocrLifetimePrice = result.lifetimePrice ? result.lifetimePrice.toString() : '';
 
-                    hilog.info(0x0000, 'AddSubscription', `AI OCR Prices - Monthly: ${this.ocrMonthlyPrice}, Quarterly: ${this.ocrQuarterlyPrice}, Yearly: ${this.ocrYearlyPrice}, Lifetime: ${this.ocrLifetimePrice}`);
-
-                    // 只在首次识别时采用 AI 推断的周期，后续保留用户选择
-                    if (isFirstScan) {
-                      if (result.billingCycle) {
-                        this.billingCycle = result.billingCycle;
-                      } else if (result.yearlyPrice && !result.monthlyPrice && !result.quarterlyPrice) {
-                         this.billingCycle = 'Yearly';
-                      } else if (result.monthlyPrice && !result.yearlyPrice && !result.quarterlyPrice) {
-                         this.billingCycle = 'Monthly';
-                      }
+                    // 周期推断
+                    if (result.billingCycle) {
+                      this.billingCycle = result.billingCycle;
+                    } else if (result.yearlyPrice && !result.monthlyPrice) {
+                      this.billingCycle = 'Yearly';
+                    } else if (result.monthlyPrice && !result.yearlyPrice) {
+                      this.billingCycle = 'Monthly';
                     }
 
-                    // 根据当前选中的周期填充对应价格
-                    if (this.billingCycle === 'Monthly' && this.ocrMonthlyPrice) {
-                      this.price = this.ocrMonthlyPrice;
-                    } else if (this.billingCycle === 'Quarterly' && this.ocrQuarterlyPrice) {
-                      this.price = this.ocrQuarterlyPrice;
-                    } else if (this.billingCycle === 'Yearly' && this.ocrYearlyPrice) {
-                      this.price = this.ocrYearlyPrice;
-                    } else if (this.billingCycle === 'Lifetime' && this.ocrLifetimePrice) {
-                      this.price = this.ocrLifetimePrice;
+                    // 价格填充
+                    if (this.billingCycle === 'Monthly' && result.monthlyPrice) {
+                      this.price = result.monthlyPrice.toString();
+                    } else if (this.billingCycle === 'Quarterly' && result.quarterlyPrice) {
+                      this.price = result.quarterlyPrice.toString();
+                    } else if (this.billingCycle === 'Yearly' && result.yearlyPrice) {
+                      this.price = result.yearlyPrice.toString();
+                    } else if (this.billingCycle === 'Lifetime' && result.lifetimePrice) {
+                      this.price = result.lifetimePrice.toString();
                     } else if (result.price) {
                       this.price = result.price.toString();
                     }
 
-                    // 更新分类和会员等级 (独立于应用名称)
+                    // 元数据
                     if (result.category) {
                       this.category = result.category;
                     }
                     if (result.subCategory) {
-                       this.subCategory = result.subCategory;
-                       hilog.info(0x0000, 'AddSubscription', `AI Detected SubCategory: ${result.subCategory}`);
+                      this.subCategory = result.subCategory;
                     } else {
-                       this.subCategory = '';
+                      this.subCategory = '';
                     }
 
-                    // 更新名称和图标
                     if (result.appName) {
-                      this.isAIProtected = true; // 关键：开启保护，允许后续 searchHuaweiApps 自动匹配图标和分类，但禁止其覆盖识别出的精准等级
                       this.name = result.appName;
                       this.icon = result.serviceIcon || '';
+                      this.showOCRResult = true;
 
-                      // Update available sub-categories based on recognized name
                       const service = matchMemberService(this.name);
-                      if (service) {
-                         if (service.validSubCategories) {
-                           this.availableSubCategories = service.validSubCategories;
-                         } else {
-                           this.availableSubCategories = [];
-                         }
-
-                         // [Fix] Enforce Fixed Billing Cycle & Default Price (Override AI errors like "285")
-                         if (service.fixedBillingCycle) {
-                            hilog.info(0x0000, 'AddSubscription', `Enforcing fixed billing cycle: ${service.fixedBillingCycle} for ${service.name}`);
-                            this.billingCycle = service.fixedBillingCycle;
-
-                            // Re-evaluate price based on the enforced cycle
-                            let enforcedPrice = '';
-                            if (this.billingCycle === 'Yearly') {
-                               if (this.ocrYearlyPrice && parseFloat(this.ocrYearlyPrice) > 0) {
-                                  enforcedPrice = this.ocrYearlyPrice;
-                               }
-                            } else if (this.billingCycle === 'Quarterly') {
-                               if (this.ocrQuarterlyPrice && parseFloat(this.ocrQuarterlyPrice) > 0) {
-                                  enforcedPrice = this.ocrQuarterlyPrice;
-                               }
-                            } else if (this.billingCycle === 'Monthly') {
-                               if (this.ocrMonthlyPrice && parseFloat(this.ocrMonthlyPrice) > 0) {
-                                  enforcedPrice = this.ocrMonthlyPrice;
-                               }
-                            }
-
-                            // If no valid price found for the enforced cycle, or if we want to be strict
-                            // Use default price if available and currently found price is empty OR looks suspicious (e.g. absent)
-                            if (!enforcedPrice && service.defaultPrice) {
-                               enforcedPrice = service.defaultPrice.toString();
-                               hilog.info(0x0000, 'AddSubscription', `Applied default price ${enforcedPrice} because specific cycle price was missing.`);
-                            }
-
-                            // Apply the enforced price
-                            if (enforcedPrice) {
-                               this.price = enforcedPrice;
-                            }
-                         }
+                      if (service && service.validSubCategories) {
+                        this.availableSubCategories = service.validSubCategories;
                       } else {
                         this.availableSubCategories = [];
                       }
-
-                      this.showOCRResult = true;
                     } else {
-                      this.name = '';
-                      this.icon = '';
                       this.showOCRResult = false;
                       this.availableSubCategories = [];
                     }
 
-                    // 更新日期
+                    // 日期
                     if (result.date) {
                       this.nextBillingDate = new Date(result.date);
                       this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
@@ -716,168 +920,26 @@ export struct AddSubscription {
                         inferredStart.setMonth(inferredStart.getMonth() - 3);
                       } else if (this.billingCycle === 'Yearly') {
                         inferredStart.setFullYear(inferredStart.getFullYear() - 1);
-                      } else if (this.billingCycle === 'Lifetime') {
-                        // Lifetime: nextBillingDate is effectively purchase date
                       }
                       this.startDate = inferredStart;
 
                     } else {
-                      // 默认过期时间逻辑
                       const target = new Date();
-
-                      const sDate = new Date(); // Default start date is today for new entries without date
-
-                      if (this.billingCycle === 'Yearly' || (result.yearlyPrice && !result.monthlyPrice && !result.quarterlyPrice)) {
-                         target.setFullYear(target.getFullYear() + 1);
-                      } else if (this.billingCycle === 'Quarterly' || (result.quarterlyPrice && !result.monthlyPrice && !result.yearlyPrice)) {
-                         target.setMonth(target.getMonth() + 3);
-                      } else {
-                         target.setMonth(target.getMonth() + 1);
-                      }
-
+                      this.startDate = new Date(); // Default today if no date found
+                      target.setDate(target.getDate() + 31);
                       this.nextBillingDate = target;
-                      this.startDate = sDate; // Set start date to today if no date found
                       this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
                     }
                   });
 
                   this.isOCRLoading = false;
-                  this.promptAction.showToast({ message: `AI识别完成` });
+                  this.promptAction.showToast({ message: '本地识别完成' });
 
-                 } catch (e) {
-                   // 级联兜底: AI 失败后尝试本地 OCR
-                   console.error('AI识别失败，切换本地OCR:', JSON.stringify(e));
-                   this.promptAction.showToast({ message: 'AI服务繁忙，正在使用本地引擎...' });
-
-                   try {
-                     if (!pixelMap) {
-                        throw new Error('Image data not available');
-                     }
-                     if (!pixelMap) {
-                        throw new Error('Image data not available');
-                     }
-                     let text = await OCRManager.getInstance().recognizeText(pixelMap);
-                     if (!text) {
-                       throw new Error('本地OCR未识别到文字');
-                     }
-
-                     let result: OCRResult;
-                     if (this.recordType === 'groupBuy') {
-                        result = GroupBuyOCRManager.getInstance().parseText(text);
-                     } else {
-                        result = OCRManager.getInstance().parseText(text);
-                     }
-
-                     animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) }, () => {
-                        // Group Buy Specific Logic
-                        if (this.recordType === 'groupBuy') {
-                           if (result.merchantName) this.merchantName = result.merchantName;
-                           if (result.appName) this.name = result.appName; // Project Name
-                           if (result.couponCode) this.couponCode = result.couponCode;
-                           if (result.platform) this.platform = result.platform;
-
-                           if (result.price) this.price = result.price.toString();
-
-                           if (result.date) {
-                              this.nextBillingDate = new Date(result.date);
-                              this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
-                              this.startDate = new Date(); // Start date essentially now for coupon
-                           }
-
-                           this.isOCRLoading = false;
-                           this.promptAction.showToast({ message: '团购券识别完成' });
-                           return;
-                        }
-
-                        // Existing Subscription Logic
-                        // 更新基本信息
-                        this.ocrMonthlyPrice = result.monthlyPrice ? result.monthlyPrice.toString() : '';
-                        this.ocrQuarterlyPrice = result.quarterlyPrice ? result.quarterlyPrice.toString() : '';
-                        this.ocrYearlyPrice = result.yearlyPrice ? result.yearlyPrice.toString() : '';
-                        this.ocrLifetimePrice = result.lifetimePrice ? result.lifetimePrice.toString() : '';
-
-                        // 周期推断
-                        if (result.billingCycle) {
-                          this.billingCycle = result.billingCycle;
-                        } else if (result.yearlyPrice && !result.monthlyPrice) {
-                           this.billingCycle = 'Yearly';
-                        } else if (result.monthlyPrice && !result.yearlyPrice) {
-                           this.billingCycle = 'Monthly';
-                        }
-
-                        // 价格填充
-                        if (this.billingCycle === 'Monthly' && result.monthlyPrice) {
-                          this.price = result.monthlyPrice.toString();
-                        } else if (this.billingCycle === 'Quarterly' && result.quarterlyPrice) {
-                           this.price = result.quarterlyPrice.toString();
-                        } else if (this.billingCycle === 'Yearly' && result.yearlyPrice) {
-                          this.price = result.yearlyPrice.toString();
-                        } else if (this.billingCycle === 'Lifetime' && result.lifetimePrice) {
-                           this.price = result.lifetimePrice.toString();
-                        } else if (result.price) {
-                          this.price = result.price.toString();
-                        }
-
-                        // 元数据
-                        if (result.category) {
-                          this.category = result.category;
-                        }
-                        if (result.subCategory) {
-                           this.subCategory = result.subCategory;
-                        } else {
-                           this.subCategory = '';
-                        }
-
-                        if (result.appName) {
-                          this.name = result.appName;
-                          this.icon = result.serviceIcon || '';
-                          this.showOCRResult = true;
-
-                          const service = matchMemberService(this.name);
-                          if (service && service.validSubCategories) {
-                            this.availableSubCategories = service.validSubCategories;
-                          } else {
-                            this.availableSubCategories = [];
-                          }
-                        } else {
-                            this.showOCRResult = false;
-                            this.availableSubCategories = [];
-                        }
-
-                        // 日期
-                        if (result.date) {
-                          this.nextBillingDate = new Date(result.date);
-                          this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
-
-                          // [Smart Inference] 根据到期日反推开始日期
-                          const inferredStart = new Date(this.nextBillingDate);
-                          if (this.billingCycle === 'Monthly') {
-                             // [Rule] 月付按 30 天推算 (用户指定逻辑: Expiration - 30 days)
-                            inferredStart.setDate(inferredStart.getDate() - 30);
-                          } else if (this.billingCycle === 'Quarterly') {
-                            inferredStart.setMonth(inferredStart.getMonth() - 3);
-                          } else if (this.billingCycle === 'Yearly') {
-                            inferredStart.setFullYear(inferredStart.getFullYear() - 1);
-                          }
-                          this.startDate = inferredStart;
-
-                        } else {
-                          const target = new Date();
-                          this.startDate = new Date(); // Default today if no date found
-                          target.setDate(target.getDate() + 31);
-                          this.nextBillingDate = target;
-                          this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
-                        }
-                     });
-
-                     this.isOCRLoading = false;
-                     this.promptAction.showToast({ message: '本地识别完成' });
-
-                   } catch (ocrError) {
-                     this.isOCRLoading = false;
-                     this.promptAction.showToast({ message: '识别失败，请手动输入' });
-                   }
-                 }
+                } catch (ocrError) {
+                  this.isOCRLoading = false;
+                  this.promptAction.showToast({ message: '识别失败，请手动输入' });
+                }
+              }
             })
 
             // 按钮 B: 闪控球截图
@@ -885,12 +947,16 @@ export struct AddSubscription {
               Row() {
                 SymbolGlyph($r('sys.symbol.crop'))
                   .fontSize(18)
-                  .fontColor([this.isOCRLoading ? $r('app.color.text_secondary') : (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))])
+                  .fontColor([this.isOCRLoading ? $r('app.color.text_secondary') :
+                    (this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                      (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))])
                   .margin({ right: 6 })
                 Text("闪控截屏")
                   .fontSize(15)
                   .fontWeight(FontWeight.Medium)
-                  .fontColor(this.isOCRLoading ? $r('app.color.text_secondary') : (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))))
+                  .fontColor(this.isOCRLoading ? $r('app.color.text_secondary') :
+                    (this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                      (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))))
               }
               .justifyContent(FlexAlign.Center)
             }
@@ -907,12 +973,15 @@ export struct AddSubscription {
               })
               .buildEffect())
             .scale({ x: this.isFlashBallPressed ? 0.98 : 1, y: this.isFlashBallPressed ? 0.98 : 1 })
-            .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
+            .animation({
+              duration: this.isAnimationEnabled ? 150 : 0,
+              curve: curves.springMotion(this.animationResponse, this.animationDamping)
+            })
             .onTouch((event: TouchEvent) => {
               if (event.type === TouchType.Down) {
                 if (this.isAnimationEnabled && this.isPointLightEnabled) {
-                    this.isFlashBallPressed = true;
-                    this.flashBallLight = hdsEffect.PointLightSourceType.BRIGHT;
+                  this.isFlashBallPressed = true;
+                  this.flashBallLight = hdsEffect.PointLightSourceType.BRIGHT;
                 }
               } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
                 this.isFlashBallPressed = false;
@@ -942,7 +1011,7 @@ export struct AddSubscription {
                 iconRadius: 14,
                 showGroupBadge: true
               })
-              .margin({ right: 16 })
+                .margin({ right: 16 })
 
               // 2. 信息区
               Column() {
@@ -969,7 +1038,8 @@ export struct AddSubscription {
                 Text(`${this.currency}${this.price || '0.00'}`)
                   .fontSize(18)
                   .fontWeight(FontWeight.Bold)
-                  .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                  .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                    (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
               }
               .alignItems(HorizontalAlign.End)
               .flexShrink(0)
@@ -980,9 +1050,10 @@ export struct AddSubscription {
             .borderRadius(16)
             .shadow({ radius: 20, color: '#08000000', offsetY: 4 })
             .margin({ bottom: 20 })
-            .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).animation({ 
-              duration: this.isAnimationEnabled ? undefined : 0, 
-              curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear 
+            .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).animation({
+              duration: this.isAnimationEnabled ? undefined : 0,
+              curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) :
+                Curve.Linear
             }))
 
             // ========== 团购券专用表单 (优化版) ==========
@@ -992,7 +1063,8 @@ export struct AddSubscription {
                 Row() {
                   SymbolGlyph($r('sys.symbol.ticket_fill'))
                     .fontSize(18)
-                    .fontColor([this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
+                    .fontColor([this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                      (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
                     .margin({ right: 8 })
                   Text(this.recordType === 'groupBuy' ? "团购详情" : "订阅详情")
                     .fontSize(16)
@@ -1003,6 +1075,7 @@ export struct AddSubscription {
                 .alignItems(VerticalAlign.Top)
                 .justifyContent(FlexAlign.Start)
                 .margin({ bottom: 4 })
+
                 // 1. 平台选择
                 Row() {
                   Text("所属平台")
@@ -1011,64 +1084,112 @@ export struct AddSubscription {
                   Blank()
                   Row({ space: 8 }) {
                     Button() {
-                       Text("美团")
-                         .fontSize(13)
-                         .fontColor(this.platform === 'meituan' ?
-                           (this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
-                           $r('app.color.text_secondary'))
+                      Text("美团")
+                        .fontSize(13)
+                        .fontColor(this.platform === 'meituan' ?
+                          (this.isNewYearTheme ? '#FFD700' :
+                            (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
+                          $r('app.color.text_secondary'))
                     }
                     .linearGradient(this.platform === 'meituan' ?
-                      (this.isNewYearTheme ? { angle: 135, colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]] } :
-                      (this.showVipTheme ? { angle: 135, colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]] } : undefined)) : undefined)
+                      (this.isNewYearTheme ? {
+                        angle: 135,
+                        colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
+                      } :
+                        (this.showVipTheme ? {
+                          angle: 135,
+                          colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
+                        } : undefined)) : undefined)
                     .backgroundColor(this.platform === 'meituan' ?
                       (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
                       $r('app.color.card_background'))
                     .borderRadius(14)
-                    .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+                    .padding({
+                      left: 14,
+                      right: 14,
+                      top: 6,
+                      bottom: 6
+                    })
                     .onClick(() => {
-                      animateTo({ duration: this.isAnimationEnabled ? 200 : 0, curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear }, () => {
+                      animateTo({
+                        duration: this.isAnimationEnabled ? 200 : 0,
+                        curve: this.isAnimationEnabled ?
+                          curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
+                      }, () => {
                         this.platform = 'meituan';
                       });
                     })
 
                     Button() {
-                       Text("抖音")
-                         .fontSize(13)
-                         .fontColor(this.platform === 'douyin' ?
-                           (this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
-                           $r('app.color.text_secondary'))
+                      Text("抖音")
+                        .fontSize(13)
+                        .fontColor(this.platform === 'douyin' ?
+                          (this.isNewYearTheme ? '#FFD700' :
+                            (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
+                          $r('app.color.text_secondary'))
                     }
                     .linearGradient(this.platform === 'douyin' ?
-                      (this.isNewYearTheme ? { angle: 135, colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]] } :
-                      (this.showVipTheme ? { angle: 135, colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]] } : undefined)) : undefined)
+                      (this.isNewYearTheme ? {
+                        angle: 135,
+                        colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
+                      } :
+                        (this.showVipTheme ? {
+                          angle: 135,
+                          colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
+                        } : undefined)) : undefined)
                     .backgroundColor(this.platform === 'douyin' ?
                       (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
                       $r('app.color.card_background'))
                     .borderRadius(14)
-                    .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+                    .padding({
+                      left: 14,
+                      right: 14,
+                      top: 6,
+                      bottom: 6
+                    })
                     .onClick(() => {
-                      animateTo({ duration: this.isAnimationEnabled ? 200 : 0, curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear }, () => {
+                      animateTo({
+                        duration: this.isAnimationEnabled ? 200 : 0,
+                        curve: this.isAnimationEnabled ?
+                          curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
+                      }, () => {
                         this.platform = 'douyin';
                       });
                     })
 
                     Button() {
-                       Text("大众点评")
-                         .fontSize(13)
-                         .fontColor(this.platform === 'dianping' ?
-                           (this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
-                           $r('app.color.text_secondary'))
+                      Text("大众点评")
+                        .fontSize(13)
+                        .fontColor(this.platform === 'dianping' ?
+                          (this.isNewYearTheme ? '#FFD700' :
+                            (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
+                          $r('app.color.text_secondary'))
                     }
                     .linearGradient(this.platform === 'dianping' ?
-                      (this.isNewYearTheme ? { angle: 135, colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]] } :
-                      (this.showVipTheme ? { angle: 135, colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]] } : undefined)) : undefined)
+                      (this.isNewYearTheme ? {
+                        angle: 135,
+                        colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
+                      } :
+                        (this.showVipTheme ? {
+                          angle: 135,
+                          colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
+                        } : undefined)) : undefined)
                     .backgroundColor(this.platform === 'dianping' ?
                       (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
                       $r('app.color.card_background'))
                     .borderRadius(14)
-                    .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+                    .padding({
+                      left: 14,
+                      right: 14,
+                      top: 6,
+                      bottom: 6
+                    })
                     .onClick(() => {
-                      animateTo({ duration: this.isAnimationEnabled ? 200 : 0, curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear }, () => {
+                      animateTo({
+                        duration: this.isAnimationEnabled ? 200 : 0,
+                        curve: this.isAnimationEnabled ?
+                          curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
+                      }, () => {
                         this.platform = 'dianping';
                       });
                     })
@@ -1081,47 +1202,58 @@ export struct AddSubscription {
                 .borderRadius(12)
                 .visualEffect(new hdsEffect.HdsEffectBuilder()
                   .pointLight({
-                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isPlatformPressed) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isPlatformPressed) ?
+                      hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
                     illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
                   })
                   .buildEffect())
-                .scale({ x: (this.isAnimationEnabled && this.isPlatformPressed) ? 0.98 : 1, y: (this.isAnimationEnabled && this.isPlatformPressed) ? 0.98 : 1 })
-                .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
+                .scale({
+                  x: (this.isAnimationEnabled && this.isPlatformPressed) ? 0.98 : 1,
+                  y: (this.isAnimationEnabled && this.isPlatformPressed) ? 0.98 : 1
+                })
+                .animation({
+                  duration: this.isAnimationEnabled ? 150 : 0,
+                  curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                })
                 .onTouch((event: TouchEvent) => {
-                  if (event.type === TouchType.Down) this.isPlatformPressed = true;
-                  else if (event.type === TouchType.Up || event.type === TouchType.Cancel) this.isPlatformPressed = false;
+                  if (event.type === TouchType.Down) {
+                    this.isPlatformPressed = true;
+                  } else if (event.type ===
+                  TouchType.Up || event.type === TouchType.Cancel) {
+                    this.isPlatformPressed = false;
+                  }
                 })
 
                 if (this.platform === 'dianping') {
-                   Row({ space: 6 }) {
-                     SymbolGlyph($r('sys.symbol.info_circle'))
-                       .fontSize(14)
-                       .fontColor([$r('app.color.text_secondary')])
-                     Text() {
-                       Span("识别结果仅供参考，本APP不代替平台核销！团购券解释权归原平台及商家所有。为保证您的财产安全，团购券识别仅使用本地OCR能力识别，不使用AI识别。如果是多次团购券，您仅需录入第一个券码或者分开录入，感谢您的理解。\n")
-                       Span("大众点评请在识别基本信息后，点击编辑二维码，打开券码页再次扫描。")
-                         .fontWeight(FontWeight.Bold)
-                     }
-                       .fontSize(11)
-                       .fontColor($r('app.color.text_secondary'))
-                       .layoutWeight(1)
-                   }
-                   .width('100%')
-                   .padding({ left: 4, top: 4, bottom: 4 })
+                  Row({ space: 6 }) {
+                    SymbolGlyph($r('sys.symbol.info_circle'))
+                      .fontSize(14)
+                      .fontColor([$r('app.color.text_secondary')])
+                    Text() {
+                      Span("识别结果仅供参考，本APP不代替平台核销！团购券解释权归原平台及商家所有。为保证您的财产安全，团购券识别仅使用本地OCR能力识别，不使用AI识别。如果是多次团购券，您仅需录入第一个券码或者分开录入，感谢您的理解。\n")
+                      Span("大众点评请在识别基本信息后，点击编辑二维码，打开券码页再次扫描。")
+                        .fontWeight(FontWeight.Bold)
+                    }
+                    .fontSize(11)
+                    .fontColor($r('app.color.text_secondary'))
+                    .layoutWeight(1)
+                  }
+                  .width('100%')
+                  .padding({ left: 4, top: 4, bottom: 4 })
                 } else {
-                   Row({ space: 6 }) {
-                     SymbolGlyph($r('sys.symbol.info_circle'))
-                       .fontSize(14)
-                       .fontColor([$r('app.color.text_secondary')])
-                     Text(){
-                       Span("识别结果仅供参考，本APP不代替平台核销！团购券解释权归原平台及商家所有。为保证您的财产安全，团购券识别仅使用本地OCR能力识别，不使用AI识别。如果是多次团购券，您仅需录入第一个券码或者分开录入，感谢您的理解。")
-                     }
-                       .fontSize(11)
-                       .fontColor($r('app.color.text_secondary'))
-                       .layoutWeight(1)
-                   }
-                   .width('100%')
-                   .padding({ left: 4, top: 4, bottom: 4 })
+                  Row({ space: 6 }) {
+                    SymbolGlyph($r('sys.symbol.info_circle'))
+                      .fontSize(14)
+                      .fontColor([$r('app.color.text_secondary')])
+                    Text() {
+                      Span("识别结果仅供参考，本APP不代替平台核销！团购券解释权归原平台及商家所有。为保证您的财产安全，团购券识别仅使用本地OCR能力识别，不使用AI识别。如果是多次团购券，您仅需录入第一个券码或者分开录入，感谢您的理解。")
+                    }
+                    .fontSize(11)
+                    .fontColor($r('app.color.text_secondary'))
+                    .layoutWeight(1)
+                  }
+                  .width('100%')
+                  .padding({ left: 4, top: 4, bottom: 4 })
                 }
 
                 Divider().color($r('app.color.divider_color')).opacity(0.3)
@@ -1138,7 +1270,9 @@ export struct AddSubscription {
                     .textAlign(TextAlign.End)
                     .backgroundColor(Color.Transparent)
                     .placeholderColor($r('app.color.text_secondary'))
-                    .onChange((value) => { this.merchantName = value; })
+                    .onChange((value) => {
+                      this.merchantName = value;
+                    })
                 }
                 .width('100%')
                 .height(56)
@@ -1147,15 +1281,26 @@ export struct AddSubscription {
                 .borderRadius(12)
                 .visualEffect(new hdsEffect.HdsEffectBuilder()
                   .pointLight({
-                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isMerchantPressed) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isMerchantPressed) ?
+                      hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
                     illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
                   })
                   .buildEffect())
-                .scale({ x: (this.isAnimationEnabled && this.isMerchantPressed) ? 0.98 : 1, y: (this.isAnimationEnabled && this.isMerchantPressed) ? 0.98 : 1 })
-                .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
+                .scale({
+                  x: (this.isAnimationEnabled && this.isMerchantPressed) ? 0.98 : 1,
+                  y: (this.isAnimationEnabled && this.isMerchantPressed) ? 0.98 : 1
+                })
+                .animation({
+                  duration: this.isAnimationEnabled ? 150 : 0,
+                  curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                })
                 .onTouch((event: TouchEvent) => {
-                  if (event.type === TouchType.Down) this.isMerchantPressed = true;
-                  else if (event.type === TouchType.Up || event.type === TouchType.Cancel) this.isMerchantPressed = false;
+                  if (event.type === TouchType.Down) {
+                    this.isMerchantPressed = true;
+                  } else if (event.type ===
+                  TouchType.Up || event.type === TouchType.Cancel) {
+                    this.isMerchantPressed = false;
+                  }
                 })
 
                 Divider().color($r('app.color.divider_color')).opacity(0.3)
@@ -1172,7 +1317,9 @@ export struct AddSubscription {
                     .textAlign(TextAlign.End)
                     .backgroundColor(Color.Transparent)
                     .placeholderColor($r('app.color.text_secondary'))
-                    .onChange((value) => { this.name = value; })
+                    .onChange((value) => {
+                      this.name = value;
+                    })
                 }
                 .width('100%')
                 .height(56)
@@ -1181,15 +1328,26 @@ export struct AddSubscription {
                 .borderRadius(12)
                 .visualEffect(new hdsEffect.HdsEffectBuilder()
                   .pointLight({
-                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isNamePressed) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isNamePressed) ?
+                      hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
                     illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
                   })
                   .buildEffect())
-                .scale({ x: (this.isAnimationEnabled && this.isNamePressed) ? 0.98 : 1, y: (this.isAnimationEnabled && this.isNamePressed) ? 0.98 : 1 })
-                .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
+                .scale({
+                  x: (this.isAnimationEnabled && this.isNamePressed) ? 0.98 : 1,
+                  y: (this.isAnimationEnabled && this.isNamePressed) ? 0.98 : 1
+                })
+                .animation({
+                  duration: this.isAnimationEnabled ? 150 : 0,
+                  curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                })
                 .onTouch((event: TouchEvent) => {
-                  if (event.type === TouchType.Down) this.isNamePressed = true;
-                  else if (event.type === TouchType.Up || event.type === TouchType.Cancel) this.isNamePressed = false;
+                  if (event.type === TouchType.Down) {
+                    this.isNamePressed = true;
+                  } else if (event.type ===
+                  TouchType.Up || event.type === TouchType.Cancel) {
+                    this.isNamePressed = false;
+                  }
                 })
 
                 Divider().color($r('app.color.divider_color')).opacity(0.3)
@@ -1206,7 +1364,9 @@ export struct AddSubscription {
                     .textAlign(TextAlign.End)
                     .backgroundColor(Color.Transparent)
                     .placeholderColor($r('app.color.text_secondary'))
-                    .onChange((value) => { this.usageTime = value; })
+                    .onChange((value) => {
+                      this.usageTime = value;
+                    })
                 }
                 .width('100%')
                 .height(56)
@@ -1215,15 +1375,26 @@ export struct AddSubscription {
                 .borderRadius(12)
                 .visualEffect(new hdsEffect.HdsEffectBuilder()
                   .pointLight({
-                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isUsageTimePressed) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isUsageTimePressed) ?
+                      hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
                     illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
                   })
                   .buildEffect())
-                .scale({ x: (this.isAnimationEnabled && this.isUsageTimePressed) ? 0.98 : 1, y: (this.isAnimationEnabled && this.isUsageTimePressed) ? 0.98 : 1 })
-                .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
+                .scale({
+                  x: (this.isAnimationEnabled && this.isUsageTimePressed) ? 0.98 : 1,
+                  y: (this.isAnimationEnabled && this.isUsageTimePressed) ? 0.98 : 1
+                })
+                .animation({
+                  duration: this.isAnimationEnabled ? 150 : 0,
+                  curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                })
                 .onTouch((event: TouchEvent) => {
-                  if (event.type === TouchType.Down) this.isUsageTimePressed = true;
-                  else if (event.type === TouchType.Up || event.type === TouchType.Cancel) this.isUsageTimePressed = false;
+                  if (event.type === TouchType.Down) {
+                    this.isUsageTimePressed = true;
+                  } else if (event.type ===
+                  TouchType.Up || event.type === TouchType.Cancel) {
+                    this.isUsageTimePressed = false;
+                  }
                 })
 
                 Divider().color($r('app.color.divider_color')).opacity(0.3)
@@ -1240,7 +1411,9 @@ export struct AddSubscription {
                     .textAlign(TextAlign.End)
                     .backgroundColor(Color.Transparent)
                     .placeholderColor($r('app.color.text_secondary'))
-                    .onChange((value) => { this.couponCode = value; })
+                    .onChange((value) => {
+                      this.couponCode = value;
+                    })
                 }
                 .width('100%')
                 .height(56)
@@ -1249,15 +1422,26 @@ export struct AddSubscription {
                 .borderRadius(12)
                 .visualEffect(new hdsEffect.HdsEffectBuilder()
                   .pointLight({
-                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isCouponPressed) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isCouponPressed) ?
+                      hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
                     illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
                   })
                   .buildEffect())
-                .scale({ x: (this.isAnimationEnabled && this.isCouponPressed) ? 0.98 : 1, y: (this.isAnimationEnabled && this.isCouponPressed) ? 0.98 : 1 })
-                .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
+                .scale({
+                  x: (this.isAnimationEnabled && this.isCouponPressed) ? 0.98 : 1,
+                  y: (this.isAnimationEnabled && this.isCouponPressed) ? 0.98 : 1
+                })
+                .animation({
+                  duration: this.isAnimationEnabled ? 150 : 0,
+                  curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                })
                 .onTouch((event: TouchEvent) => {
-                  if (event.type === TouchType.Down) this.isCouponPressed = true;
-                  else if (event.type === TouchType.Up || event.type === TouchType.Cancel) this.isCouponPressed = false;
+                  if (event.type === TouchType.Down) {
+                    this.isCouponPressed = true;
+                  } else if (event.type ===
+                  TouchType.Up || event.type === TouchType.Cancel) {
+                    this.isCouponPressed = false;
+                  }
                 })
 
                 Divider().color($r('app.color.divider_color')).opacity(0.3)
@@ -1289,25 +1473,47 @@ export struct AddSubscription {
                 .borderRadius(12)
                 .visualEffect(new hdsEffect.HdsEffectBuilder()
                   .pointLight({
-                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isPaymentPressed) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isPaymentPressed) ?
+                      hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
                     illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
                   })
                   .buildEffect())
-                .scale({ x: (this.isAnimationEnabled && this.isPaymentPressed) ? 0.98 : 1, y: (this.isAnimationEnabled && this.isPaymentPressed) ? 0.98 : 1 })
-                .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
+                .scale({
+                  x: (this.isAnimationEnabled && this.isPaymentPressed) ? 0.98 : 1,
+                  y: (this.isAnimationEnabled && this.isPaymentPressed) ? 0.98 : 1
+                })
+                .animation({
+                  duration: this.isAnimationEnabled ? 150 : 0,
+                  curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                })
                 .onTouch((event: TouchEvent) => {
-                  if (event.type === TouchType.Down) this.isPaymentPressed = true;
-                  else if (event.type === TouchType.Up || event.type === TouchType.Cancel) this.isPaymentPressed = false;
+                  if (event.type === TouchType.Down) {
+                    this.isPaymentPressed = true;
+                  } else if (event.type ===
+                  TouchType.Up || event.type === TouchType.Cancel) {
+                    this.isPaymentPressed = false;
+                  }
                 })
                 .onClick(() => {
-                  const paymentMethods = ['现金', '银行卡', '云闪付', '支付宝', '微信支付', '华为支付', '京东支付', '抖音支付', '美团支付', '数字人民币', 'Apple Pay', 'PayPal', '其他支付方式'];
+                  const paymentMethods =
+                    ['现金', '银行卡', '云闪付', '支付宝', '微信支付', '华为支付', '京东支付', '抖音支付',
+                      '美团支付', '数字人民币', 'Apple Pay', 'PayPal', '其他支付方式'];
                   TextPickerDialog.show({
                     range: paymentMethods,
                     selected: paymentMethods.indexOf(this.paymentMethod),
-                    selectedTextStyle: { color: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')) },
-                    acceptButtonStyle: { fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')) },
+                    selectedTextStyle: {
+                      color: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                        (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                    },
+                    acceptButtonStyle: {
+                      fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                        (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                    },
                     onAccept: (result: TextPickerResult) => {
-                      animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) }, () => {
+                      animateTo({
+                        duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                        curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                      }, () => {
                         this.paymentMethod = result.value as string;
                       });
                     }
@@ -1326,18 +1532,34 @@ export struct AddSubscription {
                     Button("编辑二维码", { type: ButtonType.Capsule })
                       .height(24)
                       .fontSize(11)
-                      .fontColor(this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White))
-                      .linearGradient(this.isNewYearTheme ? { angle: 135, colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]] } :
-                        (this.showVipTheme ? { angle: 135, colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]] } : undefined))
-                      .backgroundColor(this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color'))
+                      .fontColor(this.isNewYearTheme ? '#FFD700' :
+                        (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White))
+                      .linearGradient(this.isNewYearTheme ? {
+                        angle: 135,
+                        colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
+                      } :
+                        (this.showVipTheme ? {
+                          angle: 135,
+                          colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
+                        } : undefined))
+                      .backgroundColor(this.isNewYearTheme || this.showVipTheme ? Color.Transparent :
+                        $r('app.color.brand_color'))
                       .visualEffect(new hdsEffect.HdsEffectBuilder()
                         .pointLight({
-                          sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isEditQRPressed) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                          sourceType: (this.isAnimationEnabled && this.isPointLightEnabled &&
+                          this.isEditQRPressed) ? hdsEffect.PointLightSourceType.BRIGHT :
+                            hdsEffect.PointLightSourceType.NONE,
                           illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
                         })
                         .buildEffect())
-                      .scale({ x: (this.isAnimationEnabled && this.isEditQRPressed) ? 0.95 : 1, y: (this.isAnimationEnabled && this.isEditQRPressed) ? 0.95 : 1 })
-                      .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
+                      .scale({
+                        x: (this.isAnimationEnabled && this.isEditQRPressed) ? 0.95 : 1,
+                        y: (this.isAnimationEnabled && this.isEditQRPressed) ? 0.95 : 1
+                      })
+                      .animation({
+                        duration: this.isAnimationEnabled ? 150 : 0,
+                        curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                      })
                       .onTouch((event: TouchEvent) => {
                         if (event.type === TouchType.Down) {
                           this.isEditQRPressed = true;
@@ -1371,23 +1593,28 @@ export struct AddSubscription {
                         .height(80)
 
                       Column({ space: 4 }) {
-                         SymbolGlyph($r('sys.symbol.square_grid_2x2'))
-                           .fontSize(20)
-                           .fontColor([$r('app.color.text_secondary')])
-                           .opacity(0.5)
-                         Text("点击“编辑二维码”截取券码图片")
-                           .fontSize(12)
-                           .fontColor($r('app.color.text_secondary'))
-                           .opacity(0.6)
+                        SymbolGlyph($r('sys.symbol.square_grid_2x2'))
+                          .fontSize(20)
+                          .fontColor([$r('app.color.text_secondary')])
+                          .opacity(0.5)
+                        Text("点击“编辑二维码”截取券码图片")
+                          .fontSize(12)
+                          .fontColor($r('app.color.text_secondary'))
+                          .opacity(0.6)
                       }
                     }
                     .onClick(() => {
-                       this.recognizeQRCodeOnly();
+                      this.recognizeQRCodeOnly();
                     })
                   }
                 }
                 .width('100%')
-                .padding({ left: 12, right: 12, top: 12, bottom: 12 })
+                .padding({
+                  left: 12,
+                  right: 12,
+                  top: 12,
+                  bottom: 12
+                })
 
                 Divider().color($r('app.color.divider_color')).opacity(0.3)
 
@@ -1415,7 +1642,8 @@ export struct AddSubscription {
                       .backgroundColor(Color.Transparent)
                       .type(InputType.NUMBER_DECIMAL)
                       .maxLength(10)
-                      .caretColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                      .caretColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                        (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
                       .padding(0)
                       .layoutWeight(1)
                       .onChange((value: string) => {
@@ -1447,6 +1675,7 @@ export struct AddSubscription {
                   .margin({ top: 8 })
                 }
                 .width('100%')
+
                 // 移除总计金额压感效果，保持静默显示
 
                 Divider().color($r('app.color.divider_color')).opacity(0.3)
@@ -1463,18 +1692,33 @@ export struct AddSubscription {
                         .fontSize(18)
                         .fontColor([$r('app.color.text_primary')])
                     }
-                    .width(32).height(32)
+                    .width(32)
+                    .height(32)
                     .backgroundColor($r('app.color.page_background')) // 还原为页面背景色
                     .shadow({ radius: 4, color: '#10000000' })
                     .borderRadius(10)
                     .enabled(this.quantity > 1)
-                    .scale({ x: (this.isAnimationEnabled && this.isMinusPressed) ? 0.9 : 1, y: (this.isAnimationEnabled && this.isMinusPressed) ? 0.9 : 1 })
-                    .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
-                    .onTouch((event: TouchEvent) => {
-                      if (event.type === TouchType.Down) this.isMinusPressed = true;
-                      else if (event.type === TouchType.Up || event.type === TouchType.Cancel) this.isMinusPressed = false;
+                    .scale({
+                      x: (this.isAnimationEnabled && this.isMinusPressed) ? 0.9 : 1,
+                      y: (this.isAnimationEnabled && this.isMinusPressed) ? 0.9 : 1
                     })
-                    .onClick(() => { if (this.quantity > 1) this.quantity--; })
+                    .animation({
+                      duration: this.isAnimationEnabled ? 150 : 0,
+                      curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                    })
+                    .onTouch((event: TouchEvent) => {
+                      if (event.type === TouchType.Down) {
+                        this.isMinusPressed = true;
+                      } else if (event.type ===
+                      TouchType.Up || event.type === TouchType.Cancel) {
+                        this.isMinusPressed = false;
+                      }
+                    })
+                    .onClick(() => {
+                      if (this.quantity > 1) {
+                        this.quantity--;
+                      }
+                    })
 
                     Text(this.quantity.toString())
                       .fontSize(16)
@@ -1486,17 +1730,30 @@ export struct AddSubscription {
                         .fontSize(18)
                         .fontColor([$r('app.color.text_primary')])
                     }
-                    .width(32).height(32)
+                    .width(32)
+                    .height(32)
                     .backgroundColor($r('app.color.page_background'))
                     .shadow({ radius: 4, color: '#10000000' })
                     .borderRadius(10)
-                    .scale({ x: (this.isAnimationEnabled && this.isPlusPressed) ? 0.9 : 1, y: (this.isAnimationEnabled && this.isPlusPressed) ? 0.9 : 1 })
-                    .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
-                    .onTouch((event: TouchEvent) => {
-                      if (event.type === TouchType.Down) this.isPlusPressed = true;
-                      else if (event.type === TouchType.Up || event.type === TouchType.Cancel) this.isPlusPressed = false;
+                    .scale({
+                      x: (this.isAnimationEnabled && this.isPlusPressed) ? 0.9 : 1,
+                      y: (this.isAnimationEnabled && this.isPlusPressed) ? 0.9 : 1
                     })
-                    .onClick(() => { this.quantity++; })
+                    .animation({
+                      duration: this.isAnimationEnabled ? 150 : 0,
+                      curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                    })
+                    .onTouch((event: TouchEvent) => {
+                      if (event.type === TouchType.Down) {
+                        this.isPlusPressed = true;
+                      } else if (event.type ===
+                      TouchType.Up || event.type === TouchType.Cancel) {
+                        this.isPlusPressed = false;
+                      }
+                    })
+                    .onClick(() => {
+                      this.quantity++;
+                    })
                   }
                 }
                 .width('100%')
@@ -1518,27 +1775,47 @@ export struct AddSubscription {
                       .margin({ right: 6 })
                     SymbolGlyph($r('sys.symbol.calendar'))
                       .fontSize(16)
-                      .fontColor([this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
+                      .fontColor([this.isNewYearTheme ? '#FFD700' :
+                        (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
                   }
-                  .padding({ left: 12, right: 10, top: 6, bottom: 6 })
+                  .padding({
+                    left: 12,
+                    right: 10,
+                    top: 6,
+                    bottom: 6
+                  })
                   .backgroundColor($r('app.color.page_background')) // 内部气泡背景
                   .borderRadius(8)
                   .visualEffect(new hdsEffect.HdsEffectBuilder()
                     .pointLight({
-                      sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isDatePressed) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                      sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isDatePressed) ?
+                        hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
                       illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
                     })
                     .buildEffect())
-                  .scale({ x: (this.isAnimationEnabled && this.isDatePressed) ? 0.98 : 1, y: (this.isAnimationEnabled && this.isDatePressed) ? 0.98 : 1 })
-                  .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
+                  .scale({
+                    x: (this.isAnimationEnabled && this.isDatePressed) ? 0.98 : 1,
+                    y: (this.isAnimationEnabled && this.isDatePressed) ? 0.98 : 1
+                  })
+                  .animation({
+                    duration: this.isAnimationEnabled ? 150 : 0,
+                    curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                  })
                   .onTouch((event: TouchEvent) => {
-                    if (event.type === TouchType.Down) this.isDatePressed = true;
-                    else if (event.type === TouchType.Up || event.type === TouchType.Cancel) this.isDatePressed = false;
+                    if (event.type === TouchType.Down) {
+                      this.isDatePressed = true;
+                    } else if (event.type ===
+                    TouchType.Up || event.type === TouchType.Cancel) {
+                      this.isDatePressed = false;
+                    }
                   })
                   .onClick(() => {
                     DatePickerDialog.show({
                       selected: this.nextBillingDate,
-                      selectedTextStyle: { color: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')) },
+                      selectedTextStyle: {
+                        color: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                          (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                      },
                       onDateAccept: (value: Date) => {
                         this.nextBillingDate = value;
                       }
@@ -1562,26 +1839,49 @@ export struct AddSubscription {
                         Text(status === 'unused' ? "未使用" : status === 'used' ? "已使用" : "已过期")
                           .fontSize(12)
                           .fontColor(this.usageStatus === status ?
-                            (this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
+                            (this.isNewYearTheme ? '#FFD700' :
+                              (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
                             $r('app.color.text_secondary'))
                       }
                       .height(28)
                       .linearGradient(this.usageStatus === status ?
-                        (this.isNewYearTheme ? { angle: 135, colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]] } :
-                        (this.showVipTheme ? { angle: 135, colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]] } : undefined)) : undefined)
+                        (this.isNewYearTheme ? {
+                          angle: 135,
+                          colors: [[$r('app.color.new_year_red_start'), 0.0],
+                            [$r('app.color.new_year_red_end'), 1.0]]
+                        } :
+                          (this.showVipTheme ? {
+                            angle: 135,
+                            colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
+                          } : undefined)) : undefined)
                       .backgroundColor(this.usageStatus === status ?
-                        (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
+                        (this.isNewYearTheme || this.showVipTheme ? Color.Transparent :
+                          $r('app.color.brand_color')) :
                         $r('app.color.page_background')) // 内部按钮背景还原
                       .borderRadius(8)
                       .padding({ left: 10, right: 10 })
-                      .scale({ x: (this.isAnimationEnabled && this.pressedUsageStatus === status) ? 0.95 : 1, y: (this.isAnimationEnabled && this.pressedUsageStatus === status) ? 0.95 : 1 })
-                      .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
+                      .scale({
+                        x: (this.isAnimationEnabled && this.pressedUsageStatus === status) ? 0.95 : 1,
+                        y: (this.isAnimationEnabled && this.pressedUsageStatus === status) ? 0.95 : 1
+                      })
+                      .animation({
+                        duration: this.isAnimationEnabled ? 150 : 0,
+                        curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                      })
                       .onTouch((event: TouchEvent) => {
-                        if (event.type === TouchType.Down) this.pressedUsageStatus = status;
-                        else if (event.type === TouchType.Up || event.type === TouchType.Cancel) this.pressedUsageStatus = '';
+                        if (event.type === TouchType.Down) {
+                          this.pressedUsageStatus = status;
+                        } else if (event.type ===
+                        TouchType.Up || event.type === TouchType.Cancel) {
+                          this.pressedUsageStatus = '';
+                        }
                       })
                       .onClick(() => {
-                        animateTo({ duration: this.isAnimationEnabled ? 200 : 0, curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear }, () => {
+                        animateTo({
+                          duration: this.isAnimationEnabled ? 200 : 0,
+                          curve: this.isAnimationEnabled ?
+                            curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
+                        }, () => {
                           this.usageStatus = status as 'unused' | 'used' | 'expired';
                           // 如果切换到已使用，记录当前时间
                           if (this.usageStatus === 'used') {
@@ -1608,25 +1908,26 @@ export struct AddSubscription {
                       .layoutWeight(1)
 
                     Toggle({ type: ToggleType.Switch, isOn: this.isReminderEnabled })
-                      .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                      .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                        (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
                       .switchPointColor(Color.White)
                       .onChange((isOn: boolean) => {
                         this.isReminderEnabled = isOn;
                         if (this.isAnimationEnabled) {
                           if (isOn) {
                             animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
-                               this.isReminderExpanded = true;
-                               this.reminderOpacity = 1;
-                             })
+                              this.isReminderExpanded = true;
+                              this.reminderOpacity = 1;
+                            })
                           } else {
-                             animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
-                               this.reminderOpacity = 0;
-                             });
-                             setTimeout(() => {
-                               animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
-                                  this.isReminderExpanded = false;
-                               });
-                             }, 200);
+                            animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
+                              this.reminderOpacity = 0;
+                            });
+                            setTimeout(() => {
+                              animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
+                                this.isReminderExpanded = false;
+                              });
+                            }, 200);
                           }
                         } else {
                           this.isReminderExpanded = isOn;
@@ -1650,7 +1951,8 @@ export struct AddSubscription {
                     }
                     .width('100%')
                     .margin({ top: -4, bottom: 8 })
-                    .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -10 })).animation({ duration: this.isAnimationEnabled ? undefined : 0 }))
+                    .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -10 }))
+                      .animation({ duration: this.isAnimationEnabled ? undefined : 0 }))
                     .opacity(this.reminderOpacity)
 
                     Row() {
@@ -1676,8 +1978,8 @@ export struct AddSubscription {
                       .onTouch((event: TouchEvent) => {
                         if (event.type === TouchType.Down) {
                           if (this.isAnimationEnabled && this.isPointLightEnabled) {
-                              this.isReminderDaysPressed = true;
-                              this.reminderDaysLight = hdsEffect.PointLightSourceType.BRIGHT;
+                            this.isReminderDaysPressed = true;
+                            this.reminderDaysLight = hdsEffect.PointLightSourceType.BRIGHT;
                           }
                         } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
                           this.isReminderDaysPressed = false;
@@ -1716,8 +2018,8 @@ export struct AddSubscription {
                       .onTouch((event: TouchEvent) => {
                         if (event.type === TouchType.Down) {
                           if (this.isAnimationEnabled && this.isPointLightEnabled) {
-                              this.isReminderTimePressed = true;
-                              this.reminderTimeLight = hdsEffect.PointLightSourceType.BRIGHT;
+                            this.isReminderTimePressed = true;
+                            this.reminderTimeLight = hdsEffect.PointLightSourceType.BRIGHT;
                           }
                         } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
                           this.isReminderTimePressed = false;
@@ -1742,7 +2044,8 @@ export struct AddSubscription {
                       })
                     }
                     .width('100%')
-                    .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -10 })).animation({ duration: this.isAnimationEnabled ? undefined : 0 }))
+                    .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -10 }))
+                      .animation({ duration: this.isAnimationEnabled ? undefined : 0 }))
                     .opacity(this.reminderOpacity)
                   }
                 }
@@ -1759,686 +2062,773 @@ export struct AddSubscription {
             .margin({ bottom: 32 })
             .visualEffect(new hdsEffect.HdsEffectBuilder()
               .pointLight({
-                sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && (this.isMerchantPressed || this.isCouponPressed || this.isPlatformPressed || this.isNamePressed)) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                sourceType: (this.isAnimationEnabled && this.isPointLightEnabled &&
+                  (this.isMerchantPressed || this.isCouponPressed || this.isPlatformPressed ||
+                  this.isNamePressed)) ? hdsEffect.PointLightSourceType.BRIGHT :
+                  hdsEffect.PointLightSourceType.NONE,
                 illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
               })
               .buildEffect())
-            .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).animation({ 
-              duration: this.isAnimationEnabled ? undefined : 0, 
-              curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear 
+            .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).animation({
+              duration: this.isAnimationEnabled ? undefined : 0,
+              curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) :
+                Curve.Linear
             }))
 
           } else {
             // ========== 订阅表单区域 (原有逻辑) ==========
 
-          // OCR 识别结果预览卡片
-          if (this.showOCRResult) {
-            Row() {
-              // 1. 图标区 (可点击自定义)
-              Stack({ alignContent: Alignment.Center }) {
-                SubscriptionIcon({
-                  icon: this.icon,
-                  name: this.name,
-                  iconSize: 56,
-                  iconRadius: 14, // 保持圆角矩形风格 (56/4 = 14)
-                  showGroupBadge: false
+            // OCR 识别结果预览卡片
+            if (this.showOCRResult) {
+              Row() {
+                // 1. 图标区 (可点击自定义)
+                Stack({ alignContent: Alignment.Center }) {
+                  SubscriptionIcon({
+                    icon: this.icon,
+                    name: this.name,
+                    iconSize: 56,
+                    iconRadius: 14, // 保持圆角矩形风格 (56/4 = 14)
+                    showGroupBadge: false
+                  })
+
+                  // 编辑提示角标 - 移至左下角或右上角，避免与右下角的团购标识重合
+                  Stack({ alignContent: Alignment.Center }) {
+                    Circle()
+                      .width(18)
+                      .height(18)
+                      .fill(this.isNewYearTheme ? $r('app.color.new_year_text_on_red') :
+                        (this.showVipTheme ? $r('app.color.vip_text_on_gold') : $r('app.color.brand_color')))
+                    SymbolGlyph($r('sys.symbol.pencil_line'))
+                      .fontSize(10)
+                      .fontColor([Color.White])
+                  }
+                  .position({ right: -6, bottom: -6 }) // 移至右下角
+                }
+                .width(56)
+                .height(56)
+                .margin({ right: 16 })
+                .flexShrink(0)
+                .onClick(() => {
+                  this.showIconPickerSheet();
                 })
 
-                // 编辑提示角标 - 移至左下角或右上角，避免与右下角的团购标识重合
-                Stack({ alignContent: Alignment.Center }) {
-                  Circle()
-                    .width(18)
-                    .height(18)
-                    .fill(this.isNewYearTheme ? $r('app.color.new_year_text_on_red') : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : $r('app.color.brand_color')))
-                  SymbolGlyph($r('sys.symbol.pencil_line'))
-                    .fontSize(10)
-                    .fontColor([Color.White])
+                // 2. 信息区 (名称 + 到期标签)
+                Column() {
+                  Text(this.name)
+                    .fontSize(18)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor($r('app.color.text_primary'))
+                    .margin({ bottom: 4 })
+                    .maxLines(1)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+                  if (this.billingCycle === 'Lifetime') {
+                    Text("永久有效")
+                      .fontSize(11)
+                      .fontColor($r('app.color.text_secondary'))
+                      .padding({
+                        left: 6,
+                        right: 6,
+                        top: 2,
+                        bottom: 2
+                      })
+                      .backgroundColor($r('app.color.page_background'))
+                      .borderRadius(4)
+                  } else if (this.ocrExpireDate) {
+                    Text(`到期: ${this.ocrExpireDate}`)
+                      .fontSize(11)
+                      .fontColor($r('app.color.text_secondary'))
+                      .padding({
+                        left: 6,
+                        right: 6,
+                        top: 2,
+                        bottom: 2
+                      })
+                      .backgroundColor($r('app.color.page_background'))
+                      .borderRadius(4)
+                  }
                 }
-                .position({ right: -6, bottom: -6 }) // 移至右下角
-              }
-              .width(56)
-              .height(56)
-              .margin({ right: 16 })
-              .flexShrink(0)
-              .onClick(() => {
-                this.showIconPickerSheet();
-              })
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
+                .margin({ right: 12 })
 
-              // 2. 信息区 (名称 + 到期标签)
-              Column() {
-                Text(this.name)
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor($r('app.color.text_primary'))
-                  .margin({ bottom: 4 })
-                  .maxLines(1)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                // 3. 价格区 (显示当前识别/输入的金额)
+                Column() {
+                  Text(`${this.currency}${this.price || '0.00'}`)
+                    .fontSize(18)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                      (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
 
-                if (this.billingCycle === 'Lifetime') {
-                  Text("永久有效")
+                  Text(this.getBillingCycleText(this.billingCycle))
                     .fontSize(11)
                     .fontColor($r('app.color.text_secondary'))
-                    .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-                    .backgroundColor($r('app.color.page_background'))
-                    .borderRadius(4)
-                } else if (this.ocrExpireDate) {
-                  Text(`到期: ${this.ocrExpireDate}`)
-                    .fontSize(11)
-                    .fontColor($r('app.color.text_secondary'))
-                    .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-                    .backgroundColor($r('app.color.page_background'))
-                    .borderRadius(4)
+                    .margin({ top: 4 })
                 }
+                .alignItems(HorizontalAlign.End)
+                .flexShrink(0)
               }
-              .alignItems(HorizontalAlign.Start)
-              .layoutWeight(1)
-              .margin({ right: 12 })
-
-              // 3. 价格区 (显示当前识别/输入的金额)
-              Column() {
-                Text(`${this.currency}${this.price || '0.00'}`)
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-
-                Text(this.getBillingCycleText(this.billingCycle))
-                  .fontSize(11)
-                  .fontColor($r('app.color.text_secondary'))
-                  .margin({ top: 4 })
-              }
-              .alignItems(HorizontalAlign.End)
-              .flexShrink(0)
-            }
-            .width('90%')
-            .padding(16)
-            .backgroundColor($r('app.color.card_background'))
-            .borderRadius(16)
-            .visualEffect(new hdsEffect.HdsEffectBuilder()
-              .pointLight({
-                sourceType: this.ocrCardLight,
-                illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-              })
-              .buildEffect())
-            .scale({ x: this.isOCRCardPressed ? 0.98 : 1, y: this.isOCRCardPressed ? 0.98 : 1 })
-            .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-            .onTouch((event: TouchEvent) => { // Allow interaction on the card wrapper
-              if (event.type === TouchType.Down) {
-                 if (this.isAnimationEnabled && this.isPointLightEnabled) {
+              .width('90%')
+              .padding(16)
+              .backgroundColor($r('app.color.card_background'))
+              .borderRadius(16)
+              .visualEffect(new hdsEffect.HdsEffectBuilder()
+                .pointLight({
+                  sourceType: this.ocrCardLight,
+                  illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                })
+                .buildEffect())
+              .scale({ x: this.isOCRCardPressed ? 0.98 : 1, y: this.isOCRCardPressed ? 0.98 : 1 })
+              .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+              .onTouch((event: TouchEvent) => { // Allow interaction on the card wrapper
+                if (event.type === TouchType.Down) {
+                  if (this.isAnimationEnabled && this.isPointLightEnabled) {
                     this.isOCRCardPressed = true;
                     this.ocrCardLight = hdsEffect.PointLightSourceType.BRIGHT;
-                 }
-              } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                 this.isOCRCardPressed = false;
-                 this.ocrCardLight = hdsEffect.PointLightSourceType.NONE;
-              }
-            })
-            .margin({ bottom: 20 })
-            .transition(TransitionEffect.asymmetric(
-              TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -10 })),
-              TransitionEffect.OPACITY
-            ).animation({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.EaseInOut }))
-          }
+                  }
+                } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                  this.isOCRCardPressed = false;
+                  this.ocrCardLight = hdsEffect.PointLightSourceType.NONE;
+                }
+              })
+              .margin({ bottom: 20 })
+              .transition(TransitionEffect.asymmetric(
+                TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -10 })),
+                TransitionEffect.OPACITY
+              )
+                .animation({
+                  duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                  curve: Curve.EaseInOut
+                }))
+            }
 
-          // 3. 订阅详情录入区
-          Column({ space: 24 }) {
-            Column({ space: 12 }) {
-              Row() {
-                SymbolGlyph($r('sys.symbol.paperplane_fill'))
-                  .fontSize(18)
-                  .fontColor([this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
-                  .margin({ right: 8 })
-                Text("订阅详情")
-                  .fontSize(16)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor($r('app.color.text_primary'))
-
-                Text("    识别结果含AI生成内容\n    仅供参考，请仔细甄别！")
-                  .fontSize(13)
-                  .fontColor($r('app.color.text_secondary'))
-                  .margin({ left: 4, top: 2 })
-                  .opacity(0.8)
-              }
-              .width('100%')
-              .alignItems(VerticalAlign.Top)
-              .margin({ bottom: 4 })
-
-              // 1. 订阅名称
-              Column() {
+            // 3. 订阅详情录入区
+            Column({ space: 24 }) {
+              Column({ space: 12 }) {
                 Row() {
-                  Text((this.recordType as string) === 'groupBuy' ? "团购名称" : "订阅应用名称")
-                    .fontSize(14)
-                    .fontColor($r('app.color.text_secondary'))
-
-                  Blank()
-
-                  TextInput({ placeholder: '例如: 华为视频', text: this.name })
+                  SymbolGlyph($r('sys.symbol.paperplane_fill'))
+                    .fontSize(18)
+                    .fontColor([this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                      (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
+                    .margin({ right: 8 })
+                  Text("订阅详情")
                     .fontSize(16)
+                    .fontWeight(FontWeight.Bold)
                     .fontColor($r('app.color.text_primary'))
-                    .placeholderColor($r('app.color.text_secondary'))
-                    .textAlign(TextAlign.End)
-                    .backgroundColor(Color.Transparent)
-                    .padding(0)
-                    .height(40)
-                    .layoutWeight(1)
-                    .onChange((value: string) => {
-                      this.name = value;
-                      // ... (逻辑保持不变)
-                      if (this.skipNextSearch) {
-                        this.skipNextSearch = false;
-                        return;
-                      }
-                      if (value.length > 0) {
-                        const localResults = searchMemberServices(value);
-                        animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.EaseOut }, () => {
-                          this.suggestions = localResults;
-                          this.showSuggestions = localResults.length > 0;
-                        });
-                        if (this.searchTimer !== -1) {
-                          clearTimeout(this.searchTimer);
-                        }
-                        this.searchTimer = setTimeout(() => {
-                           this.searchHuaweiApps(value);
-                        }, 500);
-                        const matched: MemberServiceConfig | undefined = matchMemberService(value);
-                        if (matched) {
-                          this.icon = matched.icon || '';
-                          if (matched.category) {
-                            this.category = matched.category;
-                          }
-                          if (matched.validSubCategories) {
-                            this.availableSubCategories = matched.validSubCategories;
-                          } else {
-                            this.availableSubCategories = [];
-                          }
-                        } else {
-                          if (this.icon.startsWith('resource:')) {
-                             this.icon = '';
-                          }
-                        }
-                        animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.EaseInOut }, () => {
-                          this.showOCRResult = true;
-                        })
-                      } else {
-                        animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.EaseIn }, () => {
-                          this.suggestions = [];
-                          this.showSuggestions = false;
-                          this.showOCRResult = false;
-                        });
-                      }
-                    })
+
+                  Text("    识别结果含AI生成内容\n    仅供参考，请仔细甄别！")
+                    .fontSize(13)
+                    .fontColor($r('app.color.text_secondary'))
+                    .margin({ left: 4, top: 2 })
+                    .opacity(0.8)
                 }
                 .width('100%')
-                .height(56)
-                .padding({ left: 12, right: 12 })
-                .backgroundColor($r('app.color.page_background'))
-                .borderRadius(12)
-                .visualEffect(new hdsEffect.HdsEffectBuilder()
-                  .pointLight({
-                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isNamePressed) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
-                    illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-                  })
-                  .buildEffect())
-                .scale({ x: (this.isAnimationEnabled && this.isNamePressed) ? 0.98 : 1, y: (this.isAnimationEnabled && this.isNamePressed) ? 0.98 : 1 })
-                .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-                .onTouch((event: TouchEvent) => {
-                  if (event.type === TouchType.Down) {
-                     this.isNamePressed = true;
-                  } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                     this.isNamePressed = false;
-                  }
-                })
+                .alignItems(VerticalAlign.Top)
+                .margin({ bottom: 4 })
 
-                // 快速选择标签 - 横向滚动
-                if (this.showSuggestions && this.suggestions.length > 0) {
-                  Scroll() {
-                    Row({ space: 8 }) {
-                      ForEach(this.suggestions, (service: MemberServiceConfig) => {
-                        Row({ space: 6 }) {
-                          if (service.icon && service.icon.startsWith('resource:')) {
-                            Image(resolveIcon(service.icon))
-                              .width(18)
-                              .height(18)
-                              .borderRadius(4)
-                          } else if (service.icon && (service.icon.startsWith('http') || service.icon.startsWith('file://'))) {
-                             Image(service.icon)
-                              .width(18)
-                              .height(18)
-                              .borderRadius(4)
-                          } else {
-                            Text(service.name.charAt(0))
-                              .fontSize(12)
-                              .fontWeight(FontWeight.Bold)
-                              .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.brand_color')))
-                          }
+                // 1. 订阅名称
+                Column() {
+                  Row() {
+                    Text((this.recordType as string) === 'groupBuy' ? "团购名称" : "订阅应用名称")
+                      .fontSize(14)
+                      .fontColor($r('app.color.text_secondary'))
 
-                          Text(service.name)
-                            .fontSize(13)
-                            .fontColor($r('app.color.text_primary'))
-                            .maxLines(1)
+                    Blank()
+
+                    TextInput({ placeholder: '例如: 华为视频', text: this.name })
+                      .fontSize(16)
+                      .fontColor($r('app.color.text_primary'))
+                      .placeholderColor($r('app.color.text_secondary'))
+                      .textAlign(TextAlign.End)
+                      .backgroundColor(Color.Transparent)
+                      .padding(0)
+                      .height(40)
+                      .layoutWeight(1)
+                      .onChange((value: string) => {
+                        this.name = value;
+                        // ... (逻辑保持不变)
+                        if (this.skipNextSearch) {
+                          this.skipNextSearch = false;
+                          return;
                         }
-                        .height(36)
-                        .padding({ left: 10, right: 12 })
-                        .backgroundColor($r('app.color.card_background'))
-                        .borderRadius(18)
-                        .shadow({ radius: 4, color: '#10000000', offsetY: 2 })
-                        .onClick(() => {
-                          this.skipNextSearch = true;
-                          this.name = service.name;
-                          this.icon = service.icon || '';
-                          const matched: MemberServiceConfig | undefined = matchMemberService(service.name);
-                          if (matched) {
-                             this.category = matched.category || service.category || '其他';
-                             this.subCategory = matched.subCategory || '';
-                             if (matched.validSubCategories) this.availableSubCategories = matched.validSubCategories;
-                          } else {
-                             this.category = service.category || '其他';
-                             this.subCategory = service.subCategory || '';
-                             this.availableSubCategories = [];
-                          }
-                          this.suggestions = [];
-                          this.showSuggestions = false;
-                          animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.EaseInOut }, () => {
-                            this.showOCRResult = true;
+                        if (value.length > 0) {
+                          const localResults = searchMemberServices(value);
+                          animateTo({
+                            duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                            curve: Curve.EaseOut
+                          }, () => {
+                            this.suggestions = localResults;
+                            this.showSuggestions = localResults.length > 0;
                           });
-                        })
+                          if (this.searchTimer !== -1) {
+                            clearTimeout(this.searchTimer);
+                          }
+                          this.searchTimer = setTimeout(() => {
+                            this.searchHuaweiApps(value);
+                          }, 500);
+                          const matched: MemberServiceConfig | undefined = matchMemberService(value);
+                          if (matched) {
+                            this.icon = matched.icon || '';
+                            if (matched.category) {
+                              this.category = matched.category;
+                            }
+                            if (matched.validSubCategories) {
+                              this.availableSubCategories = matched.validSubCategories;
+                            } else {
+                              this.availableSubCategories = [];
+                            }
+                          } else {
+                            if (this.icon.startsWith('resource:')) {
+                              this.icon = '';
+                            }
+                          }
+                          animateTo({
+                            duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                            curve: Curve.EaseInOut
+                          }, () => {
+                            this.showOCRResult = true;
+                          })
+                        } else {
+                          animateTo({
+                            duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                            curve: Curve.EaseIn
+                          }, () => {
+                            this.suggestions = [];
+                            this.showSuggestions = false;
+                            this.showOCRResult = false;
+                          });
+                        }
                       })
-                    }
-                    .padding({ top: 4, bottom: 4 })
                   }
-                  .scrollable(ScrollDirection.Horizontal)
-                  .scrollBar(BarState.Off)
                   .width('100%')
-                  .margin({ top: 8 })
-                }
-              }
-              .alignItems(HorizontalAlign.Start)
-
-              Divider().color($r('app.color.divider_color')).opacity(0.3)
-
-              // 1.5 会员等级
-              Column() {
-                Row() {
-                  Text("会员等级")
-                    .fontSize(14)
-                    .fontColor($r('app.color.text_secondary'))
-
-                  Blank()
-
-                  TextInput({ text: this.subCategory, placeholder: '例如: SVIP' })
-                    .fontSize(16)
-                    .fontColor($r('app.color.text_primary'))
-                    .placeholderColor($r('app.color.text_secondary'))
-                    .textAlign(TextAlign.End)
-                    .backgroundColor(Color.Transparent)
-                    .padding(0)
-                    .height(40)
-                    .layoutWeight(1)
-                    .onChange((value: string) => {
-                      this.subCategory = value;
+                  .height(56)
+                  .padding({ left: 12, right: 12 })
+                  .backgroundColor($r('app.color.page_background'))
+                  .borderRadius(12)
+                  .visualEffect(new hdsEffect.HdsEffectBuilder()
+                    .pointLight({
+                      sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isNamePressed) ?
+                        hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                      illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
                     })
-                }
-                .width('100%')
-                .height(56)
-                .padding({ left: 12, right: 12 })
-                .backgroundColor($r('app.color.page_background'))
-                .borderRadius(12)
-                .visualEffect(new hdsEffect.HdsEffectBuilder()
-                  .pointLight({
-                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isLevelPressed) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
-                    illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                    .buildEffect())
+                  .scale({
+                    x: (this.isAnimationEnabled && this.isNamePressed) ? 0.98 : 1,
+                    y: (this.isAnimationEnabled && this.isNamePressed) ? 0.98 : 1
                   })
-                  .buildEffect())
-                .scale({ x: (this.isAnimationEnabled && this.isLevelPressed) ? 0.98 : 1, y: (this.isAnimationEnabled && this.isLevelPressed) ? 0.98 : 1 })
-                .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-                .onTouch((event: TouchEvent) => {
-                  if (event.type === TouchType.Down) {
-                     this.isLevelPressed = true;
-                  } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                     this.isLevelPressed = false;
-                  }
-                })
+                  .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+                  .onTouch((event: TouchEvent) => {
+                    if (event.type === TouchType.Down) {
+                      this.isNamePressed = true;
+                    } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                      this.isNamePressed = false;
+                    }
+                  })
 
-                // 快速选择标签 - 横向滚动
-                if (this.availableSubCategories.length > 0) {
-                  Scroll() {
-                    Row({ space: 8 }) {
-                      ForEach(this.availableSubCategories, (level: string) => {
-                        Text(level)
-                          .fontSize(13)
-                          .fontColor($r('app.color.text_primary'))
+                  // 快速选择标签 - 横向滚动
+                  if (this.showSuggestions && this.suggestions.length > 0) {
+                    Scroll() {
+                      Row({ space: 8 }) {
+                        ForEach(this.suggestions, (service: MemberServiceConfig) => {
+                          Row({ space: 6 }) {
+                            if (service.icon && service.icon.startsWith('resource:')) {
+                              Image(resolveIcon(service.icon))
+                                .width(18)
+                                .height(18)
+                                .borderRadius(4)
+                            } else if (service.icon &&
+                              (service.icon.startsWith('http') || service.icon.startsWith('file://'))) {
+                              Image(service.icon)
+                                .width(18)
+                                .height(18)
+                                .borderRadius(4)
+                            } else {
+                              Text(service.name.charAt(0))
+                                .fontSize(12)
+                                .fontWeight(FontWeight.Bold)
+                                .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') :
+                                  (this.showVipTheme ? $r('app.color.sub_card_vip_text') :
+                                    $r('app.color.brand_color')))
+                            }
+
+                            Text(service.name)
+                              .fontSize(13)
+                              .fontColor($r('app.color.text_primary'))
+                              .maxLines(1)
+                          }
                           .height(36)
-                          .padding({ left: 12, right: 12 })
+                          .padding({ left: 10, right: 12 })
                           .backgroundColor($r('app.color.card_background'))
                           .borderRadius(18)
                           .shadow({ radius: 4, color: '#10000000', offsetY: 2 })
                           .onClick(() => {
-                            animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.EaseOut }, () => {
-                              this.subCategory = level;
+                            this.skipNextSearch = true;
+                            this.name = service.name;
+                            this.icon = service.icon || '';
+                            const matched: MemberServiceConfig | undefined = matchMemberService(service.name);
+                            if (matched) {
+                              this.category = matched.category || service.category || '其他';
+                              this.subCategory = matched.subCategory || '';
+                              if (matched.validSubCategories) {
+                                this.availableSubCategories =
+                                  matched.validSubCategories;
+                              }
+                            } else {
+                              this.category = service.category || '其他';
+                              this.subCategory = service.subCategory || '';
+                              this.availableSubCategories = [];
+                            }
+                            this.suggestions = [];
+                            this.showSuggestions = false;
+                            animateTo({
+                              duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                              curve: Curve.EaseInOut
+                            }, () => {
+                              this.showOCRResult = true;
                             });
                           })
-                      }, (level: string) => level)
+                        })
+                      }
+                      .padding({ top: 4, bottom: 4 })
                     }
-                    .padding({ top: 4, bottom: 4 })
+                    .scrollable(ScrollDirection.Horizontal)
+                    .scrollBar(BarState.Off)
+                    .width('100%')
+                    .margin({ top: 8 })
                   }
-                  .scrollable(ScrollDirection.Horizontal)
-                  .scrollBar(BarState.Off)
-                  .width('100%')
-                  .margin({ top: 8 })
                 }
-              }
-              .alignItems(HorizontalAlign.Start)
+                .alignItems(HorizontalAlign.Start)
 
-               Divider().color($r('app.color.divider_color')).opacity(0.3)
-              // 2. 订阅分类
-              Row() {
-                Text((this.recordType as string) === 'groupBuy' ? "团购分类" : "订阅分类")
-                  .fontSize(14)
-                  .fontColor($r('app.color.text_secondary'))
+                Divider().color($r('app.color.divider_color')).opacity(0.3)
 
-                Blank()
+                // 1.5 会员等级
+                Column() {
+                  Row() {
+                    Text("会员等级")
+                      .fontSize(14)
+                      .fontColor($r('app.color.text_secondary'))
 
-                TextInput({ text: this.category, placeholder: '例如: 影视会员' })
-                  .fontSize(16)
-                  .fontColor($r('app.color.text_primary'))
-                  .placeholderColor($r('app.color.text_secondary'))
-                  .textAlign(TextAlign.End)
-                  .backgroundColor(Color.Transparent)
-                  .padding(0)
-                  .height(40)
-                  .layoutWeight(1)
-                  .onChange((value: string) => {
-                    this.category = value;
+                    Blank()
+
+                    TextInput({ text: this.subCategory, placeholder: '例如: SVIP' })
+                      .fontSize(16)
+                      .fontColor($r('app.color.text_primary'))
+                      .placeholderColor($r('app.color.text_secondary'))
+                      .textAlign(TextAlign.End)
+                      .backgroundColor(Color.Transparent)
+                      .padding(0)
+                      .height(40)
+                      .layoutWeight(1)
+                      .onChange((value: string) => {
+                        this.subCategory = value;
+                      })
+                  }
+                  .width('100%')
+                  .height(56)
+                  .padding({ left: 12, right: 12 })
+                  .backgroundColor($r('app.color.page_background'))
+                  .borderRadius(12)
+                  .visualEffect(new hdsEffect.HdsEffectBuilder()
+                    .pointLight({
+                      sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isLevelPressed) ?
+                        hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                      illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                    })
+                    .buildEffect())
+                  .scale({
+                    x: (this.isAnimationEnabled && this.isLevelPressed) ? 0.98 : 1,
+                    y: (this.isAnimationEnabled && this.isLevelPressed) ? 0.98 : 1
                   })
-              }
-              .width('100%')
-              .height(56)
-              .padding({ left: 12, right: 12 })
-              .backgroundColor($r('app.color.page_background'))
-              .borderRadius(12)
-              .visualEffect(new hdsEffect.HdsEffectBuilder()
-                .pointLight({
-                  sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isCategoryPressed) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
-                  illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-                })
-                .buildEffect())
-              .scale({ x: (this.isAnimationEnabled && this.isCategoryPressed) ? 0.98 : 1, y: (this.isAnimationEnabled && this.isCategoryPressed) ? 0.98 : 1 })
-              .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-              .onTouch((event: TouchEvent) => {
-                if (event.type === TouchType.Down) {
-                   this.isCategoryPressed = true;
-                } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                   this.isCategoryPressed = false;
-                }
-              })
+                  .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+                  .onTouch((event: TouchEvent) => {
+                    if (event.type === TouchType.Down) {
+                      this.isLevelPressed = true;
+                    } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                      this.isLevelPressed = false;
+                    }
+                  })
 
-              Divider().color($r('app.color.divider_color')).opacity(0.3)
-
-
-
-              // 3. 付费周期
-              Row() {
-                Text("付费周期")
-                  .fontSize(14)
-                  .fontColor($r('app.color.text_secondary'))
-
-                Blank()
-
-                Row() {
-                  Text(this.getBillingCycleText(this.billingCycle))
-                    .fontSize(16)
-                    .fontColor($r('app.color.text_primary'))
-                    .margin({ right: 4 })
-
-                  SymbolGlyph($r('sys.symbol.chevron_right'))
-                    .fontSize(16)
-                    .fontColor([$r('app.color.text_secondary')])
-                }
-              }
-              .width('100%')
-              .height(56)
-              .padding({ left: 12, right: 12 })
-              .backgroundColor($r('app.color.page_background'))
-              .borderRadius(12)
-              .visualEffect(new hdsEffect.HdsEffectBuilder()
-                .pointLight({
-                  sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.pressedCycleValue !== '') ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
-                  illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-                })
-                .buildEffect())
-              .scale({ x: (this.isAnimationEnabled && this.pressedCycleValue !== '') ? 0.98 : 1, y: (this.isAnimationEnabled && this.pressedCycleValue !== '') ? 0.98 : 1 })
-              .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-              .onTouch((event: TouchEvent) => {
-                if (event.type === TouchType.Down) {
-                   this.pressedCycleValue = 'Active';
-                } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                   this.pressedCycleValue = '';
-                }
-              })
-              .onClick(() => {
-                TextPickerDialog.show({
-                  range: ['月付', '季付', '年付', '永久', '不定'],
-                  selected: ['Monthly', 'Quarterly', 'Yearly', 'Lifetime', 'Indefinite'].indexOf(this.billingCycle),
-                  selectedTextStyle: { color: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')) },
-                  acceptButtonStyle: { fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')) },
-                  onAccept: (result: TextPickerResult) => {
-                    const cycles: ('Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite')[] = ['Monthly', 'Quarterly', 'Yearly', 'Lifetime', 'Indefinite'];
-                    const value = cycles[result.index as number];
-
-                    animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.Sharp }, () => {
-                      this.billingCycle = value;
-
-                      // 根据选择的周期填充对应价格
-                      if (value === 'Monthly' && this.ocrMonthlyPrice) {
-                        this.price = this.ocrMonthlyPrice;
-                      } else if (value === 'Quarterly' && this.ocrQuarterlyPrice) {
-                        this.price = this.ocrQuarterlyPrice;
-                      } else if (value === 'Yearly' && this.ocrYearlyPrice) {
-                        this.price = this.ocrYearlyPrice;
-                      } else if (value === 'Lifetime' && this.ocrLifetimePrice) {
-                        this.price = this.ocrLifetimePrice;
-                      } else {
-                        // 没有对应价格时清空
-                        this.price = '';
+                  // 快速选择标签 - 横向滚动
+                  if (this.availableSubCategories.length > 0) {
+                    Scroll() {
+                      Row({ space: 8 }) {
+                        ForEach(this.availableSubCategories, (level: string) => {
+                          Text(level)
+                            .fontSize(13)
+                            .fontColor($r('app.color.text_primary'))
+                            .height(36)
+                            .padding({ left: 12, right: 12 })
+                            .backgroundColor($r('app.color.card_background'))
+                            .borderRadius(18)
+                            .shadow({ radius: 4, color: '#10000000', offsetY: 2 })
+                            .onClick(() => {
+                              animateTo({
+                                duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                                curve: Curve.EaseOut
+                              }, () => {
+                                this.subCategory = level;
+                              });
+                            })
+                        }, (level: string) => level)
                       }
-
-                      const now = new Date();
-                      // 如果没有识别到日期，根据周期设置默认日期
-                      if (!this.ocrExpireDate && this.editId === -1) {
-                         if (value === 'Monthly') {
-                           now.setMonth(now.getMonth() + 1);
-                           this.nextBillingDate = now;
-                         } else if (value === 'Quarterly') {
-                           now.setMonth(now.getMonth() + 3);
-                           this.nextBillingDate = now;
-                         } else if (value === 'Yearly') {
-                           now.setFullYear(now.getFullYear() + 1);
-                           this.nextBillingDate = now;
-                         } else if (value === 'Lifetime' || value === 'Indefinite') {
-                           this.nextBillingDate = now;
-                         }
-                      }
-
-                      // [Smart Update] 切换周期时，重新推算开始日期
-                      if (value !== 'Lifetime' && value !== 'Indefinite') {
-                         this.startDate = this.inferStartDate(this.nextBillingDate, value);
-                      } else if (value === 'Lifetime') {
-                         this.startDate = new Date(this.nextBillingDate);
-                      }
-                      // Indefinite: Keep existing startDate
-                    });
+                      .padding({ top: 4, bottom: 4 })
+                    }
+                    .scrollable(ScrollDirection.Horizontal)
+                    .scrollBar(BarState.Off)
+                    .width('100%')
+                    .margin({ top: 8 })
                   }
-                })
-              })
+                }
+                .alignItems(HorizontalAlign.Start)
 
-              Divider().color($r('app.color.divider_color')).opacity(0.3)
-
-              // 3.2 支付方式
-              Row() {
-                Text("支付方式")
-                  .fontSize(14)
-                  .fontColor($r('app.color.text_secondary'))
-
-                Blank()
-
+                Divider().color($r('app.color.divider_color')).opacity(0.3)
+                // 2. 订阅分类
                 Row() {
-                  Text(this.paymentMethod)
+                  Text((this.recordType as string) === 'groupBuy' ? "团购分类" : "订阅分类")
+                    .fontSize(14)
+                    .fontColor($r('app.color.text_secondary'))
+
+                  Blank()
+
+                  TextInput({ text: this.category, placeholder: '例如: 影视会员' })
                     .fontSize(16)
                     .fontColor($r('app.color.text_primary'))
-                    .margin({ right: 4 })
-
-                  SymbolGlyph($r('sys.symbol.chevron_right'))
-                    .fontSize(16)
-                    .fontColor([$r('app.color.text_secondary')])
-                }
-              }
-              .width('100%')
-              .height(56)
-              .padding({ left: 12, right: 12 })
-              .backgroundColor($r('app.color.page_background'))
-              .borderRadius(12)
-              .visualEffect(new hdsEffect.HdsEffectBuilder()
-                .pointLight({
-                  sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isPaymentPressed) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
-                  illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-                })
-                .buildEffect())
-              .scale({ x: (this.isAnimationEnabled && this.isPaymentPressed) ? 0.98 : 1, y: (this.isAnimationEnabled && this.isPaymentPressed) ? 0.98 : 1 })
-              .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-              .onTouch((event: TouchEvent) => {
-                if (event.type === TouchType.Down) {
-                   this.isPaymentPressed = true;
-                } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                   this.isPaymentPressed = false;
-                }
-              })
-              .onClick(() => {
-                const paymentMethods = ['现金', '银行卡', '云闪付', '支付宝', '微信支付', '华为支付', '京东支付', '抖音支付', '美团支付', '数字人民币', 'Apple Pay', 'PayPal', '其他支付方式'];
-                TextPickerDialog.show({
-                  range: paymentMethods,
-                  selected: paymentMethods.indexOf(this.paymentMethod),
-                  selectedTextStyle: { color: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')) },
-                  acceptButtonStyle: { fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')) },
-                  onAccept: (result: TextPickerResult) => {
-                    animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.Sharp }, () => {
-                      this.paymentMethod = result.value as string;
-                    });
-                  }
-                })
-              })
-
-              Divider().color($r('app.color.divider_color')).opacity(0.3)
-
-              // 2. 金额输入
-              Column({ space: 0 }) {
-                Text((this.recordType as string) === 'groupBuy' ? "实付金额" : "订阅金额")
-                  .fontSize(13)
-                  .fontColor($r('app.color.text_secondary'))
-                  .width('100%')
-                  .margin({ bottom: 12 })
-
-                Row({ space: 4 }) {
-                  Text(this.currency)
-                    .fontSize(36)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor($r('app.color.text_primary'))
-
-                  TextInput({ placeholder: '0.00', text: this.price })
-                    .fontSize(36)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor($r('app.color.text_primary'))
-                    .placeholderFont({ size: 36, weight: FontWeight.Bold })
                     .placeholderColor($r('app.color.text_secondary'))
-                    .textAlign(TextAlign.Start)
+                    .textAlign(TextAlign.End)
                     .backgroundColor(Color.Transparent)
-                    .type(InputType.NUMBER_DECIMAL)
-                    .maxLength(10)
-                    .caretColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
                     .padding(0)
+                    .height(40)
                     .layoutWeight(1)
                     .onChange((value: string) => {
-                      this.price = value;
-                      if (this.billingCycle === 'Monthly') {
-                        this.ocrMonthlyPrice = value;
-                      } else if (this.billingCycle === 'Yearly') {
-                        this.ocrYearlyPrice = value;
-                      }
+                      this.category = value;
                     })
                 }
                 .width('100%')
-                .alignItems(VerticalAlign.Bottom)
-                .margin({ bottom: 12 })
+                .height(56)
+                .padding({ left: 12, right: 12 })
+                .backgroundColor($r('app.color.page_background'))
+                .borderRadius(12)
+                .visualEffect(new hdsEffect.HdsEffectBuilder()
+                  .pointLight({
+                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isCategoryPressed) ?
+                      hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                    illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                  })
+                  .buildEffect())
+                .scale({
+                  x: (this.isAnimationEnabled && this.isCategoryPressed) ? 0.98 : 1,
+                  y: (this.isAnimationEnabled && this.isCategoryPressed) ? 0.98 : 1
+                })
+                .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+                .onTouch((event: TouchEvent) => {
+                  if (event.type === TouchType.Down) {
+                    this.isCategoryPressed = true;
+                  } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                    this.isCategoryPressed = false;
+                  }
+                })
 
-                Divider()
-                  .color($r('app.color.divider_color'))
-                  .strokeWidth(1)
+                Divider().color($r('app.color.divider_color')).opacity(0.3)
 
 
+                // 3. 付费周期
                 Row() {
-                  SymbolGlyph($r('sys.symbol.info_circle'))
-                    .fontSize(12)
-                    .fontColor([$r('app.color.text_secondary')])
-                    .opacity(0.6)
-                    .margin({ right: 4 })
-
-                  Text("如果您的订阅是免费获得,请在订阅金额栏填写 0。")
-                    .fontSize(11)
+                  Text("付费周期")
+                    .fontSize(14)
                     .fontColor($r('app.color.text_secondary'))
-                    .opacity(0.6)
-                    .layoutWeight(1)
+
+                  Blank()
+
+                  Row() {
+                    Text(this.getBillingCycleText(this.billingCycle))
+                      .fontSize(16)
+                      .fontColor($r('app.color.text_primary'))
+                      .margin({ right: 4 })
+
+                    SymbolGlyph($r('sys.symbol.chevron_right'))
+                      .fontSize(16)
+                      .fontColor([$r('app.color.text_secondary')])
+                  }
                 }
                 .width('100%')
-                .margin({ top: 8 })
-              }
-              .width('100%')
+                .height(56)
+                .padding({ left: 12, right: 12 })
+                .backgroundColor($r('app.color.page_background'))
+                .borderRadius(12)
+                .visualEffect(new hdsEffect.HdsEffectBuilder()
+                  .pointLight({
+                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled &&
+                      this.pressedCycleValue !== '') ? hdsEffect.PointLightSourceType.BRIGHT :
+                      hdsEffect.PointLightSourceType.NONE,
+                    illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                  })
+                  .buildEffect())
+                .scale({
+                  x: (this.isAnimationEnabled && this.pressedCycleValue !== '') ? 0.98 : 1,
+                  y: (this.isAnimationEnabled && this.pressedCycleValue !== '') ? 0.98 : 1
+                })
+                .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+                .onTouch((event: TouchEvent) => {
+                  if (event.type === TouchType.Down) {
+                    this.pressedCycleValue = 'Active';
+                  } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                    this.pressedCycleValue = '';
+                  }
+                })
+                .onClick(() => {
+                  TextPickerDialog.show({
+                    range: ['月付', '季付', '年付', '永久', '不定'],
+                    selected: ['Monthly', 'Quarterly', 'Yearly', 'Lifetime',
+                      'Indefinite'].indexOf(this.billingCycle),
+                    selectedTextStyle: {
+                      color: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                        (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                    },
+                    acceptButtonStyle: {
+                      fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                        (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                    },
+                    onAccept: (result: TextPickerResult) => {
+                      const cycles: ('Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite')[] =
+                        ['Monthly', 'Quarterly', 'Yearly', 'Lifetime', 'Indefinite'];
+                      const value = cycles[result.index as number];
 
-              Divider().color($r('app.color.divider_color')).opacity(0.3)
+                      animateTo({
+                        duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                        curve: Curve.Sharp
+                      }, () => {
+                        this.billingCycle = value;
 
-              // 3.5 自动续费
-              if (this.billingCycle !== 'Lifetime' && (this.recordType as string) !== 'groupBuy') {
-                Column({ space: 12 }) {
-                   Row() {
+                        // 根据选择的周期填充对应价格
+                        if (value === 'Monthly' && this.ocrMonthlyPrice) {
+                          this.price = this.ocrMonthlyPrice;
+                        } else if (value === 'Quarterly' && this.ocrQuarterlyPrice) {
+                          this.price = this.ocrQuarterlyPrice;
+                        } else if (value === 'Yearly' && this.ocrYearlyPrice) {
+                          this.price = this.ocrYearlyPrice;
+                        } else if (value === 'Lifetime' && this.ocrLifetimePrice) {
+                          this.price = this.ocrLifetimePrice;
+                        } else {
+                          // 没有对应价格时清空
+                          this.price = '';
+                        }
+
+                        const now = new Date();
+                        // 如果没有识别到日期，根据周期设置默认日期
+                        if (!this.ocrExpireDate && this.editId === -1) {
+                          if (value === 'Monthly') {
+                            now.setMonth(now.getMonth() + 1);
+                            this.nextBillingDate = now;
+                          } else if (value === 'Quarterly') {
+                            now.setMonth(now.getMonth() + 3);
+                            this.nextBillingDate = now;
+                          } else if (value === 'Yearly') {
+                            now.setFullYear(now.getFullYear() + 1);
+                            this.nextBillingDate = now;
+                          } else if (value === 'Lifetime' || value === 'Indefinite') {
+                            this.nextBillingDate = now;
+                          }
+                        }
+
+                        // [Smart Update] 切换周期时，重新推算开始日期
+                        if (value !== 'Lifetime' && value !== 'Indefinite') {
+                          this.startDate = this.inferStartDate(this.nextBillingDate, value);
+                        } else if (value === 'Lifetime') {
+                          this.startDate = new Date(this.nextBillingDate);
+                        }
+                        // Indefinite: Keep existing startDate
+                      });
+                    }
+                  })
+                })
+
+                Divider().color($r('app.color.divider_color')).opacity(0.3)
+
+                // 3.2 支付方式
+                Row() {
+                  Text("支付方式")
+                    .fontSize(14)
+                    .fontColor($r('app.color.text_secondary'))
+
+                  Blank()
+
+                  Row() {
+                    Text(this.paymentMethod)
+                      .fontSize(16)
+                      .fontColor($r('app.color.text_primary'))
+                      .margin({ right: 4 })
+
+                    SymbolGlyph($r('sys.symbol.chevron_right'))
+                      .fontSize(16)
+                      .fontColor([$r('app.color.text_secondary')])
+                  }
+                }
+                .width('100%')
+                .height(56)
+                .padding({ left: 12, right: 12 })
+                .backgroundColor($r('app.color.page_background'))
+                .borderRadius(12)
+                .visualEffect(new hdsEffect.HdsEffectBuilder()
+                  .pointLight({
+                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isPaymentPressed) ?
+                      hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                    illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                  })
+                  .buildEffect())
+                .scale({
+                  x: (this.isAnimationEnabled && this.isPaymentPressed) ? 0.98 : 1,
+                  y: (this.isAnimationEnabled && this.isPaymentPressed) ? 0.98 : 1
+                })
+                .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+                .onTouch((event: TouchEvent) => {
+                  if (event.type === TouchType.Down) {
+                    this.isPaymentPressed = true;
+                  } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                    this.isPaymentPressed = false;
+                  }
+                })
+                .onClick(() => {
+                  const paymentMethods =
+                    ['现金', '银行卡', '云闪付', '支付宝', '微信支付', '华为支付', '京东支付', '抖音支付',
+                      '美团支付', '数字人民币', 'Apple Pay', 'PayPal', '其他支付方式'];
+                  TextPickerDialog.show({
+                    range: paymentMethods,
+                    selected: paymentMethods.indexOf(this.paymentMethod),
+                    selectedTextStyle: {
+                      color: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                        (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                    },
+                    acceptButtonStyle: {
+                      fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                        (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                    },
+                    onAccept: (result: TextPickerResult) => {
+                      animateTo({
+                        duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                        curve: Curve.Sharp
+                      }, () => {
+                        this.paymentMethod = result.value as string;
+                      });
+                    }
+                  })
+                })
+
+                Divider().color($r('app.color.divider_color')).opacity(0.3)
+
+                // 2. 金额输入
+                Column({ space: 0 }) {
+                  Text((this.recordType as string) === 'groupBuy' ? "实付金额" : "订阅金额")
+                    .fontSize(13)
+                    .fontColor($r('app.color.text_secondary'))
+                    .width('100%')
+                    .margin({ bottom: 12 })
+
+                  Row({ space: 4 }) {
+                    Text(this.currency)
+                      .fontSize(36)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor($r('app.color.text_primary'))
+
+                    TextInput({ placeholder: '0.00', text: this.price })
+                      .fontSize(36)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor($r('app.color.text_primary'))
+                      .placeholderFont({ size: 36, weight: FontWeight.Bold })
+                      .placeholderColor($r('app.color.text_secondary'))
+                      .textAlign(TextAlign.Start)
+                      .backgroundColor(Color.Transparent)
+                      .type(InputType.NUMBER_DECIMAL)
+                      .maxLength(10)
+                      .caretColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                        (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                      .padding(0)
+                      .layoutWeight(1)
+                      .onChange((value: string) => {
+                        this.price = value;
+                        if (this.billingCycle === 'Monthly') {
+                          this.ocrMonthlyPrice = value;
+                        } else if (this.billingCycle === 'Yearly') {
+                          this.ocrYearlyPrice = value;
+                        }
+                      })
+                  }
+                  .width('100%')
+                  .alignItems(VerticalAlign.Bottom)
+                  .margin({ bottom: 12 })
+
+                  Divider()
+                    .color($r('app.color.divider_color'))
+                    .strokeWidth(1)
+
+
+                  Row() {
+                    SymbolGlyph($r('sys.symbol.info_circle'))
+                      .fontSize(12)
+                      .fontColor([$r('app.color.text_secondary')])
+                      .opacity(0.6)
+                      .margin({ right: 4 })
+
+                    Text("如果您的订阅是免费获得,请在订阅金额栏填写 0。")
+                      .fontSize(11)
+                      .fontColor($r('app.color.text_secondary'))
+                      .opacity(0.6)
+                      .layoutWeight(1)
+                  }
+                  .width('100%')
+                  .margin({ top: 8 })
+                }
+                .width('100%')
+
+                Divider().color($r('app.color.divider_color')).opacity(0.3)
+
+                // 3.5 自动续费
+                if (this.billingCycle !== 'Lifetime' && (this.recordType as string) !== 'groupBuy') {
+                  Column({ space: 12 }) {
+                    Row() {
                       Text("自动续费")
                         .fontSize(13)
                         .fontColor($r('app.color.text_secondary'))
                         .layoutWeight(1)
 
                       Toggle({ type: ToggleType.Switch, isOn: this.isAutoRenewal })
-                        .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                        .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                          (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
                         .switchPointColor(Color.White)
                         .onChange((isOn: boolean) => {
                           if (this.isAnimationEnabled) {
-                             animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
-                               this.isAutoRenewal = isOn;
-                             })
+                            animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
+                              this.isAutoRenewal = isOn;
+                            })
                           } else {
-                             this.isAutoRenewal = isOn;
+                            this.isAutoRenewal = isOn;
                           }
                         })
-                   }
-                   .width('100%')
+                    }
+                    .width('100%')
 
-                   if (!this.isAutoRenewal) {
-                     Row() {
-                       SymbolGlyph($r('sys.symbol.info_circle'))
-                         .fontSize(12)
-                         .fontColor([$r('app.color.text_secondary')])
-                         .margin({ right: 4 })
+                    if (!this.isAutoRenewal) {
+                      Row() {
+                        SymbolGlyph($r('sys.symbol.info_circle'))
+                          .fontSize(12)
+                          .fontColor([$r('app.color.text_secondary')])
+                          .margin({ right: 4 })
 
-                       Text("关闭后，订阅到期时将不会自动续期。")
-                         .fontSize(11)
-                         .fontColor($r('app.color.text_secondary'))
-                         .layoutWeight(1)
-                     }
-                     .width('100%')
-                     .margin({ top: -4 })
-                     .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -10 })).animation({ duration: this.isAnimationEnabled ? undefined : 0 }))
-                   }
+                        Text("关闭后，订阅到期时将不会自动续期。")
+                          .fontSize(11)
+                          .fontColor($r('app.color.text_secondary'))
+                          .layoutWeight(1)
+                      }
+                      .width('100%')
+                      .margin({ top: -4 })
+                      .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -10 }))
+                        .animation({ duration: this.isAnimationEnabled ? undefined : 0 }))
+                    }
+                  }
                 }
-              }
-              // 4. 日期选择
-              Column({ space: 10 }) {
-                // 4.1 开始日期 (仅非永久会员显示)
-                if (this.billingCycle !== 'Lifetime') {
+                // 4. 日期选择
+                Column({ space: 10 }) {
+                  // 4.1 开始日期 (仅非永久会员显示)
+                  if (this.billingCycle !== 'Lifetime') {
                     Row() {
                       Text("开通日期")
                         .fontSize(13)
@@ -2455,10 +2845,16 @@ export struct AddSubscription {
 
                         SymbolGlyph($r('sys.symbol.calendar'))
                           .fontSize(16)
-                          .fontColor([this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
+                          .fontColor([this.isNewYearTheme ? '#FFD700' :
+                            (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
                       }
                       .backgroundColor($r('app.color.page_background'))
-                      .padding({ left: 12, right: 10, top: 6, bottom: 6 })
+                      .padding({
+                        left: 12,
+                        right: 10,
+                        top: 6,
+                        bottom: 6
+                      })
                       .borderRadius(8)
                       .visualEffect(new hdsEffect.HdsEffectBuilder()
                         .pointLight({
@@ -2471,8 +2867,8 @@ export struct AddSubscription {
                       .onTouch((event: TouchEvent) => {
                         if (event.type === TouchType.Down) {
                           if (this.isAnimationEnabled && this.isPointLightEnabled) {
-                              this.isStartDatePressed = true;
-                              this.startDateLight = hdsEffect.PointLightSourceType.BRIGHT;
+                            this.isStartDatePressed = true;
+                            this.startDateLight = hdsEffect.PointLightSourceType.BRIGHT;
                           }
                         } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
                           this.isStartDatePressed = false;
@@ -2482,8 +2878,14 @@ export struct AddSubscription {
                       .onClick(() => {
                         DatePickerDialog.show({
                           selected: this.startDate,
-                          selectedTextStyle: { color: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')) },
-                          acceptButtonStyle: { fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')) },
+                          selectedTextStyle: {
+                            color: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                              (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                          },
+                          acceptButtonStyle: {
+                            fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                              (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                          },
                           onAccept: (value: DatePickerResult) => {
                             this.startDate.setFullYear(value.year, value.month, value.day)
                           }
@@ -2493,262 +2895,310 @@ export struct AddSubscription {
                     .width('100%')
                     // Container Transition
                     .transition(TransitionEffect.OPACITY
-                        .combine(TransitionEffect.translate({ y: -10 }))
-                        .combine(TransitionEffect.scale({ y: 0.9 }))
-                        .animation({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.FastOutSlowIn })
+                      .combine(TransitionEffect.translate({ y: -10 }))
+                      .combine(TransitionEffect.scale({ y: 0.9 }))
+                      .animation({
+                        duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                        curve: Curve.FastOutSlowIn
+                      })
                     )
 
-                  Divider().color($r('app.color.divider_color')).opacity(0.3)
-                    .transition(TransitionEffect.OPACITY.animation({ duration: this.isAnimationEnabled ? this.animationDuration : 0 }))
-                }
-
-                // 4.2 到期/购买日期
-                Row() {
-                  Text(this.billingCycle === 'Lifetime' ? "购买日期" : ((this.recordType as string) === 'groupBuy' ? "过期时间" : "到期日期"))
-                    .fontSize(13)
-                    .fontColor($r('app.color.text_secondary'))
-                    .transition(TransitionEffect.OPACITY.animation({ duration: this.isAnimationEnabled ? this.animationDuration : 0 }))
-
-                  Blank()
-
-                  Row() {
-                    Text(DateUtil.formatDate(this.nextBillingDate))
-                      .fontSize(15)
-                      .fontColor($r('app.color.text_primary'))
-                      .fontWeight(FontWeight.Medium)
-                      .margin({ right: 6 })
-                      .transition(TransitionEffect.OPACITY.animation({ duration: this.isAnimationEnabled ? this.animationDuration : 0 }))
-
-                    SymbolGlyph($r('sys.symbol.calendar'))
-                      .fontSize(16)
-                      .fontColor([this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
+                    Divider().color($r('app.color.divider_color')).opacity(0.3)
+                      .transition(TransitionEffect.OPACITY.animation({
+                        duration: this.isAnimationEnabled ? this.animationDuration : 0
+                      }))
                   }
-                  .transition(TransitionEffect.OPACITY.animation({ duration: this.isAnimationEnabled ? this.animationDuration : 0 }))
-                  .backgroundColor($r('app.color.page_background'))
-                  .padding({ left: 12, right: 10, top: 6, bottom: 6 })
-                  .borderRadius(8)
-                  .visualEffect(new hdsEffect.HdsEffectBuilder()
-                    .pointLight({
-                      sourceType: this.dateLight,
-                      illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-                    })
-                    .buildEffect())
-                  .scale({ x: this.isDatePressed ? 0.98 : 1, y: this.isDatePressed ? 0.98 : 1 })
-                  .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-                  .onTouch((event: TouchEvent) => {
-                    if (event.type === TouchType.Down) {
-                      if (this.isAnimationEnabled && this.isPointLightEnabled) {
-                          this.isDatePressed = true;
-                          this.dateLight = hdsEffect.PointLightSourceType.BRIGHT;
-                      }
-                    } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                      this.isDatePressed = false;
-                      this.dateLight = hdsEffect.PointLightSourceType.NONE;
-                    }
-                  })
-                  .onClick(() => {
-                    DatePickerDialog.show({
-                      selected: this.nextBillingDate,
-                      selectedTextStyle: { color: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')) },
-                      acceptButtonStyle: { fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')) },
-                      onAccept: (value: DatePickerResult) => {
-                        this.nextBillingDate.setFullYear(value.year, value.month, value.day)
-                        // 用户手动修改到期日期时,不自动修改开通日期
-                        // 开通日期和到期日期应该是独立可编辑的字段
-                      }
-                    })
-                  })
-                }
-                .width('100%')
-              }
-              .alignItems(HorizontalAlign.Start)
-              .transition(TransitionEffect.OPACITY.animation({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.EaseInOut })
-                .combine(TransitionEffect.translate({ y: -15 }).animation({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.EaseInOut })))
 
-              Divider().color($r('app.color.divider_color')).opacity(0.3)
-                .transition(TransitionEffect.OPACITY.animation({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.EaseInOut }))
-
-              if (this.billingCycle !== 'Lifetime') {
-
-                // 5. 提醒设置 - 带开关和动画
-                Column({ space: 12 }) {
+                  // 4.2 到期/购买日期
                   Row() {
-                    Text((this.recordType as string) === 'groupBuy' ? "过期提醒" : "到期提醒")
+                    Text(this.billingCycle === 'Lifetime' ? "购买日期" :
+                      ((this.recordType as string) === 'groupBuy' ? "过期时间" : "到期日期"))
                       .fontSize(13)
                       .fontColor($r('app.color.text_secondary'))
-                      .layoutWeight(1)
+                      .transition(TransitionEffect.OPACITY.animation({
+                        duration: this.isAnimationEnabled ? this.animationDuration : 0
+                      }))
 
-                    Toggle({ type: ToggleType.Switch, isOn: this.isReminderEnabled })
-                      .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                      .switchPointColor(Color.White)
-                      .onChange((isOn: boolean) => {
-                        this.isReminderEnabled = isOn;
-                        if (this.isAnimationEnabled) {
-                          if (isOn) {
-                            animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
-                               this.isReminderExpanded = true;
-                               this.reminderOpacity = 1;
-                             })
-                          } else {
-                             animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
-                               this.reminderOpacity = 0;
-                             });
-                             setTimeout(() => {
-                               animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
-                                  this.isReminderExpanded = false;
-                               });
-                             }, 200);
-                          }
-                        } else {
-                          this.isReminderExpanded = isOn;
-                          this.reminderOpacity = isOn ? 1 : 0;
+                    Blank()
+
+                    Row() {
+                      Text(DateUtil.formatDate(this.nextBillingDate))
+                        .fontSize(15)
+                        .fontColor($r('app.color.text_primary'))
+                        .fontWeight(FontWeight.Medium)
+                        .margin({ right: 6 })
+                        .transition(TransitionEffect.OPACITY.animation({
+                          duration: this.isAnimationEnabled ? this.animationDuration : 0
+                        }))
+
+                      SymbolGlyph($r('sys.symbol.calendar'))
+                        .fontSize(16)
+                        .fontColor([this.isNewYearTheme ? '#FFD700' :
+                          (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
+                    }
+                    .transition(TransitionEffect.OPACITY.animation({
+                      duration: this.isAnimationEnabled ? this.animationDuration : 0
+                    }))
+                    .backgroundColor($r('app.color.page_background'))
+                    .padding({
+                      left: 12,
+                      right: 10,
+                      top: 6,
+                      bottom: 6
+                    })
+                    .borderRadius(8)
+                    .visualEffect(new hdsEffect.HdsEffectBuilder()
+                      .pointLight({
+                        sourceType: this.dateLight,
+                        illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                      })
+                      .buildEffect())
+                    .scale({ x: this.isDatePressed ? 0.98 : 1, y: this.isDatePressed ? 0.98 : 1 })
+                    .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+                    .onTouch((event: TouchEvent) => {
+                      if (event.type === TouchType.Down) {
+                        if (this.isAnimationEnabled && this.isPointLightEnabled) {
+                          this.isDatePressed = true;
+                          this.dateLight = hdsEffect.PointLightSourceType.BRIGHT;
+                        }
+                      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                        this.isDatePressed = false;
+                        this.dateLight = hdsEffect.PointLightSourceType.NONE;
+                      }
+                    })
+                    .onClick(() => {
+                      DatePickerDialog.show({
+                        selected: this.nextBillingDate,
+                        selectedTextStyle: {
+                          color: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                            (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                        },
+                        acceptButtonStyle: {
+                          fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                            (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                        },
+                        onAccept: (value: DatePickerResult) => {
+                          this.nextBillingDate.setFullYear(value.year, value.month, value.day)
+                          // 用户手动修改到期日期时,不自动修改开通日期
+                          // 开通日期和到期日期应该是独立可编辑的字段
                         }
                       })
+                    })
                   }
                   .width('100%')
-                  .alignItems(VerticalAlign.Center)
+                }
+                .alignItems(HorizontalAlign.Start)
+                .transition(TransitionEffect.OPACITY.animation({
+                  duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                  curve: Curve.EaseInOut
+                })
+                  .combine(TransitionEffect.translate({ y: -15 })
+                    .animation({
+                      duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                      curve: Curve.EaseInOut
+                    })))
 
-                  if (this.isReminderExpanded) {
+                Divider().color($r('app.color.divider_color')).opacity(0.3)
+                  .transition(TransitionEffect.OPACITY.animation({
+                    duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                    curve: Curve.EaseInOut
+                  }))
+
+                if (this.billingCycle !== 'Lifetime') {
+
+                  // 5. 提醒设置 - 带开关和动画
+                  Column({ space: 12 }) {
                     Row() {
-                      SymbolGlyph($r('sys.symbol.info_circle'))
-                        .fontSize(12)
-                        .fontColor([$r('app.color.text_secondary')])
-                        .margin({ right: 4 })
-
-                      Text("提示音为系统默认闹钟铃声，可能会出现铃声过大问题，可通过调整系统闹钟音量调整本应用提示音量。请合理设置提醒时间，避免过度滥用提醒功能。本应用不对因提醒失效导致的任何损失承担责任。")
-                        .fontSize(11)
+                      Text((this.recordType as string) === 'groupBuy' ? "过期提醒" : "到期提醒")
+                        .fontSize(13)
                         .fontColor($r('app.color.text_secondary'))
                         .layoutWeight(1)
+
+                      Toggle({ type: ToggleType.Switch, isOn: this.isReminderEnabled })
+                        .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                          (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                        .switchPointColor(Color.White)
+                        .onChange((isOn: boolean) => {
+                          this.isReminderEnabled = isOn;
+                          if (this.isAnimationEnabled) {
+                            if (isOn) {
+                              animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
+                                this.isReminderExpanded = true;
+                                this.reminderOpacity = 1;
+                              })
+                            } else {
+                              animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
+                                this.reminderOpacity = 0;
+                              });
+                              setTimeout(() => {
+                                animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
+                                  this.isReminderExpanded = false;
+                                });
+                              }, 200);
+                            }
+                          } else {
+                            this.isReminderExpanded = isOn;
+                            this.reminderOpacity = isOn ? 1 : 0;
+                          }
+                        })
                     }
                     .width('100%')
-                    .margin({ top: -4, bottom: 8 })
-                    .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -10 })).animation({ duration: this.isAnimationEnabled ? undefined : 0 }))
-                    .opacity(this.reminderOpacity)
-                  }
+                    .alignItems(VerticalAlign.Center)
 
-                  if (this.isReminderExpanded) {
-                    Row() {
-                      Blank()
-                      // 提前天数
+                    if (this.isReminderExpanded) {
                       Row() {
-                        Text(`提前 ${this.reminderDaysBefore} 天`)
-                          .fontSize(14)
-                          .fontColor($r('app.color.text_primary'))
+                        SymbolGlyph($r('sys.symbol.info_circle'))
+                          .fontSize(12)
+                          .fontColor([$r('app.color.text_secondary')])
+                          .margin({ right: 4 })
+
+                        Text("提示音为系统默认闹钟铃声，可能会出现铃声过大问题，可通过调整系统闹钟音量调整本应用提示音量。请合理设置提醒时间，避免过度滥用提醒功能。本应用不对因提醒失效导致的任何损失承担责任。")
+                          .fontSize(11)
+                          .fontColor($r('app.color.text_secondary'))
+                          .layoutWeight(1)
                       }
-                      .height(32)
-                      .padding({ left: 10, right: 10 })
-                      .backgroundColor($r('app.color.page_background'))
-                      .borderRadius(8)
-                      .visualEffect(new hdsEffect.HdsEffectBuilder()
-                        .pointLight({
-                          sourceType: this.reminderDaysLight,
-                          illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                      .width('100%')
+                      .margin({ top: -4, bottom: 8 })
+                      .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -10 }))
+                        .animation({ duration: this.isAnimationEnabled ? undefined : 0 }))
+                      .opacity(this.reminderOpacity)
+                    }
+
+                    if (this.isReminderExpanded) {
+                      Row() {
+                        Blank()
+                        // 提前天数
+                        Row() {
+                          Text(`提前 ${this.reminderDaysBefore} 天`)
+                            .fontSize(14)
+                            .fontColor($r('app.color.text_primary'))
+                        }
+                        .height(32)
+                        .padding({ left: 10, right: 10 })
+                        .backgroundColor($r('app.color.page_background'))
+                        .borderRadius(8)
+                        .visualEffect(new hdsEffect.HdsEffectBuilder()
+                          .pointLight({
+                            sourceType: this.reminderDaysLight,
+                            illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                          })
+                          .buildEffect())
+                        .scale({
+                          x: this.isReminderDaysPressed ? 0.98 : 1,
+                          y: this.isReminderDaysPressed ? 0.98 : 1
                         })
-                        .buildEffect())
-                      .scale({ x: this.isReminderDaysPressed ? 0.98 : 1, y: this.isReminderDaysPressed ? 0.98 : 1 })
-                      .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-                      .onTouch((event: TouchEvent) => {
-                        if (event.type === TouchType.Down) {
-                          if (this.isAnimationEnabled && this.isPointLightEnabled) {
+                        .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+                        .onTouch((event: TouchEvent) => {
+                          if (event.type === TouchType.Down) {
+                            if (this.isAnimationEnabled && this.isPointLightEnabled) {
                               this.isReminderDaysPressed = true;
                               this.reminderDaysLight = hdsEffect.PointLightSourceType.BRIGHT;
-                          }
-                        } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                          this.isReminderDaysPressed = false;
-                          this.reminderDaysLight = hdsEffect.PointLightSourceType.NONE;
-                        }
-                      })
-                      .onClick(() => {
-                        TextPickerDialog.show({
-                          range: ['1', '2', '3', '5', '7'],
-                          selected: ['1', '2', '3', '5', '7'].indexOf(this.reminderDaysBefore.toString()),
-                          onAccept: (value: TextPickerResult) => {
-                            this.reminderDaysBefore = parseInt(value.value as string);
+                            }
+                          } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                            this.isReminderDaysPressed = false;
+                            this.reminderDaysLight = hdsEffect.PointLightSourceType.NONE;
                           }
                         })
-                      })
-                      .margin({ right: 12 })
+                        .onClick(() => {
+                          TextPickerDialog.show({
+                            range: ['1', '2', '3', '5', '7'],
+                            selected: ['1', '2', '3', '5', '7'].indexOf(this.reminderDaysBefore.toString()),
+                            onAccept: (value: TextPickerResult) => {
+                              this.reminderDaysBefore = parseInt(value.value as string);
+                            }
+                          })
+                        })
+                        .margin({ right: 12 })
 
-                      // 提醒时间
-                      Row() {
-                        Text(this.reminderTime)
-                          .fontSize(14)
-                          .fontColor($r('app.color.text_primary'))
-                      }
-                      .height(32)
-                      .padding({ left: 10, right: 10 })
-                      .backgroundColor($r('app.color.page_background'))
-                      .borderRadius(8)
-                      .visualEffect(new hdsEffect.HdsEffectBuilder()
-                        .pointLight({
-                          sourceType: this.reminderTimeLight,
-                          illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                        // 提醒时间
+                        Row() {
+                          Text(this.reminderTime)
+                            .fontSize(14)
+                            .fontColor($r('app.color.text_primary'))
+                        }
+                        .height(32)
+                        .padding({ left: 10, right: 10 })
+                        .backgroundColor($r('app.color.page_background'))
+                        .borderRadius(8)
+                        .visualEffect(new hdsEffect.HdsEffectBuilder()
+                          .pointLight({
+                            sourceType: this.reminderTimeLight,
+                            illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                          })
+                          .buildEffect())
+                        .scale({
+                          x: this.isReminderTimePressed ? 0.98 : 1,
+                          y: this.isReminderTimePressed ? 0.98 : 1
                         })
-                        .buildEffect())
-                      .scale({ x: this.isReminderTimePressed ? 0.98 : 1, y: this.isReminderTimePressed ? 0.98 : 1 })
-                      .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-                      .onTouch((event: TouchEvent) => {
-                        if (event.type === TouchType.Down) {
-                          if (this.isAnimationEnabled && this.isPointLightEnabled) {
+                        .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+                        .onTouch((event: TouchEvent) => {
+                          if (event.type === TouchType.Down) {
+                            if (this.isAnimationEnabled && this.isPointLightEnabled) {
                               this.isReminderTimePressed = true;
                               this.reminderTimeLight = hdsEffect.PointLightSourceType.BRIGHT;
-                          }
-                        } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                          this.isReminderTimePressed = false;
-                          this.reminderTimeLight = hdsEffect.PointLightSourceType.NONE;
-                        }
-                      })
-                      .onClick(() => {
-                        const timeParts = this.reminderTime.split(':');
-                        const selectedHour = parseInt(timeParts[0]);
-                        const selectedMinute = parseInt(timeParts[1]);
-                        const selectedDate = new Date();
-                        selectedDate.setHours(selectedHour, selectedMinute);
-
-                        TimePickerDialog.show({
-                          selected: selectedDate,
-                          onAccept: (value: TimePickerResult) => {
-                            const h = value.hour.toString().padStart(2, '0');
-                            const m = value.minute.toString().padStart(2, '0');
-                            this.reminderTime = `${h}:${m}`;
+                            }
+                          } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                            this.isReminderTimePressed = false;
+                            this.reminderTimeLight = hdsEffect.PointLightSourceType.NONE;
                           }
                         })
-                      })
-                    }
-                    .width('100%')
-                    .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -10 })))
-                    .opacity(this.reminderOpacity)
-                  }
-                }
-                .width('100%')
-              }
-            }
-            .padding(20)
-            .backgroundColor($r('app.color.card_background'))
-            .borderRadius(24)
-            .visualEffect(new hdsEffect.HdsEffectBuilder()
-              .pointLight({
-                sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && (this.isCategoryPressed || this.isDatePressed || this.isReminderDaysPressed || this.isReminderTimePressed || this.pressedCycleValue !== '' || this.isDeletePressed || this.isCancelPressed || this.isSavePressed)) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
-                illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-              })
-              .buildEffect())
+                        .onClick(() => {
+                          const timeParts = this.reminderTime.split(':');
+                          const selectedHour = parseInt(timeParts[0]);
+                          const selectedMinute = parseInt(timeParts[1]);
+                          const selectedDate = new Date();
+                          selectedDate.setHours(selectedHour, selectedMinute);
 
-            .width('90%')
-            .shadow({ radius: 20, color: '#08000000', offsetY: 4 })
-          }
-          .width('100%')
-          .margin({ bottom: 16 })
-          .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).animation({ 
-            duration: this.isAnimationEnabled ? undefined : 0, 
-            curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear 
-          }))
+                          TimePickerDialog.show({
+                            selected: selectedDate,
+                            onAccept: (value: TimePickerResult) => {
+                              const h = value.hour.toString().padStart(2, '0');
+                              const m = value.minute.toString().padStart(2, '0');
+                              this.reminderTime = `${h}:${m}`;
+                            }
+                          })
+                        })
+                      }
+                      .width('100%')
+                      .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: -10 })))
+                      .opacity(this.reminderOpacity)
+                    }
+                  }
+                  .width('100%')
+                }
+              }
+              .padding(20)
+              .backgroundColor($r('app.color.card_background'))
+              .borderRadius(24)
+              .visualEffect(new hdsEffect.HdsEffectBuilder()
+                .pointLight({
+                  sourceType: (this.isAnimationEnabled && this.isPointLightEnabled &&
+                    (this.isCategoryPressed || this.isDatePressed || this.isReminderDaysPressed ||
+                    this.isReminderTimePressed || this.pressedCycleValue !== '' || this.isDeletePressed ||
+                    this.isCancelPressed || this.isSavePressed)) ? hdsEffect.PointLightSourceType.BRIGHT :
+                    hdsEffect.PointLightSourceType.NONE,
+                  illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                })
+                .buildEffect())
+
+              .width('90%')
+              .shadow({ radius: 20, color: '#08000000', offsetY: 4 })
+            }
+            .width('100%')
+            .margin({ bottom: 16 })
+            .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).animation({
+              duration: this.isAnimationEnabled ? undefined : 0,
+              curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) :
+                Curve.Linear
+            }))
           } // === 结束订阅表单 else 分支 ===
 
           // 免责声明勾选区
           Row() {
             Checkbox({ name: 'disclaimer', group: 'disclaimerGroup' })
               .select(this.isDisclaimerAgreed)
-              .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+              .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
               .width(18)
               .height(18)
               .onChange((value: boolean) => {
@@ -2759,11 +3209,17 @@ export struct AddSubscription {
               Span("我已阅读并同意")
                 .fontColor($r('app.color.text_secondary'))
               Span("《用户协议》")
-                .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                .decoration({ type: TextDecorationType.Underline, color: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')) })
+                .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                  (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                .decoration({
+                  type: TextDecorationType.Underline,
+                  color: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                    (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                })
                 .onClick(() => {
                   // 跳转或显示用户协议逻辑
-                  this.pageStack.pushPathByName('WebView', new WebViewParam($rawfile('user_agreement.html'), '用户协议'));
+                  this.pageStack.pushPathByName('WebView',
+                    new WebViewParam($rawfile('user_agreement.html'), '用户协议'));
                 })
               Span("及其免责声明，知晓本应用为本地记录工具，数据可能因不可控因素丢失；因我个人保管不当或操作失误导致的财产损失，开发者不承担责任，相关风险由本人自行承担。")
                 .fontColor($r('app.color.text_secondary'))
@@ -2781,79 +3237,79 @@ export struct AddSubscription {
 
           // 4. 底部操作栏
           Row({ space: 16 }) {
-             if (this.editId !== -1) {
-               Button("删除")
-                 .layoutWeight(1)
-                 .height(50)
-                 .backgroundColor('#10FF3B30')
-                 .fontColor(Color.Red)
-                 .borderRadius(16)
-                 .visualEffect(new hdsEffect.HdsEffectBuilder()
-                    .pointLight({
-                      sourceType: this.deleteLight,
-                      illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-                    })
-                    .buildEffect())
-                 .scale({ x: this.isDeletePressed ? 0.98 : 1, y: this.isDeletePressed ? 0.98 : 1 })
-                 .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-                 .onTouch((event: TouchEvent) => {
-                    if (event.type === TouchType.Down) {
-                      if (this.isAnimationEnabled && this.isPointLightEnabled) {
-                          this.isDeletePressed = true;
-                          this.deleteLight = hdsEffect.PointLightSourceType.BRIGHT;
-                      }
-                    } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                      this.isDeletePressed = false;
-                      this.deleteLight = hdsEffect.PointLightSourceType.NONE;
-                    }
+            if (this.editId !== -1) {
+              Button("删除")
+                .layoutWeight(1)
+                .height(50)
+                .backgroundColor('#10FF3B30')
+                .fontColor(Color.Red)
+                .borderRadius(16)
+                .visualEffect(new hdsEffect.HdsEffectBuilder()
+                  .pointLight({
+                    sourceType: this.deleteLight,
+                    illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
                   })
-                 .onClick(() => {
-                    this.promptAction.showDialog({
-                      title: '确认删除',
-                      message: '确定要删除这个订阅吗？',
-                      buttons: [
-                        { text: '取消', color: '#000000' },
-                        { text: '删除', color: '#FF0000' }
-                      ]
-                    }).then(async (resp) => {
-                      if (resp.index === 1) {
-                        await SubscriptionRepository.getInstance().delete(this.editId);
-                        this.pageStack.pop();
-                      }
-                    });
-                 })
-             } else {
-               Button("取消")
+                  .buildEffect())
+                .scale({ x: this.isDeletePressed ? 0.98 : 1, y: this.isDeletePressed ? 0.98 : 1 })
+                .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+                .onTouch((event: TouchEvent) => {
+                  if (event.type === TouchType.Down) {
+                    if (this.isAnimationEnabled && this.isPointLightEnabled) {
+                      this.isDeletePressed = true;
+                      this.deleteLight = hdsEffect.PointLightSourceType.BRIGHT;
+                    }
+                  } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                    this.isDeletePressed = false;
+                    this.deleteLight = hdsEffect.PointLightSourceType.NONE;
+                  }
+                })
+                .onClick(() => {
+                  this.promptAction.showDialog({
+                    title: '确认删除',
+                    message: '确定要删除这个订阅吗？',
+                    buttons: [
+                      { text: '取消', color: '#000000' },
+                      { text: '删除', color: '#FF0000' }
+                    ]
+                  }).then(async (resp) => {
+                    if (resp.index === 1) {
+                      await SubscriptionRepository.getInstance().delete(this.editId);
+                      this.pageStack.pop();
+                    }
+                  });
+                })
+            } else {
+              Button("取消")
                 .layoutWeight(1)
                 .height(50)
                 .backgroundColor($r('app.color.page_background'))
                 .fontColor($r('app.color.text_secondary'))
                 .borderRadius(16)
                 .visualEffect(new hdsEffect.HdsEffectBuilder()
-                    .pointLight({
-                      sourceType: this.cancelLight,
-                      illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-                    })
-                    .buildEffect())
+                  .pointLight({
+                    sourceType: this.cancelLight,
+                    illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                  })
+                  .buildEffect())
                 .scale({ x: this.isCancelPressed ? 0.98 : 1, y: this.isCancelPressed ? 0.98 : 1 })
                 .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
                 .onTouch((event: TouchEvent) => {
-                    if (event.type === TouchType.Down) {
-                      if (this.isAnimationEnabled && this.isPointLightEnabled) {
-                          this.isCancelPressed = true;
-                          this.cancelLight = hdsEffect.PointLightSourceType.BRIGHT;
-                      }
-                    } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                      this.isCancelPressed = false;
-                      this.cancelLight = hdsEffect.PointLightSourceType.NONE;
+                  if (event.type === TouchType.Down) {
+                    if (this.isAnimationEnabled && this.isPointLightEnabled) {
+                      this.isCancelPressed = true;
+                      this.cancelLight = hdsEffect.PointLightSourceType.BRIGHT;
                     }
-                  })
-                .onClick(() => {
-                   this.pageStack.pop();
+                  } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                    this.isCancelPressed = false;
+                    this.cancelLight = hdsEffect.PointLightSourceType.NONE;
+                  }
                 })
-             }
+                .onClick(() => {
+                  this.pageStack.pop();
+                })
+            }
 
-             Button("保存")
+            Button("保存")
               .layoutWeight(1)
               .height(50)
               .linearGradient(this.isNewYearTheme ? {
@@ -2867,48 +3323,53 @@ export struct AddSubscription {
                 colors: [[$r('app.color.brand_color'), 0.0], [$r('app.color.brand_color'), 1.0]]
               }))
               .backgroundColor(Color.Transparent)
-              .fontColor(this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White))
+              .fontColor(this.isNewYearTheme ? '#FFD700' :
+                (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White))
               .borderRadius(16)
-              .shadow({ radius: 10, color: this.isNewYearTheme ? '#40FF2400' : (this.showVipTheme ? '#40E6C07B' : '#20007AFF'), offsetY: 5 })
+              .shadow({
+                radius: 10,
+                color: this.isNewYearTheme ? '#40FF2400' : (this.showVipTheme ? '#40E6C07B' : '#20007AFF'),
+                offsetY: 5
+              })
               .visualEffect(new hdsEffect.HdsEffectBuilder()
-                    .pointLight({
-                      sourceType: this.saveLight,
-                      illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-                    })
-                    .buildEffect())
+                .pointLight({
+                  sourceType: this.saveLight,
+                  illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                })
+                .buildEffect())
               .scale({ x: this.isSavePressed ? 0.98 : 1, y: this.isSavePressed ? 0.98 : 1 })
               .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
               .onTouch((event: TouchEvent) => {
-                    if (event.type === TouchType.Down) {
-                      if (this.isAnimationEnabled && this.isPointLightEnabled) {
-                          this.isSavePressed = true;
-                          this.saveLight = hdsEffect.PointLightSourceType.BRIGHT;
-                      }
-                    } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                      this.isSavePressed = false;
-                      this.saveLight = hdsEffect.PointLightSourceType.NONE;
-                    }
-                  })
+                if (event.type === TouchType.Down) {
+                  if (this.isAnimationEnabled && this.isPointLightEnabled) {
+                    this.isSavePressed = true;
+                    this.saveLight = hdsEffect.PointLightSourceType.BRIGHT;
+                  }
+                } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                  this.isSavePressed = false;
+                  this.saveLight = hdsEffect.PointLightSourceType.NONE;
+                }
+              })
               .onClick(async () => {
                 if (!this.isDisclaimerAgreed) {
-                   this.promptAction.showToast({ message: '请先阅读并勾选用户协议' });
-                   return;
+                  this.promptAction.showToast({ message: '请先阅读并勾选用户协议' });
+                  return;
                 }
 
                 if (this.name === '' || this.price === '') {
-                   this.promptAction.showToast({ message: '请填写名称和金额' });
-                   return;
+                  this.promptAction.showToast({ message: '请填写名称和金额' });
+                  return;
                 }
 
                 if (this.billingCycle !== 'Lifetime' && this.billingCycle !== 'Indefinite') {
-                    const s = new Date(this.startDate);
-                    s.setHours(0,0,0,0);
-                    const e = new Date(this.nextBillingDate);
-                    e.setHours(0,0,0,0);
-                    if (s.getTime() > e.getTime()) {
-                       this.promptAction.showToast({ message: '开通日期不能晚于到期日期' });
-                       return;
-                    }
+                  const s = new Date(this.startDate);
+                  s.setHours(0, 0, 0, 0);
+                  const e = new Date(this.nextBillingDate);
+                  e.setHours(0, 0, 0, 0);
+                  if (s.getTime() > e.getTime()) {
+                    this.promptAction.showToast({ message: '开通日期不能晚于到期日期' });
+                    return;
+                  }
                 }
                 const newSub: SubscriptionModel = {
                   uuid: this.uuid || util.generateRandomUUID(),
@@ -2917,12 +3378,15 @@ export struct AddSubscription {
                   currency: this.currency,
                   billingCycle: this.billingCycle as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite',
                   nextBillingDate: this.nextBillingDate.getTime(),
-                  startDate: this.billingCycle === 'Lifetime' ? this.nextBillingDate.getTime() : this.startDate.getTime(),
+                  startDate: this.billingCycle === 'Lifetime' ? this.nextBillingDate.getTime() :
+                    this.startDate.getTime(),
                   icon: this.icon,
                   lastModified: new Date().getTime(),
                   isDeleted: false,
-                  reminderDaysBefore: (this.billingCycle === 'Lifetime' || !this.isReminderEnabled) ? undefined : this.reminderDaysBefore,
-                  reminderTime: (this.billingCycle === 'Lifetime' || !this.isReminderEnabled) ? undefined : this.reminderTime,
+                  reminderDaysBefore: (this.billingCycle === 'Lifetime' || !this.isReminderEnabled) ? undefined :
+                    this.reminderDaysBefore,
+                  reminderTime: (this.billingCycle === 'Lifetime' || !this.isReminderEnabled) ? undefined :
+                    this.reminderTime,
                   category: this.category,
                   subCategory: this.subCategory,
                   isAutoRenewal: this.isAutoRenewal,
@@ -2947,9 +3411,9 @@ export struct AddSubscription {
                 }
                 this.pageStack.clear();
               })
-        }
-        .width('90%')
-        .margin({ bottom: 40 })
+          }
+          .width('90%')
+          .margin({ bottom: 40 })
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
@@ -2963,68 +3427,96 @@ export struct AddSubscription {
       .height('100%')
       .backgroundColor(Color.Transparent)
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
+      Column()
+        .bindSheet($$this.showCropSheet, this.CropSheetBuilder(), {
+          height: '80%',
+          showClose: false,
+          dragBar: true,
+          preferType: SheetType.BOTTOM,
+          backgroundColor: $r('app.color.page_background')
 
-        Column()
-      .bindSheet($$this.showExampleSheet, this.ExampleImagesDialog(), {
-        detents: [SheetSize.MEDIUM],
-        backgroundColor: $r('app.color.page_background'),
-        showClose: true,
-        dragBar: true,
-        preferType:SheetType.CENTER,
-        title: { title: '识别示例', subtitle: '参考以下截图格式' }
-      })
+        })
+      Column()
+        .bindSheet($$this.showExampleSheet, this.ExampleImagesDialog(), {
+          detents: [SheetSize.MEDIUM],
+          backgroundColor: $r('app.color.page_background'),
+          showClose: true,
+          dragBar: true,
+          preferType: SheetType.CENTER,
+          title: { title: '识别示例', subtitle: '参考以下截图格式' }
+        })
 
-      }
     }
-    .titleBar({
-      avoidLayoutSafeArea: true,
-      content: {
-        title: {
-          mainTitle: this.editId !== -1 ? (this.recordType === 'groupBuy' ? "编辑团购" : "编辑服务") : (this.recordType === 'groupBuy' ? "添加团购" : "添加服务")
-        },
-        menu: {
-          value: [
-            {
-              content: {
-                icon: $r('sys.symbol.questionmark_circle'),
-                isEnabled: true,
-                action: () => {
-                  this.showExampleSheet = true;
+  }
+  build() {
+
+    if (deviceInfo.distributionOSApiVersion >= 60100&& this.isHdsTabsEnabled) {
+      HdsNavDestination() {
+          this.addBuilder()
+      }
+      .titleBar({
+        avoidLayoutSafeArea: true,
+        content: {
+          title: {
+            mainTitle: this.editId !== -1 ? (this.recordType === 'groupBuy' ? "编辑团购" : "编辑服务") :
+              (this.recordType === 'groupBuy' ? "添加团购" : "添加服务")
+          },
+          menu: {
+            value: [
+              {
+                content: {
+                  icon: $r('sys.symbol.questionmark_circle'),
+                  isEnabled: true,
+                  action: () => {
+                    this.showExampleSheet = true;
+                  }
                 }
               }
-            }
-          ]
+            ]
+          }
+        },
+        style: {
+          systemMaterialEffect: {
+            materialType: hdsMaterial.MaterialType.IMMERSIVE,
+            materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+          },
+          scrollEffectOpts: {
+            enableScrollEffect: true,
+            scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+            blurEffectiveStartOffset: LengthMetrics.vp(0),
+            blurEffectiveEndOffset: LengthMetrics.vp(20)
+          }
         }
-      }
-    })
-    .backgroundColor($r('app.color.page_background'))
-    .onReady((context: NavDestinationContext) => {
+      })
+      .backgroundColor($r('app.color.page_background'))
+      .onReady((context: NavDestinationContext) => {
         const rawParams = context.pathInfo.param as Record<string, Object>;
         if (rawParams && rawParams['initialType']) {
-            this.recordType = rawParams['initialType'] as 'subscription' | 'groupBuy';
+          this.recordType = rawParams['initialType'] as 'subscription' | 'groupBuy';
 
-            // 来自市场的预填充数据
-            if (rawParams['marketplaceName']) {
-                this.name = rawParams['marketplaceName'] as string;
-                this.skipNextSearch = true; // 防止触发搜索覆盖
-            }
-            if (rawParams['marketplaceIcon']) {
-                this.icon = rawParams['marketplaceIcon'] as string;
-            }
-            if (rawParams['marketplaceCategory']) {
-                this.category = rawParams['marketplaceCategory'] as string;
-            }
-            if (rawParams['marketplaceSubCategory']) {
-                this.subCategory = rawParams['marketplaceSubCategory'] as string;
-            }
-            if (rawParams['marketplaceCycle']) {
-                this.billingCycle = rawParams['marketplaceCycle'] as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite';
-            }
-            // 显示预览卡片（与 OCR 识别共用同一标志位）
-            if (rawParams['marketplaceName']) {
-                this.showOCRResult = true;
-            }
-            return;
+          // 来自市场的预填充数据
+          if (rawParams['marketplaceName']) {
+            this.name = rawParams['marketplaceName'] as string;
+            this.skipNextSearch = true; // 防止触发搜索覆盖
+          }
+          if (rawParams['marketplaceIcon']) {
+            this.icon = rawParams['marketplaceIcon'] as string;
+          }
+          if (rawParams['marketplaceCategory']) {
+            this.category = rawParams['marketplaceCategory'] as string;
+          }
+          if (rawParams['marketplaceSubCategory']) {
+            this.subCategory = rawParams['marketplaceSubCategory'] as string;
+          }
+          if (rawParams['marketplaceCycle']) {
+            this.billingCycle =
+              rawParams['marketplaceCycle'] as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite';
+          }
+          // 显示预览卡片（与 OCR 识别共用同一标志位）
+          if (rawParams['marketplaceName']) {
+            this.showOCRResult = true;
+          }
+          return;
         }
 
         const params = context.pathInfo.param as SubscriptionModel;
@@ -3072,10 +3564,10 @@ export struct AddSubscription {
 
           // 自动修正旧数据的分类
           if (this.category === '其他' && this.name && this.recordType === 'subscription') {
-             const matched = matchMemberService(this.name);
-             if (matched?.category) {
-               this.category = matched.category;
-             }
+            const matched = matchMemberService(this.name);
+            if (matched?.category) {
+              this.category = matched.category;
+            }
           }
 
           if (this.recordType === 'subscription') {
@@ -3103,26 +3595,166 @@ export struct AddSubscription {
             }
           }
         }
-    })
-    .onBackPressed(() => {
-      this.pageStack.pop();
-      return true;
-    })
-    .onShown(async () => {
-      // 页面显示时（包括从配置页返回），重新检查 API Key 状态，确保及时隐藏提示文字
-      this.hasApiKey = !!(await PreferenceUtil.getInstance().getAIKey());
+      })
+      .onBackPressed(() => {
+        this.pageStack.pop();
+        return true;
+      })
+      .onShown(async () => {
+        // 页面显示时（包括从配置页返回），重新检查 API Key 状态，确保及时隐藏提示文字
+        this.hasApiKey = !!(await PreferenceUtil.getInstance().getAIKey());
 
-      // 页面显示时，如果处于截图模式，说明用户手动切换回应用了
-      // 只有在检测到截图并正在处理时才自动关闭，如果只是切换回来什么都没做，保留闪控球
-    })
-    .bindSheet($$this.showCropSheet, this.CropSheetBuilder(), {
-      height: '80%',
-      showClose: false,
-      dragBar: true,
-      preferType: SheetType.BOTTOM,
-      backgroundColor: $r('app.color.page_background')
+        // 页面显示时，如果处于截图模式，说明用户手动切换回应用了
+        // 只有在检测到截图并正在处理时才自动关闭，如果只是切换回来什么都没做，保留闪控球
+      })
 
-    })
+    }
+    else {
+      HdsNavDestination() {
+        this.addBuilder()
+      }
+      .titleBar({
+        avoidLayoutSafeArea: true,
+        content: {
+          title: {
+            mainTitle: this.editId !== -1 ? (this.recordType === 'groupBuy' ? "编辑团购" : "编辑服务") :
+              (this.recordType === 'groupBuy' ? "添加团购" : "添加服务")
+          },
+          menu: {
+            value: [
+              {
+                content: {
+                  icon: $r('sys.symbol.questionmark_circle'),
+                  isEnabled: true,
+                  action: () => {
+                    this.showExampleSheet = true;
+                  }
+                }
+              }
+            ]
+          }
+        },
+      })
+      .backgroundColor($r('app.color.page_background'))
+      .onReady((context: NavDestinationContext) => {
+        const rawParams = context.pathInfo.param as Record<string, Object>;
+        if (rawParams && rawParams['initialType']) {
+          this.recordType = rawParams['initialType'] as 'subscription' | 'groupBuy';
+
+          // 来自市场的预填充数据
+          if (rawParams['marketplaceName']) {
+            this.name = rawParams['marketplaceName'] as string;
+            this.skipNextSearch = true; // 防止触发搜索覆盖
+          }
+          if (rawParams['marketplaceIcon']) {
+            this.icon = rawParams['marketplaceIcon'] as string;
+          }
+          if (rawParams['marketplaceCategory']) {
+            this.category = rawParams['marketplaceCategory'] as string;
+          }
+          if (rawParams['marketplaceSubCategory']) {
+            this.subCategory = rawParams['marketplaceSubCategory'] as string;
+          }
+          if (rawParams['marketplaceCycle']) {
+            this.billingCycle =
+              rawParams['marketplaceCycle'] as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite';
+          }
+          // 显示预览卡片（与 OCR 识别共用同一标志位）
+          if (rawParams['marketplaceName']) {
+            this.showOCRResult = true;
+          }
+          return;
+        }
+
+        const params = context.pathInfo.param as SubscriptionModel;
+        if (params && (params.id || params.uuid)) {
+          // 防止初始化时的名称设置触发 onChange 导致图标被重置
+          this.skipNextSearch = true;
+          this.editId = params.id || -1;
+          this.uuid = params.uuid;
+          this.name = params.name;
+          this.price = params.price.toString();
+          this.currency = params.currency;
+          this.billingCycle = params.billingCycle;
+          this.nextBillingDate = new Date(params.nextBillingDate);
+          if (params.startDate) {
+            this.startDate = new Date(params.startDate);
+          }
+          this.isAutoRenewal = params.isAutoRenewal !== undefined ? params.isAutoRenewal : true;
+          this.icon = params.icon || '';
+
+          // 加载提醒设置
+          if (params.reminderDaysBefore !== undefined) {
+            this.isReminderEnabled = true;
+            this.isReminderExpanded = true;
+            this.reminderOpacity = 1;
+            this.reminderDaysBefore = params.reminderDaysBefore;
+            this.reminderTime = params.reminderTime || '09:00';
+          }
+
+          this.category = params.category || '其他';
+          this.subCategory = params.subCategory || '';
+          this.paymentMethod = params.paymentMethod || '其他支付方式';
+
+          // 加载团购券特有字段
+          this.recordType = params.recordType || 'subscription';
+          if (this.recordType === 'groupBuy') {
+            this.platform = params.platform || 'meituan';
+            this.couponCode = params.couponCode || '';
+            this.usageStatus = params.usageStatus || 'unused';
+            this.merchantName = params.merchantName || '';
+            this.quantity = params.quantity || 1;
+            this.couponImage = params.couponImage || '';
+            this.usageTime = params.usageTime || '';
+            this.realUsageTime = params.realUsageTime;
+          }
+
+          // 自动修正旧数据的分类
+          if (this.category === '其他' && this.name && this.recordType === 'subscription') {
+            const matched = matchMemberService(this.name);
+            if (matched?.category) {
+              this.category = matched.category;
+            }
+          }
+
+          if (this.recordType === 'subscription') {
+            // 加载可用的会员等级选项
+            const service = matchMemberService(this.name);
+            if (service && service.validSubCategories) {
+              this.availableSubCategories = service.validSubCategories;
+            }
+          }
+
+          // 显示信息卡片
+          this.showOCRResult = true;
+          this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
+          // 注意：编辑模式下我们没有 ocrMonthlyPrice/ocrYearlyPrice 的原始数据，
+          // 如果需要显示价格，可以用 params.price 填充其中一个，或者留空只显示名称和日期
+          if (this.recordType === 'subscription') {
+            if (this.billingCycle === 'Monthly') {
+              this.ocrMonthlyPrice = this.price;
+            } else if (this.billingCycle === 'Quarterly') {
+              this.ocrQuarterlyPrice = this.price;
+            } else if (this.billingCycle === 'Yearly') {
+              this.ocrYearlyPrice = this.price;
+            } else if (this.billingCycle === 'Lifetime') {
+              this.ocrLifetimePrice = this.price;
+            }
+          }
+        }
+      })
+      .onBackPressed(() => {
+        this.pageStack.pop();
+        return true;
+      })
+      .onShown(async () => {
+        // 页面显示时（包括从配置页返回），重新检查 API Key 状态，确保及时隐藏提示文字
+        this.hasApiKey = !!(await PreferenceUtil.getInstance().getAIKey());
+
+        // 页面显示时，如果处于截图模式，说明用户手动切换回应用了
+        // 只有在检测到截图并正在处理时才自动关闭，如果只是切换回来什么都没做，保留闪控球
+      })
+    }
 
   }
 

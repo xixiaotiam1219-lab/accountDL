@@ -1,4 +1,5 @@
 import { SubscriptionModel } from '../model/SubscriptionModel';
+import { CustomIconItem } from '../utils/HarmonyShareManager';
 import { DateUtil } from '../utils/DateUtil';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
 import { SubscriptionIcon } from './SubscriptionIcon';
@@ -216,6 +217,7 @@ export struct ImportSheet {
   @StorageLink('isAnimationEnabled') isAnimationEnabled: boolean = true;
   @StorageLink('isPointLightEnabled') isPointLightEnabled: boolean = true;
   @State pressedIndex: number = -1;
+  @StorageLink('importFileContent') importFileContent: string = ''; // 确保注入此属性以便恢复图标库
 
   async onDataChange(): Promise<void> {
     // 只有在数据真正为空或第一次加载时才显示全屏Loading，减少切换闪烁
@@ -223,6 +225,23 @@ export struct ImportSheet {
       this.isLoading = true;
     }
     
+    // --- 关键增强：在显示面板时立即尝试恢复图标库本身的数据 ---
+    if (this.importFileContent) {
+      try {
+        const fullData = JSON.parse(this.importFileContent) as Record<string, Object>;
+        const customIcons = fullData['customIcons'] as CustomIconItem[];
+        if (customIcons && customIcons.length > 0) {
+          hilog.info(0x0000, 'ImportSheet', `预览阶段：预恢复库图标: ${customIcons.length}个`);
+          for (const icon of customIcons) {
+             // 静默恢复图标库索引，不覆盖已有的
+             await LocalIconManager.getInstance().registerBase64Icon(icon.base64, icon.name, icon.category, false);
+          }
+        }
+      } catch (e) {
+        hilog.error(0x0000, 'ImportSheet', `预恢复异常: ${JSON.stringify(e)}`);
+      }
+    }
+
     const repo = SubscriptionRepository.getInstance();
     const iconManager = LocalIconManager.getInstance();
 
@@ -231,8 +250,17 @@ export struct ImportSheet {
       // 0. Auto-Calibration: Ensure start date is valid
       this.calibrateStartDate(item);
 
+      // --- 核心改进：在预览阶段就执行图标修复 ---
       if (item.name) {
-        await iconManager.getAppInfo(item.name);
+        // 对于 builtin://、旧路径或失效链接，直接尝试通过库找回
+        const info = await iconManager.getAppInfo(item.name);
+        if (info && info.icon) {
+          item.icon = info.icon; // 提前修正路径以便预览显示
+        } else if (item.icon && item.icon.startsWith('app.media.')) {
+          if (item.icon.includes('meituan')) item.icon = 'resource:meituan_logo';
+          else if (item.icon.includes('douyin')) item.icon = 'resource:douyin_logo';
+          else if (item.icon.includes('dianping')) item.icon = 'resource:dianping_logo';
+        }
       }
 
       if (!item.uuid) {
@@ -500,8 +528,8 @@ export struct ImportSheet {
 
   async handleImport(): Promise<void> {
     const selected = this.items.filter((i: ImportItem) => i.isSelected).map((i: ImportItem) => i.data);
-    
-    // Process icons: if icon is Base64, save to local file; if it's builtin://, restore path
+
+    // Process icons: 如果是特定 Base64 图标则保存
     for (const item of selected) {
       if (item.icon && item.icon.startsWith('data:')) {
         try {
@@ -513,18 +541,10 @@ export struct ImportSheet {
         } catch (e) {
           hilog.error(0x0000, 'ImportSheet', `Failed to save imported icon for ${item.name}: ${e}`);
         }
-      } else if (item.icon && item.icon.startsWith('builtin://')) {
-        // 还原内置图标路径
-        const filename = item.icon.substring(10); // "builtin://".length
-        const context = getContext(this) as common.UIAbilityContext;
-        const targetPath = `${context.filesDir}/local_icons/${filename}`;
-        item.icon = `file://${targetPath}`;
-      } else if (item.icon && item.icon.startsWith('app.media.')) {
-        // 兼容性修复：将旧的 app.media.xxx_icon 转换为 resource:xxx_logo 格式
-        if (item.icon.includes('meituan')) item.icon = 'resource:meituan_logo';
-        else if (item.icon.includes('douyin')) item.icon = 'resource:douyin_logo';
-        else if (item.icon.includes('dianping')) item.icon = 'resource:dianping_logo';
       }
+      
+      // 注意：builtin:// 或其他库图标已经在 onDataChange 预览阶段通过 getAppInfo 修复过了
+      // 此处 handleImport 主要负责最终的 Subscription 持久化存储准备
 
       // Save couponImage from base64 (团购券截图恢复)
       if (item.couponImage && item.couponImage.startsWith('data:')) {

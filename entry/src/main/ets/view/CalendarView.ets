@@ -1,12 +1,13 @@
 import { SubscriptionModel } from '../model/SubscriptionModel';
-import { promptAction, SymbolGlyphModifier, curves } from '@kit.ArkUI';
+import { promptAction, SymbolGlyphModifier, curves, LengthMetrics } from '@kit.ArkUI';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
 import { DateUtil } from '../utils/DateUtil';
 import { EVENT_SYNC_COMPLETED, EVENT_LOGOUT, EVENT_DATA_CHANGED, GlobalBus } from '../utils/GlobalBus';
 import { resolveIcon } from '../utils/MemberServiceConfig';
 import { SubscriptionIcon } from './SubscriptionIcon';
-import { commonEventManager } from '@kit.BasicServicesKit';
-import { hdsEffect, HdsNavDestination, HdsNavigationMenuItemOptions } from '@kit.UIDesignKit';
+import { commonEventManager, deviceInfo } from '@kit.BasicServicesKit';
+import { hdsEffect, hdsMaterial, HdsNavDestination, HdsNavigationMenuItemOptions,
+  ScrollEffectType } from '@kit.UIDesignKit';
 
 interface LinearGradientValue {
   angle?: number | string;
@@ -546,7 +547,7 @@ export struct CalendarView {
               .scale({ x: (this.isAnimationEnabled && this.isPointLightEnabled && this.pressedListId === (item.id ?? -1)) ? 0.96 : 1, y: (this.isAnimationEnabled && this.isPointLightEnabled && this.pressedListId === (item.id ?? -1)) ? 0.96 : 1 })
               .animation({ duration: this.isAnimationEnabled ? 200 : 0, curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear })
               .visualEffect(new hdsEffect.HdsEffectBuilder().pointLight({
-                sourceType: (this.isPointLightEnabled && this.pressedListId === (item.id ?? -1)) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                sourceType: (this.isPointLightEnabled && this.pressedListId === (item.id ?? -1)) ? hdsEffect.PointLightSourceType.SOFT : hdsEffect.PointLightSourceType.NONE,
                 illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
               }).buildEffect())
               .onTouch((event: TouchEvent) => {
@@ -1059,7 +1060,7 @@ export struct CalendarView {
               .scale({ x: (this.isAnimationEnabled && this.isPointLightEnabled && this.pressedTimelineDate === `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`) ? 0.9 : 1, y: (this.isAnimationEnabled && this.isPointLightEnabled && this.pressedTimelineDate === `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`) ? 0.9 : 1 })
               .animation({ duration: this.isAnimationEnabled ? 200 : 0, curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear })
               .visualEffect(new hdsEffect.HdsEffectBuilder().pointLight({
-                sourceType: (this.isPointLightEnabled && this.pressedTimelineDate === `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                sourceType: (this.isPointLightEnabled && this.pressedTimelineDate === `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`) ? hdsEffect.PointLightSourceType.SOFT : hdsEffect.PointLightSourceType.NONE,
                 illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
               }).buildEffect())
               .onTouch((event: TouchEvent) => {
@@ -1403,7 +1404,7 @@ export struct CalendarView {
         .scale({ x: (this.isAnimationEnabled && this.isPointLightEnabled && this.isDatePickerPressed) ? 0.95 : 1, y: (this.isAnimationEnabled && this.isPointLightEnabled && this.isDatePickerPressed) ? 0.95 : 1 })
         .animation({ duration: this.isAnimationEnabled ? 200 : 0, curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear })
         .visualEffect(new hdsEffect.HdsEffectBuilder().pointLight({
-          sourceType: (this.isPointLightEnabled && this.isDatePickerPressed) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+          sourceType: (this.isPointLightEnabled && this.isDatePickerPressed) ? hdsEffect.PointLightSourceType.SOFT : hdsEffect.PointLightSourceType.NONE,
           illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
         }).buildEffect())
         .onGestureJudgeBegin((gestureInfo: GestureInfo, event: BaseGestureEvent) => {
@@ -1486,7 +1487,7 @@ export struct CalendarView {
           .scale({ x: (this.isAnimationEnabled && this.isPointLightEnabled && this.isViewModePressed === index) ? 0.96 : 1, y: (this.isAnimationEnabled && this.isPointLightEnabled && this.isViewModePressed === index) ? 0.96 : 1 })
           .animation({ duration: this.isAnimationEnabled ? 200 : 0, curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear })
           .visualEffect(new hdsEffect.HdsEffectBuilder().pointLight({
-            sourceType: (this.isPointLightEnabled && this.isViewModePressed === index) ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+            sourceType: (this.isPointLightEnabled && this.isViewModePressed === index) ? hdsEffect.PointLightSourceType.SOFT : hdsEffect.PointLightSourceType.NONE,
             illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
           }).buildEffect())
           .onTouch((event: TouchEvent) => {
@@ -1564,63 +1565,108 @@ export struct CalendarView {
     .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).animation({ duration: this.isAnimationEnabled ? 300 : 0, curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear }))
     .animation({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear })
   }
-
-  build() {
-    HdsNavDestination() {
+  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
+  @Builder CalendarBuilder(){
     Column() {
-       // 1. Persistent Header (Date Nav + View Switcher)
-       this.CalendarHeader()
+      // 1. Persistent Header (Date Nav + View Switcher)
+      this.CalendarHeader()
 
-       // 2. Content Area
-       Stack() {
-         if (this.viewMode === 0) {
-           this.MonthViewLayout()
-         } else {
-           this.TimelineViewBuilder()
-         }
-       }
-       .layoutWeight(1)
-       .width('100%')
-       
-       // Help Popup Anchor (Invisible)
-       Text("") 
-         .bindPopup(this.showHelpPopup, {
-            builder: this.InfoPopup,
-            placement: Placement.BottomRight, // Show from top right
-            mask: false,
-            onStateChange: (event: PopupEvent) => {
-               if (!event.isVisible) {
-                  this.showHelpPopup = false;
-               }
+      // 2. Content Area
+      Stack() {
+        if (this.viewMode === 0) {
+          this.MonthViewLayout()
+        } else {
+          this.TimelineViewBuilder()
+        }
+      }
+      .layoutWeight(1)
+      .width('100%')
+
+      // Help Popup Anchor (Invisible)
+      Text("")
+        .bindPopup(this.showHelpPopup, {
+          builder: this.InfoPopup,
+          placement: Placement.BottomRight, // Show from top right
+          mask: false,
+          onStateChange: (event: PopupEvent) => {
+            if (!event.isVisible) {
+              this.showHelpPopup = false;
             }
-         })
-         .position({ x: '100%', y: 0 }) // Top Right below Title Bar
+          }
+        })
+        .position({ x: '100%', y: 0 }) // Top Right below Title Bar
     }
     .width('100%')
     .height('100%')
     .padding({ top: TITLE_BAR_HEIGHT_MINI + this.getUIContext().px2vp(this.topRectHeight) })
     .backgroundColor(Color.Transparent)
-    }
-    .hideBackButton(true)
-    .hideTitleBar(false)
-    .backgroundColor(Color.Transparent)
-    .titleBar({
-      avoidLayoutSafeArea: true,
-      content: {
-        title: { mainTitle: '订阅日历' },
-        menu: { value: [
-          {
-            content: {
-              label: '提醒管理',
-              icon: $r('sys.symbol.questionmark_circle'),
-              action: (): void => {
-               this.showHelpPopup = !this.showHelpPopup
-              }
-            }
-          } as HdsNavigationMenuItemOptions,
-        ] }
+  }
+  build() {
+    if (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled ) {
+      HdsNavDestination() {
+          this.CalendarBuilder()
       }
-    })
+      .hideBackButton(true)
+      .hideTitleBar(false)
+      .backgroundColor(Color.Transparent)
+      .titleBar({
+        avoidLayoutSafeArea: true,
+        content: {
+          title: { mainTitle: '订阅日历' },
+          menu: {
+            value: [
+              {
+                content: {
+                  label: '提醒管理',
+                  icon: $r('sys.symbol.questionmark_circle'),
+                  action: (): void => {
+                    this.showHelpPopup = !this.showHelpPopup
+                  }
+                }
+              } as HdsNavigationMenuItemOptions,
+            ]
+          }
+        },
+        style: {
+          systemMaterialEffect: {
+            materialType: hdsMaterial.MaterialType.IMMERSIVE,
+            materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+          },
+          scrollEffectOpts: {
+            enableScrollEffect: true,
+            scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+            blurEffectiveStartOffset: LengthMetrics.vp(0),
+            blurEffectiveEndOffset: LengthMetrics.vp(20)
+          }
+        }
+      })
+    } else {
+      HdsNavDestination() {
+        this.CalendarBuilder()
+      }
+      .hideBackButton(true)
+      .hideTitleBar(false)
+      .backgroundColor(Color.Transparent)
+      .titleBar({
+        avoidLayoutSafeArea: true,
+        content: {
+          title: { mainTitle: '订阅日历' },
+          menu: {
+            value: [
+              {
+                content: {
+                  label: '提醒管理',
+                  icon: $r('sys.symbol.questionmark_circle'),
+                  action: (): void => {
+                    this.showHelpPopup = !this.showHelpPopup
+                  }
+                }
+              } as HdsNavigationMenuItemOptions,
+            ]
+          }
+        }
+      })
+    }
   }
   // Helper: Parse usage time text to day indices (0=Sun, 1=Mon...6=Sat)
   parseUsageDays(usageTime: string): number[] {

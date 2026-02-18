@@ -1,8 +1,10 @@
-import { curves } from '@kit.ArkUI';
-import { hdsEffect, HdsNavDestination, HdsNavigationMenuItemOptions } from '@kit.UIDesignKit';
+import { curves, LengthMetrics } from '@kit.ArkUI';
+import { hdsEffect, hdsMaterial, HdsNavDestination, HdsNavigationMenuItemOptions,
+  ScrollEffectType } from '@kit.UIDesignKit';
 import { SubscriptionIcon } from './SubscriptionIcon';
 import { BackgroundWatermark } from './BackgroundWatermark';
 import { LocalIconManager, AppInfo } from '../utils/LocalIconManager';
+import { deviceInfo } from '@kit.BasicServicesKit';
 
 @Builder
 export function SubscriptionMarketplaceBuilder() {
@@ -39,7 +41,31 @@ class AddSubscriptionNavParams {
 // 推荐数据 — 综合 MemberServiceConfig + app_data.json + 常见知名订阅服务
 // 同一个应用的多个会员等级拆分为独立条目，方便用户直接选择
 // =========================================================================================
-const MARKETPLACE_DATA: CategoryGroup[] = [
+const MARKETPLACE_DATA: CategoryGroup[] = [ // ─────────────────────────── 星河联盟 ───────────────────────────
+  {
+    title: '星河联盟',
+    icon: $r('app.media.xhlm'),
+    items: [
+      { name: '一日记账', icon: '', category: '记账', defaultCycle: 'Monthly' },
+      { name: '桔子账本', icon: '', category: '记账', defaultCycle: 'Monthly' },
+      { name: 'MeoW', icon: '', category: '实用工具', defaultCycle: 'Monthly' },
+      { name: '便单', icon: '', category: '实用工具', defaultCycle: 'Monthly' },
+      { name: '像素匠', icon: '', category: '实用工具', defaultCycle: 'Monthly' },
+      { name: '奇妙工具箱', icon: '', category: '实用工具', defaultCycle: 'Lifetime' },
+      { name: '快手笔', icon: '', category: '实用工具', defaultCycle: 'Monthly' },
+      { name: '悦览', icon: '', category: '实用工具', defaultCycle: 'Monthly' },
+      { name: '指令魔方', icon: '', category: '实用工具', defaultCycle: 'Monthly' },
+      { name: '每日咖啡', icon: '', category: '实用工具', defaultCycle: 'Monthly' },
+      { name: '流舟', icon: '', category: '实用工具', defaultCycle: 'Monthly' },
+      { name: '溏心音乐', icon: '', category: '实用工具', defaultCycle: 'Monthly' },
+      { name: '灵动小组件', icon: '', category: '实用工具', defaultCycle: 'Monthly' },
+      { name: '素算计算器', icon: '', category: '实用工具', defaultCycle: 'Monthly' },
+      { name: '设备信息', icon: '', category: '实用工具', defaultCycle: 'Monthly' },
+      { name: '轻倒数', icon: '', category: '实用工具', defaultCycle: 'Monthly' },
+      { name: '轻木鱼', icon: '', category: '实用工具', defaultCycle: 'Monthly' },
+    ]
+  },
+
   // ─────────────────────────── 影视会员 ───────────────────────────
   {
     title: '影视会员',
@@ -400,7 +426,7 @@ export struct SubscriptionMarketplace {
   @StorageLink('bottomRectHeight') bottomRectHeight: number = 0;
   @StorageLink('collapseSide') collapseSide: 'left' | 'right' = 'right';
   @StorageLink('isTabBarCollapsed') isTabBarCollapsed: boolean = false;
-
+  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
   @State searchKeyword: string = '';
   @State selectedCategoryIndex: number = -1; // -1 = 全部
   @State animStep1: boolean = false;
@@ -678,267 +704,326 @@ export struct SubscriptionMarketplace {
       this.onItemClick(item);
     })
   }
+@Builder markbuilder(){
+  Stack({ alignContent: Alignment.Top }) {
+    // 全局背景/水印
+    BackgroundWatermark()
+      .zIndex(0)
 
-  build() {
-    HdsNavDestination() {
-      Stack({ alignContent: Alignment.Top }) {
-        // 全局背景/水印
-        BackgroundWatermark()
-          .zIndex(0)
+    List({ space: 0, scroller: this.scroller }) {
+      // 顶部占位
+      ListItem() {
+        Column()
+          .height(TITLE_BAR_HEIGHT_MINI + this.getUIContext().px2vp(this.topRectHeight))
+      }
 
-        List({ space: 0, scroller: this.scroller }) {
-          // 顶部占位
-          ListItem() {
-            Column()
-              .height(TITLE_BAR_HEIGHT_MINI + this.getUIContext().px2vp(this.topRectHeight))
+
+      // 分类筛选 Chips
+      ListItem() {
+        Scroll() {
+          Row({ space: 8 }) {
+            this.CategoryChip('全部', -1)
+            ForEach(MARKETPLACE_DATA, (group: CategoryGroup, index: number) => {
+              this.CategoryChip(group.title, index)
+            })
           }
-
-
-          // 分类筛选 Chips
-          ListItem() {
-            Scroll() {
-              Row({ space: 8 }) {
-                this.CategoryChip('全部', -1)
-                ForEach(MARKETPLACE_DATA, (group: CategoryGroup, index: number) => {
-                  this.CategoryChip(group.title, index)
-                })
-              }
-              .padding({ left: 16, right: 16 })
-            }
-            .scrollable(ScrollDirection.Horizontal)
-            .scrollBar(BarState.Off)
-            .width('100%')
-            .margin({ bottom: 16 })
-            .opacity(this.animStep1 ? 1 : 0)
-            .translate({ y: this.animStep1 ? 0 : 30 })
-          }
-
-          // 内容列表
-          if (this.getFilteredData().length === 0) {
-            ListItem() {
-              Column({ space: 16 }) {
-                SymbolGlyph($r('sys.symbol.magnifyingglass'))
-                  .fontSize(48)
-                  .fontColor([$r('app.color.text_secondary')])
-                Text('未找到匹配的服务')
-                  .fontSize(16)
-                  .fontColor($r('app.color.text_secondary'))
-              }
-              .width('100%')
-              .height(200)
-              .justifyContent(FlexAlign.Center)
-            }
-          } else {
-            ForEach(this.getFilteredData(), (group: CategoryGroup) => {
-              // 分组标题
-              ListItem() {
-                Row({ space: 8 }) {
-                  SymbolGlyph(group.icon)
-                    .fontSize(18)
-                    .fontColor([this.getBrandColor()])
-                  Text(group.title)
-                    .fontSize(17)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor($r('app.color.text_primary'))
-                }
-                .width('100%')
-                .padding({
-                  left: 16,
-                  right: 16,
-                  top: 8,
-                  bottom: 8
-                })
-                .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).combine(TransitionEffect.scale({ x: 0.95, y: 0.95 }))
-                  .animation({ curve: curves.springMotion(0.6, 0.7) }))
-              }
-
-              // 该分组下的项目
-              ForEach(group.items, (item: MarketplaceItem) => {
-                ListItem() {
-                  this.MarketItemCard(item)
-                }
-                .padding({ left: 16, right: 16, bottom: 10 })
-                .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).combine(TransitionEffect.scale({ x: 0.95, y: 0.95 }))
-                  .animation({ curve: curves.springMotion(0.6, 0.7) }))
-              }, (item: MarketplaceItem) => `${group.title}_${item.name}_${item.subCategory || 'default'}_${this.selectedCategoryIndex}`)
-            }, (group: CategoryGroup) => `${group.title}_${group.items.length}_${this.selectedCategoryIndex}`)
-          }
-
-          // 底部提示
-          // 底部提示 - 使用 ForEach 强制刷新以避免布局跳动
-          ForEach([1], () => {
-            ListItem() {
-              Column({ space: 12 }) {
-                Column({ space: 4 }) {
-                  Text('没有找到您需要的服务？')
-                    .fontSize(13)
-                    .fontColor($r('app.color.text_secondary'))
-                  Text('您可以手动添加任意订阅服务')
-                    .fontSize(12)
-                    .fontColor($r('app.color.text_secondary'))
-                    .opacity(0.7)
-                }
-
-                Row() {
-                  SymbolGlyph($r('sys.symbol.plus'))
-                    .fontSize(24)
-                    .fontColor([$r('app.color.text_primary')])
-                }
-                .width(48)
-                .height(48)
-                .justifyContent(FlexAlign.Center)
-                .onClick(() => {
-                  this.pageStack.pushPathByName('AddSubscription', new AddSubscriptionNavParams());
-                })
-              }
-              .width('100%')
-              .padding({ top: 20, bottom: 80 })
-              .justifyContent(FlexAlign.Center)
-              .alignItems(HorizontalAlign.Center)
-            }
-            .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).combine(TransitionEffect.scale({ x: 0.95, y: 0.95 }))
-                  .animation({ curve: curves.springMotion(0.6, 0.7) }))
-          }, (item: number) => `bottom_prompt_${this.selectedCategoryIndex}`)
+          .padding({ left: 16, right: 16 })
         }
-        .width('100%')
-        .height('100%')
+        .scrollable(ScrollDirection.Horizontal)
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .backgroundColor(Color.Transparent)
-        .opacity(this.animStep2 ? 1 : 0)
-        .translate({ y: this.animStep2 ? 0 : 30 })
-        .onDidScroll(() => {
-          this.isScrolled = this.scroller.currentOffset().yOffset > 5;
-        })
+        .width('100%')
+        .margin({ bottom: 16 })
+        .opacity(this.animStep1 ? 1 : 0)
+        .translate({ y: this.animStep1 ? 0 : 30 })
+      }
+
+      // 内容列表
+      if (this.getFilteredData().length === 0) {
+        ListItem() {
+          Column({ space: 16 }) {
+            SymbolGlyph($r('sys.symbol.magnifyingglass'))
+              .fontSize(48)
+              .fontColor([$r('app.color.text_secondary')])
+            Text('未找到匹配的服务')
+              .fontSize(16)
+              .fontColor($r('app.color.text_secondary'))
+          }
+          .width('100%')
+          .height(200)
+          .justifyContent(FlexAlign.Center)
+        }
+      } else {
+        ForEach(this.getFilteredData(), (group: CategoryGroup) => {
+          // 分组标题
+          ListItem() {
+            Row({ space: 8 }) {
+              // 根据资源类型选择渲染组件，避免使用 any 转换
+              if (group.title === '星河联盟') {
+                Image(group.icon)
+                  .width(48)
+                  .height(18)
+                  .fillColor(this.getBrandColor())
+                  .objectFit(ImageFit.Contain)
+              } else {
+                SymbolGlyph(group.icon)
+                  .fontSize(18)
+                  .fontColor([this.getBrandColor()])
+              }
+              Text(group.title)
+                .fontSize(17)
+                .fontWeight(FontWeight.Bold)
+                .fontColor($r('app.color.text_primary'))
+            }
+            .width('100%')
+            .padding({
+              left: 16,
+              right: 16,
+              top: 8,
+              bottom: 8
+            })
+            .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).combine(TransitionEffect.scale({ x: 0.95, y: 0.95 }))
+              .animation({ curve: curves.springMotion(0.6, 0.7) }))
+          }
+
+          // 该分组下的项目
+          ForEach(group.items, (item: MarketplaceItem) => {
+            ListItem() {
+              this.MarketItemCard(item)
+            }
+            .padding({ left: 16, right: 16, bottom: 10 })
+            .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).combine(TransitionEffect.scale({ x: 0.95, y: 0.95 }))
+              .animation({ curve: curves.springMotion(0.6, 0.7) }))
+          }, (item: MarketplaceItem) => `${group.title}_${item.name}_${item.subCategory || 'default'}_${this.selectedCategoryIndex}`)
+        }, (group: CategoryGroup) => `${group.title}_${group.items.length}_${this.selectedCategoryIndex}`)
+      }
+
+      // 底部提示
+      // 底部提示 - 使用 ForEach 强制刷新以避免布局跳动
+      ForEach([1], () => {
+        ListItem() {
+          Column({ space: 12 }) {
+            Column({ space: 4 }) {
+              Text('没有找到您需要的服务？')
+                .fontSize(13)
+                .fontColor($r('app.color.text_secondary'))
+              Text('您可以手动添加任意订阅服务')
+                .fontSize(12)
+                .fontColor($r('app.color.text_secondary'))
+                .opacity(0.7)
+            }
+
+            Row() {
+              SymbolGlyph($r('sys.symbol.plus'))
+                .fontSize(24)
+                .fontColor([$r('app.color.text_primary')])
+            }
+            .width(48)
+            .height(48)
+            .justifyContent(FlexAlign.Center)
+            .onClick(() => {
+              this.pageStack.pushPathByName('AddSubscription', new AddSubscriptionNavParams());
+            })
+          }
+          .width('100%')
+          .padding({ top: 20, bottom: 80 })
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+        }
+        .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).combine(TransitionEffect.scale({ x: 0.95, y: 0.95 }))
+          .animation({ curve: curves.springMotion(0.6, 0.7) }))
+      }, (item: number) => `bottom_prompt_${this.selectedCategoryIndex}`)
+    }
+    .width('100%')
+    .height('100%')
+    .scrollBar(BarState.Off)
+    .edgeEffect(EdgeEffect.Spring)
+    .backgroundColor(Color.Transparent)
+    .opacity(this.animStep2 ? 1 : 0)
+    .translate({ y: this.animStep2 ? 0 : 30 })
+    .onDidScroll(() => {
+      this.isScrolled = this.scroller.currentOffset().yOffset > 5;
+    })
 
 
-        // Search Overlay
-        if (this.showSearchOverlay) {
-          Stack({ alignContent: Alignment.Top }) {
-            // Transparent Background for click capture
-            Column()
-              .width('100%')
-              .height('100%')
-              .backgroundColor(Color.Transparent)
-              .onClick(() => {
+    // Search Overlay
+    if (this.showSearchOverlay) {
+      Stack({ alignContent: Alignment.Top }) {
+        // Transparent Background for click capture
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor(Color.Transparent)
+          .onClick(() => {
+            animateTo({
+              duration: this.isAnimationEnabled ? this.animationDuration : 0,
+              curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) :
+                Curve.Linear
+            }, () => {
+              this.showSearchOverlay = false;
+            })
+          })
+          .transition(TransitionEffect.OPACITY.animation({
+            duration: this.isAnimationEnabled ? this.animationDuration : 0,
+            curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) :
+              Curve.Linear
+          }))
+
+        // Search Bar Area
+        Column() {
+          // Placeholder for Status Bar + Title Bar to avoid overlap
+          Column().height(this.getUIContext().px2vp(this.topRectHeight) + 56)
+
+          Row({ space: 12 }) {
+            Search({ placeholder: '搜索服务或会员等级...', value: this.searchKeyword })
+              .layoutWeight(1)
+              .height(40)
+              .searchButton('搜索', {
+                fontColor: this.isNewYearTheme ? '#FFD700' :
+                  (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+              })
+              .backgroundColor($r('app.color.tag_bg'))
+              .onChange((value: string) => {
+                this.searchKeyword = value;
+                this.scroller.scrollToIndex(0);
+              })
+              .onSubmit((value: string) => {
+                this.searchKeyword = value;
+                this.scroller.scrollToIndex(0, true);
                 animateTo({
                   duration: this.isAnimationEnabled ? this.animationDuration : 0,
-                  curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) :
-                    Curve.Linear
+                  curve: this.isAnimationEnabled ?
+                    curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
                 }, () => {
                   this.showSearchOverlay = false;
                 })
               })
-              .transition(TransitionEffect.OPACITY.animation({
-                duration: this.isAnimationEnabled ? this.animationDuration : 0,
-                curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) :
-                  Curve.Linear
-              }))
 
-            // Search Bar Area
-            Column() {
-              // Placeholder for Status Bar + Title Bar to avoid overlap
-              Column().height(this.getUIContext().px2vp(this.topRectHeight) + 56)
-
-              Row({ space: 12 }) {
-                Search({ placeholder: '搜索服务或会员等级...', value: this.searchKeyword })
-                  .layoutWeight(1)
-                  .height(40)
-                  .searchButton('搜索', {
-                    fontColor: this.isNewYearTheme ? '#FFD700' :
-                      (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
-                  })
-                  .backgroundColor($r('app.color.tag_bg'))
-                  .onChange((value: string) => {
-                    this.searchKeyword = value;
-                    this.scroller.scrollToIndex(0);
-                  })
-                  .onSubmit((value: string) => {
-                    this.searchKeyword = value;
-                    this.scroller.scrollToIndex(0, true);
-                    animateTo({
-                      duration: this.isAnimationEnabled ? this.animationDuration : 0,
-                      curve: this.isAnimationEnabled ?
-                        curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
-                    }, () => {
-                      this.showSearchOverlay = false;
-                    })
-                  })
-
-                Text('取消')
-                  .fontSize(16)
-                  .fontColor(this.isNewYearTheme ? '#FFD700' :
-                    (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                  .fontWeight(FontWeight.Medium)
-                  .onClick(() => {
-                    animateTo({
-                      duration: this.isAnimationEnabled ? this.animationDuration : 0,
-                      curve: this.isAnimationEnabled ?
-                        curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
-                    }, () => {
-                      this.showSearchOverlay = false;
-                    })
-                  })
-              }
-              .padding({
-                left: 16,
-                right: 16,
-                top: 12,
-                bottom: 12
+            Text('取消')
+              .fontSize(16)
+              .fontColor(this.isNewYearTheme ? '#FFD700' :
+                (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+              .fontWeight(FontWeight.Medium)
+              .onClick(() => {
+                animateTo({
+                  duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                  curve: this.isAnimationEnabled ?
+                    curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
+                }, () => {
+                  this.showSearchOverlay = false;
+                })
               })
-              .backgroundColor(this.isScrolled ?
-                (this.showVipTheme ? 'rgba(237,194,105,0.15)' : 'rgba(128,128,128,0.1)') : 
-                (this.showVipTheme ? 'rgba(237,194,105,0.05)' : 'rgba(128,128,128,0.05)')) // Slight tint at top
-              .backgroundBlurStyle(BlurStyle.COMPONENT_ULTRA_THIN) // Always apply blur for frosted glass effect
-              .borderRadius({ bottomLeft: 16, bottomRight: 16 })
-              .shadow(this.isScrolled ? { radius: 20, color: 'rgba(0,0,0,0.1)', offsetY: 4 } : {
-                radius: 0,
-                color: Color.Transparent,
-                offsetY: 0
-              })
-            }
-            .width('100%')
-            .transition(TransitionEffect.translate({ y: -100 }).combine(TransitionEffect.OPACITY)
-              .animation({
-                duration: this.isAnimationEnabled ? this.animationDuration : 0,
-                curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) :
-                  Curve.Linear
-              }))
           }
-          .zIndex(200) // Ensure it covers the floating button and list
+          .padding({
+            left: 16,
+            right: 16,
+            top: 12,
+            bottom: 12
+          })
+          .backgroundColor(this.isScrolled ?
+            (this.showVipTheme ? 'rgba(237,194,105,0.15)' : 'rgba(128,128,128,0.1)') :
+            (this.showVipTheme ? 'rgba(237,194,105,0.05)' : 'rgba(128,128,128,0.05)')) // Slight tint at top
+          .backgroundBlurStyle(BlurStyle.COMPONENT_ULTRA_THIN) // Always apply blur for frosted glass effect
+          .borderRadius({ bottomLeft: 16, bottomRight: 16 })
+          .shadow(this.isScrolled ? { radius: 20, color: 'rgba(0,0,0,0.1)', offsetY: 4 } : {
+            radius: 0,
+            color: Color.Transparent,
+            offsetY: 0
+          })
         }
+        .width('100%')
+        .transition(TransitionEffect.translate({ y: -100 }).combine(TransitionEffect.OPACITY)
+          .animation({
+            duration: this.isAnimationEnabled ? this.animationDuration : 0,
+            curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) :
+              Curve.Linear
+          }))
       }
-      .backgroundColor(Color.Transparent)
+      .zIndex(200) // Ensure it covers the floating button and list
     }
-    // .backgroundColor(Color.Transparent)
-    .titleBar({
-      avoidLayoutSafeArea: true,
-      content: {
-        title: { mainTitle: '推荐服务' },
-        menu: {
-          value: [
-            {
-              content: {
-                label: '搜索',
-                icon: $r('sys.symbol.magnifyingglass'),
-                
-                action: (): void => {
-                  animateTo({ 
-                    duration: this.isAnimationEnabled ? this.animationDuration : 0, 
-                    curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear 
-                  }, () => {
-                    this.showSearchOverlay = true;
-                  })
-                }
-              }
-            } as HdsNavigationMenuItemOptions
-          ]
-        }
+  }
+  .backgroundColor(Color.Transparent)
+}
+  build() {
+    if (deviceInfo.distributionOSApiVersion >= 60100&&this.isHdsTabsEnabled) {
+      HdsNavDestination() {
+        this.markbuilder()
       }
-    })
-    .onBackPressed(() => {
-      this.pageStack.pop();
-      return true;
-    })
+      .titleBar({
+        avoidLayoutSafeArea: true,
+        content: {
+          title: { mainTitle: '推荐服务' },
+          menu: {
+            value: [
+              {
+                content: {
+                  label: '搜索',
+                  icon: $r('sys.symbol.magnifyingglass'),
+
+                  action: (): void => {
+                    animateTo({
+                      duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                      curve: this.isAnimationEnabled ?
+                        curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
+                    }, () => {
+                      this.showSearchOverlay = true;
+                    })
+                  }
+                }
+              } as HdsNavigationMenuItemOptions
+            ]
+          }
+        },
+        style: {
+          systemMaterialEffect: {
+            materialType: hdsMaterial.MaterialType.IMMERSIVE,
+            materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+          },
+          scrollEffectOpts: {
+            enableScrollEffect: true,
+            scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+            blurEffectiveStartOffset: LengthMetrics.vp(0),
+            blurEffectiveEndOffset: LengthMetrics.vp(20)
+          }
+        }
+      })
+      .onBackPressed(() => {
+        this.pageStack.pop();
+        return true;
+      })
+    } else {
+      HdsNavDestination() {
+        this.markbuilder()
+      }
+      .titleBar({
+        avoidLayoutSafeArea: true,
+        content: {
+          title: { mainTitle: '推荐服务' },
+          menu: {
+            value: [
+              {
+                content: {
+                  label: '搜索',
+                  icon: $r('sys.symbol.magnifyingglass'),
+
+                  action: (): void => {
+                    animateTo({
+                      duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                      curve: this.isAnimationEnabled ?
+                        curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
+                    }, () => {
+                      this.showSearchOverlay = true;
+                    })
+                  }
+                }
+              } as HdsNavigationMenuItemOptions
+            ]
+          }
+        },
+      })
+      .onBackPressed(() => {
+        this.pageStack.pop();
+        return true;
+      })
+    }
   }
 }

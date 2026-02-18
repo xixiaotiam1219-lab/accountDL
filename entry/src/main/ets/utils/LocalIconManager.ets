@@ -945,4 +945,78 @@ export class LocalIconManager {
       return 0;
     }
   }
+
+  /**
+   * Register a custom icon from Base64 string.
+   * Useful for restoring from backup or sync.
+   * @param base64 Base64 string
+   * @param name App name
+   * @param category Category
+   * @param overwrite Whether to overwrite existing
+   * @returns boolean success
+   */
+  public async registerBase64Icon(base64: string, name: string, category: string, overwrite: boolean = true): Promise<boolean> {
+    if (!this.context || !base64 || !name) return false;
+
+    try {
+      this.ensureDir(this.customIconDir);
+
+      let dataToSave = base64;
+      if (base64.startsWith('data:')) {
+        dataToSave = base64.substring(base64.indexOf(',') + 1);
+      }
+
+      // 1. Check if exists
+      if (!overwrite && this.appDataMap[name]) {
+        return true; // Already exists
+      }
+
+      // 2. Determine filename
+      let ext = '.png';
+      if (base64.includes('image/jpeg')) ext = '.jpg';
+      else if (base64.includes('image/webp')) ext = '.webp';
+
+      const filename = `${new util.TextEncoder().encodeInto(name).reduce((a, b) => a + b, 0)}_${Date.now()}${ext}`;
+      const destPath = `${this.customIconDir}/${filename}`;
+
+      // 3. Save file
+      const helper = new util.Base64Helper();
+      const buffer = helper.decodeSync(dataToSave).buffer;
+      const file = fs.openSync(destPath, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      fs.writeSync(file.fd, buffer);
+      fs.fsyncSync(file.fd);
+      fs.closeSync(file);
+
+      // 4. Update Config
+      let existingIcons: Record<string, object> = {};
+      if (this.exists(this.customConfigPath)) {
+        try {
+          const oldContent = fs.readTextSync(this.customConfigPath);
+          const oldData = JSON.parse(oldContent) as Record<string, object>;
+          existingIcons = (oldData['icons'] || oldData) as Record<string, object>;
+        } catch (e) {}
+      }
+
+      const newIcon: AppData = {
+        c: category || '自定义',
+        l: filename,
+        isCustom: true
+      };
+      existingIcons[name] = newIcon;
+
+      const mergedConfig: Record<string, object> = { "icons": existingIcons };
+      const configFile = fs.openSync(this.customConfigPath, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      fs.writeSync(configFile.fd, JSON.stringify(mergedConfig));
+      fs.fsyncSync(configFile.fd);
+      fs.closeSync(configFile);
+
+      // 5. Update Memory
+      this.appDataMap[name] = newIcon;
+
+      return true;
+    } catch (e) {
+      console.error(`Failed to register base64 icon for ${name}: ${JSON.stringify(e)}`);
+      return false;
+    }
+  }
 }

@@ -2,7 +2,10 @@ export class DateUtil {
   /**
    * 格式化日期为 YYYY-MM-DD
    */
-  static formatDate(date: Date | number): string {
+  static formatDate(date: Date | number | undefined | null): string {
+    if (date === undefined || date === null) {
+      return '';
+    }
     const d = typeof date === 'number' ? new Date(date) : date;
     const year = d.getFullYear();
     const month = (d.getMonth() + 1).toString().padStart(2, '0');
@@ -13,7 +16,10 @@ export class DateUtil {
   /**
    * 格式化日期为 YY-MM-DD
    */
-  static formatShortDate(date: Date | number): string {
+  static formatShortDate(date: Date | number | undefined | null): string {
+    if (date === undefined || date === null) {
+      return '';
+    }
     const d = typeof date === 'number' ? new Date(date) : date;
     const year = d.getFullYear().toString().slice(-2);
     const month = (d.getMonth() + 1).toString().padStart(2, '0');
