@@ -594,7 +594,7 @@ export default class EntryAbility extends UIAbility {
         try {
           const displayClass = display.getDefaultDisplaySync();
           const widthVp = windowClass.getWindowProperties().windowRect.width / displayClass.densityPixels;
-          const isWide = widthVp >= 520;
+          const isWide = widthVp >= 600;
           AppStorage.setOrCreate('isWide', isWide);
           hilog.info(DOMAIN, 'testTag', `Pre-calculated isWide: ${isWide} (widthVp: ${widthVp})`);
         } catch (e) {

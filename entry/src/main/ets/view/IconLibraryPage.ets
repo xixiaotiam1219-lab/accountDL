@@ -136,12 +136,12 @@ export struct IconLibraryPage {
   @State cropSourceUri: string = '';
 
   // Animation System
-   isAnimationEnabled: boolean = false;
+  isAnimationEnabled: boolean = false;
   @StorageLink('isPointLightEnabled') isPointLightEnabled: boolean = true;
   @StorageLink('animationDuration') animationDuration: number = 400;
   @StorageLink('animationResponse') animationResponse: number = 0.35;
   @StorageLink('animationDamping') animationDamping: number = 0.75;
-  
+
   @State pressedIcon: string = ''; // Track pressed icon name for animation
 
   async aboutToAppear() {
@@ -153,7 +153,7 @@ export struct IconLibraryPage {
     try {
       LocalIconManager.getInstance().init(getContext(this)).then(async () => {
         this.icons = await LocalIconManager.getInstance().getAllApps();
-        const cats = LocalIconManager.getInstance().getAllCategories();
+        const cats = await LocalIconManager.getInstance().getAllCategories();
         this.categories = ['全部', ...cats];
         this.filterIcons();
         this.isLoading = false;
@@ -611,18 +611,18 @@ export struct IconLibraryPage {
     .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
     .visualEffect(new hdsEffect.HdsEffectBuilder()
       .pointLight({
-          sourceType: this.pressedIcon === item.name ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
-          illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+        sourceType: this.pressedIcon === item.name ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+        illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
       })
       .buildEffect())
     .onTouch((event: TouchEvent) => {
-        if (event.type === TouchType.Down) {
-          if (this.isAnimationEnabled && this.isPointLightEnabled) {
-              this.pressedIcon = item.name;
-          }
-        } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-          this.pressedIcon = '';
+      if (event.type === TouchType.Down) {
+        if (this.isAnimationEnabled && this.isPointLightEnabled) {
+          this.pressedIcon = item.name;
         }
+      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+        this.pressedIcon = '';
+      }
     })
     .onClick(() => {
       if (this.isSelectionMode) {
@@ -804,63 +804,63 @@ export struct IconLibraryPage {
         }
       } as HdsNavigationTitleBarOptions :
         {
-        avoidLayoutSafeArea: true,
-        content: {
-          title: {
-            mainTitle: '图标库'
+          avoidLayoutSafeArea: true,
+          content: {
+            title: {
+              mainTitle: '图标库'
+            },
+            bottomBuilder: {
+              builder: (): void => this.BottomBuilder(),
+              height: 96
+            },
+            menu: {
+              value: [
+                {
+                  content: {
+                    label: '帮助',
+                    icon: $r('sys.symbol.questionmark_circle'),
+                    action: (): void => {
+                      this.showHelpSheet = true;
+                    }
+                  }
+                } as HdsNavigationMenuItemOptions,
+                {
+                  content: {
+                    label: '添加',
+                    icon: $r('sys.symbol.plus_circle'),
+                    action: (): void => {
+                      this.addSingleIcon();
+                    }
+                  }
+                } as HdsNavigationMenuItemOptions,
+                {
+                  content: {
+                    label: '导入图标包',
+                    icon: $r('sys.symbol.square_and_arrow_down'),
+                    action: (): void => {
+                      this.importIconPack();
+                    }
+                  }
+                } as HdsNavigationMenuItemOptions
+              ]
+            }
           },
-          bottomBuilder: {
-            builder: (): void => this.BottomBuilder(),
-            height: 96
-          },
-          menu: {
-            value: [
-              {
-                content: {
-                  label: '帮助',
-                  icon: $r('sys.symbol.questionmark_circle'),
-                  action: (): void => {
-                    this.showHelpSheet = true;
-                  }
-                }
-              } as HdsNavigationMenuItemOptions,
-              {
-                content: {
-                  label: '添加',
-                  icon: $r('sys.symbol.plus_circle'),
-                  action: (): void => {
-                    this.addSingleIcon();
-                  }
-                }
-              } as HdsNavigationMenuItemOptions,
-              {
-                content: {
-                  label: '导入图标包',
-                  icon: $r('sys.symbol.square_and_arrow_down'),
-                  action: (): void => {
-                    this.importIconPack();
-                  }
-                }
-              } as HdsNavigationMenuItemOptions
-            ]
+          style: {
+            systemMaterialEffect: {
+              materialType: hdsMaterial.MaterialType.IMMERSIVE,
+              materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+            },
+            scrollEffectOpts: {
+              enableScrollEffect: true,
+              scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+              blurEffectiveStartOffset: LengthMetrics.vp(0),
+              blurEffectiveEndOffset: LengthMetrics.vp(20)
+            },
+            scrollEffectStyle: {
+              backgroundStyle: { maskExtraHeight: 96.0 },
+            }
           }
-        },
-        style: {
-          systemMaterialEffect: {
-            materialType: hdsMaterial.MaterialType.IMMERSIVE,
-            materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-          },
-          scrollEffectOpts: {
-            enableScrollEffect: true,
-            scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-            blurEffectiveStartOffset: LengthMetrics.vp(0),
-            blurEffectiveEndOffset: LengthMetrics.vp(20)
-          },
-          scrollEffectStyle: {
-            backgroundStyle: { maskExtraHeight: 96.0 },
-          }
-        }
-      } as HdsNavigationTitleBarOptions)
+        } as HdsNavigationTitleBarOptions)
       .backgroundColor($r('app.color.page_background'))
     } else {
       HdsNavDestination() {
