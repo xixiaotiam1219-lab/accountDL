@@ -22,7 +22,24 @@
                 "executeMode": [
                     "background"
                 ]
-            }
+            },
+            "outputParams": [
+                {
+                    "name": "resultText"
+                },
+                {
+                    "name": "records"
+                },
+                {
+                    "name": "count"
+                },
+                {
+                    "name": "totalAmount"
+                },
+                {
+                    "name": "errorMessage"
+                }
+            ]
         },
         {
             "intentName": "GetAllRecords",
@@ -34,7 +51,24 @@
                 "executeMode": [
                     "background"
                 ]
-            }
+            },
+            "outputParams": [
+                {
+                    "name": "resultText"
+                },
+                {
+                    "name": "records"
+                },
+                {
+                    "name": "count"
+                },
+                {
+                    "name": "totalAmount"
+                },
+                {
+                    "name": "errorMessage"
+                }
+            ]
         }
     ]
 }

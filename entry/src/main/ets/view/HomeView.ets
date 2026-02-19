@@ -35,7 +35,7 @@ export struct HomeView {
   // Agent Props
   private controller: FunctionController = new FunctionController();
   // TODO: Replace with real Agent ID from platform
-  private agentId: string = 'agent0244e963799347bdb18995e6416726ea';
+  private agentId: string = 'agent8e0a95d14e744348995f208388a951c2';
 
   @StorageLink('isSyncing') isSyncing: boolean = false;
   @StorageLink('isLoggedIn') @Watch('onLoggedInChange') isLoggedIn: boolean = false;
@@ -1180,7 +1180,7 @@ export struct HomeView {
           },
           options: {
             title: '', // Icon only
-            queryText: '使用显示全部订阅工具，直接打印工具返回的数据包'
+            queryText: '使用显示查询本月订阅工具，直接返回的数据包'
           },
           controller: this.controller
         })
