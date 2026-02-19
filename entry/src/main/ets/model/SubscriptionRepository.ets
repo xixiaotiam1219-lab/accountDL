@@ -70,7 +70,7 @@ interface CloudSyncResponse {
 export interface MinimalCardItem {
   id: number | string;
   uuid?: string;
-  recordType: 'subscription' | 'groupBuy';
+  recordType: 'subscription' | 'groupBuy' | 'warranty';
   usageStatus: 'unused' | 'used' | 'expired';
   name: string;
   price?: number;
@@ -168,7 +168,10 @@ export class SubscriptionRepository {
       { name: 'quantity', type: 'INTEGER DEFAULT 1' },
       { name: 'couponImage', type: 'TEXT' },
       { name: 'usageTime', type: 'TEXT' },
-      { name: 'realUsageTime', type: 'INTEGER' }
+      { name: 'realUsageTime', type: 'INTEGER' },
+      // 保修/保质期专属字段
+      { name: 'brand', type: 'TEXT' },
+      { name: 'purchaseChannel', type: 'TEXT' }
     ];
 
     try {
@@ -242,7 +245,10 @@ export class SubscriptionRepository {
       quantity: subscription.quantity || 1,
       couponImage: subscription.couponImage || null,
       usageTime: subscription.usageTime || null,
-      realUsageTime: subscription.realUsageTime || null
+      realUsageTime: subscription.realUsageTime || null,
+      // 保修/保质期字段
+      brand: subscription.brand || null,
+      purchaseChannel: subscription.purchaseChannel || null
     };
     const rowId = await this.rdbStore.insert(TABLE_NAME, valueBucket);
 
@@ -300,7 +306,7 @@ export class SubscriptionRepository {
         isAutoRenewal: resultSet.getColumnIndex('isAutoRenewal') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('isAutoRenewal')) === 1 : true,
         paymentMethod: resultSet.getColumnIndex('paymentMethod') !== -1 ? resultSet.getString(resultSet.getColumnIndex('paymentMethod')) : '其他支付方式',
         // 团购券字段
-        recordType: (resultSet.getColumnIndex('recordType') !== -1 ? resultSet.getString(resultSet.getColumnIndex('recordType')) : 'subscription') as 'subscription' | 'groupBuy',
+        recordType: (resultSet.getColumnIndex('recordType') !== -1 ? resultSet.getString(resultSet.getColumnIndex('recordType')) : 'subscription') as 'subscription' | 'groupBuy' | 'warranty',
         platform: resultSet.getColumnIndex('platform') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('platform')) ? resultSet.getString(resultSet.getColumnIndex('platform')) as 'meituan' | 'douyin' | 'dianping' : undefined,
         couponCode: resultSet.getColumnIndex('couponCode') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponCode')) ? resultSet.getString(resultSet.getColumnIndex('couponCode')) : undefined,
         usageStatus: resultSet.getColumnIndex('usageStatus') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageStatus')) ? resultSet.getString(resultSet.getColumnIndex('usageStatus')) as 'unused' | 'used' | 'expired' : 'unused',
@@ -308,7 +314,9 @@ export class SubscriptionRepository {
         quantity: resultSet.getColumnIndex('quantity') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('quantity')) : 1,
         couponImage: resultSet.getColumnIndex('couponImage') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponImage')) ? resultSet.getString(resultSet.getColumnIndex('couponImage')) : undefined,
         usageTime: resultSet.getColumnIndex('usageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageTime')) ? resultSet.getString(resultSet.getColumnIndex('usageTime')) : undefined,
-        realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined
+        realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined,
+        brand: resultSet.getColumnIndex('brand') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('brand')) ? resultSet.getString(resultSet.getColumnIndex('brand')) : undefined,
+        purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined
       };
 
       // 自动推算过期的 nextBillingDate (永久订阅和不定周期不推算，非自动续费不推算)
@@ -435,7 +443,10 @@ export class SubscriptionRepository {
       quantity: subscription.quantity || 1,
       couponImage: subscription.couponImage || null,
       usageTime: subscription.usageTime || null,
-      realUsageTime: subscription.realUsageTime || null
+      realUsageTime: subscription.realUsageTime || null,
+      // 保修/保质期字段
+      brand: subscription.brand || null,
+      purchaseChannel: subscription.purchaseChannel || null
     };
     const predicates = new relationalStore.RdbPredicates(TABLE_NAME);
     if (!subscription.id) {
@@ -602,7 +613,7 @@ export class SubscriptionRepository {
         isAutoRenewal: resultSet.getColumnIndex('isAutoRenewal') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('isAutoRenewal')) === 1 : true,
         paymentMethod: resultSet.getColumnIndex('paymentMethod') !== -1 ? resultSet.getString(resultSet.getColumnIndex('paymentMethod')) : '其他支付方式',
         // 团购券字段
-        recordType: (resultSet.getColumnIndex('recordType') !== -1 ? resultSet.getString(resultSet.getColumnIndex('recordType')) : 'subscription') as 'subscription' | 'groupBuy',
+        recordType: (resultSet.getColumnIndex('recordType') !== -1 ? resultSet.getString(resultSet.getColumnIndex('recordType')) : 'subscription') as 'subscription' | 'groupBuy' | 'warranty',
         platform: resultSet.getColumnIndex('platform') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('platform')) ? resultSet.getString(resultSet.getColumnIndex('platform')) as 'meituan' | 'douyin' | 'dianping' : undefined,
         couponCode: resultSet.getColumnIndex('couponCode') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponCode')) ? resultSet.getString(resultSet.getColumnIndex('couponCode')) : undefined,
         usageStatus: resultSet.getColumnIndex('usageStatus') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageStatus')) ? resultSet.getString(resultSet.getColumnIndex('usageStatus')) as 'unused' | 'used' | 'expired' : 'unused',
@@ -610,7 +621,9 @@ export class SubscriptionRepository {
         quantity: resultSet.getColumnIndex('quantity') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('quantity')) : 1,
         couponImage: resultSet.getColumnIndex('couponImage') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponImage')) ? resultSet.getString(resultSet.getColumnIndex('couponImage')) : undefined,
         usageTime: resultSet.getColumnIndex('usageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageTime')) ? resultSet.getString(resultSet.getColumnIndex('usageTime')) : undefined,
-        realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined
+        realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined,
+        brand: resultSet.getColumnIndex('brand') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('brand')) ? resultSet.getString(resultSet.getColumnIndex('brand')) : undefined,
+        purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined
       });
     }
     resultSet.close();
@@ -678,7 +691,7 @@ export class SubscriptionRepository {
       isAutoRenewal: resultSet.getColumnIndex('isAutoRenewal') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('isAutoRenewal')) === 1 : true,
       paymentMethod: resultSet.getColumnIndex('paymentMethod') !== -1 ? resultSet.getString(resultSet.getColumnIndex('paymentMethod')) : '其他支付方式',
       // 团购券字段
-      recordType: (resultSet.getColumnIndex('recordType') !== -1 ? resultSet.getString(resultSet.getColumnIndex('recordType')) : 'subscription') as 'subscription' | 'groupBuy',
+      recordType: (resultSet.getColumnIndex('recordType') !== -1 ? resultSet.getString(resultSet.getColumnIndex('recordType')) : 'subscription') as 'subscription' | 'groupBuy' | 'warranty',
       platform: resultSet.getColumnIndex('platform') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('platform')) ? resultSet.getString(resultSet.getColumnIndex('platform')) as 'meituan' | 'douyin' | 'dianping' : undefined,
       couponCode: resultSet.getColumnIndex('couponCode') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponCode')) ? resultSet.getString(resultSet.getColumnIndex('couponCode')) : undefined,
       usageStatus: resultSet.getColumnIndex('usageStatus') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageStatus')) ? resultSet.getString(resultSet.getColumnIndex('usageStatus')) as 'unused' | 'used' | 'expired' : 'unused',
@@ -686,7 +699,9 @@ export class SubscriptionRepository {
       quantity: resultSet.getColumnIndex('quantity') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('quantity')) : 1,
       couponImage: resultSet.getColumnIndex('couponImage') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponImage')) ? resultSet.getString(resultSet.getColumnIndex('couponImage')) : undefined,
       usageTime: resultSet.getColumnIndex('usageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageTime')) ? resultSet.getString(resultSet.getColumnIndex('usageTime')) : undefined,
-      realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined
+      realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined,
+      brand: resultSet.getColumnIndex('brand') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('brand')) ? resultSet.getString(resultSet.getColumnIndex('brand')) : undefined,
+      purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined
     };
   }
 
@@ -698,8 +713,9 @@ export class SubscriptionRepository {
     hilog.info(0x0000, 'SubscriptionRepository', `Updating widget snapshot due to ${action}`);
     try {
       const subs = await this.queryAllInternal(false);
-      // 仅取前10条，防止快照文件过大且符合桌面卡片建议展示数量
-      const topSubs = subs.slice(0, 10);
+      // 移除 .slice(0, 10) 限制，允许展示更多项目
+      // const topSubs = subs.slice(0, 10);
+      const topSubs = subs;
 
       let isLoggedIn = true; // Simplified: Snapshot UI always shows content overlay if exists
 
@@ -714,12 +730,30 @@ export class SubscriptionRepository {
         const dateStr = DateUtil.formatShortDate(item.nextBillingDate);
 
         const isGroupBuy = item.recordType === 'groupBuy';
+        const isWarranty = item.recordType === 'warranty' || !!item.brand || !!item.purchaseChannel;
 
         const snapshotItem = new SnapshotItem();
-        snapshotItem.title = item.name || (isGroupBuy ? '未知团购' : '未知订阅');
-        snapshotItem.content = isGroupBuy ? (item.merchantName ? `${item.merchantName}` : '团购券') : `到期:${dateStr}`;
+        
+        if (isGroupBuy) {
+           snapshotItem.title = item.name || '未知团购';
+           const statusText: string = item.usageStatus === 'used' ? '已使用' : (item.usageStatus === 'expired' ? '已过期' : `剩 ${days} 天`);
+           snapshotItem.content = item.merchantName ? `${item.merchantName} | ${statusText}` : statusText;
+        } else if (isWarranty) {
+           snapshotItem.title = item.name || '未知保修';
+           // 保修过期显示
+           snapshotItem.content = `保修到期:${dateStr}`;
+        } else {
+           snapshotItem.title = item.name || '未知订阅';
+           snapshotItem.content = `到期:${dateStr}`;
+        }
+        
         snapshotItem.icon = iconKey;
-        snapshotItem.isExpiring = days <= 3;
+        // 普通订阅和保修在剩余3天内标红；团购券如果是未使用且剩余3天内也标红
+        if (isGroupBuy) {
+            snapshotItem.isExpiring = item.usageStatus === 'unused' && days <= 3;
+        } else {
+            snapshotItem.isExpiring = days <= 3;
+        }
 
         const minimalItem: MinimalCardItem = {
           id: item.id || 0,

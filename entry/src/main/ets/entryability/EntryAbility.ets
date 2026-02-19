@@ -28,7 +28,10 @@ export default class EntryAbility extends UIAbility {
   private pendingImportWant: Want | null = null;
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+    hilog.info(0xFEED, 'EntryAbility', 'Ability onCreate called');
+    if (want && want.parameters) {
+      hilog.info(0xFEED, 'EntryAbility', `onCreate Want parameters: ${JSON.stringify(want.parameters)}`);
+    }
     this.pendingImportWant = want;
     this.handleRouterEvent(want);
 
@@ -147,7 +150,10 @@ export default class EntryAbility extends UIAbility {
   }
 
   onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
-    hilog.info(DOMAIN, 'testTag', 'Ability onNewWant');
+    hilog.info(0xFEED, 'EntryAbility', 'Ability onNewWant called');
+    if (want && want.parameters) {
+      hilog.info(0xFEED, 'EntryAbility', `onNewWant Want parameters: ${JSON.stringify(want.parameters)}`);
+    }
     this.handleRouterEvent(want);
     this.handleImportFile(want);
   }

@@ -94,70 +94,87 @@ struct Index {
   }
 
   onTargetActionChange() {
-    if (this.targetAction === 'AddSubscription') {
-      hilog.info(0x0000, 'Index', 'Handling AddSubscription action');
-      AppStorage.setOrCreate('hasShownUpcomingSheet', true);
-      // Process on NEXT tick to avoid render conflict
-      setTimeout(() => {
+    // 关键：将所有逻辑包裹在 setTimeout 中，确保在渲染周期外执行，避免 "changed during render" 错误
+    setTimeout(() => {
+      if (!this.targetAction) {
+        return;
+      }
+
+      if (this.targetAction === 'AddSubscription') {
+        hilog.info(0xFEED, 'Index', 'Handling AddSubscription action');
+        AppStorage.setOrCreate('hasShownUpcomingSheet', true);
         AppStorage.setOrCreate('targetAction', '');
         this.onAddClick();
-      }, 0);
-    } else if (this.targetAction === 'ViewSubscriptionDetail') {
-      hilog.info(0x0000, 'Index', 'Handling ViewSubscriptionDetail action');
-      const targetSub = AppStorage.get<SubscriptionModel>('targetSubscription');
-      if (targetSub) {
-        // 关键：先打标，防止 Tab 切换导致面板关闭
-        this.isInternalRedirect = true;
-        AppStorage.setOrCreate('targetAction', '');
+      } else if (this.targetAction === 'ViewSubscriptionDetail') {
+        hilog.info(0xFEED, 'Index', 'Handling ViewSubscriptionDetail action');
+        const targetSub = AppStorage.get<SubscriptionModel>('targetSubscription');
+        if (targetSub) {
+          this.isInternalRedirect = true;
+          AppStorage.setOrCreate('targetAction', '');
 
-        // 1. 切换 Tab 和清空堆栈
-        if (this.currentIndex !== 0) {
-          if (this.isAnimationEnabled) {
-            animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
-              this.currentIndex = 0;
-              this.indicatorScale = { x: 1.25, y: 0.8 } as Scale;
-            })
-            setTimeout(() => {
-              animateTo({ duration: 400, curve: curves.springMotion() }, () => {
-                this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
+          // 1. 切换 Tab 和清空堆栈
+          if (this.currentIndex !== 0) {
+            if (this.isAnimationEnabled) {
+              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
+                this.currentIndex = 0;
+                this.indicatorScale = { x: 1.25, y: 0.8 } as Scale;
               })
-            }, 150)
-          } else {
-            this.currentIndex = 0;
-            this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
+              setTimeout(() => {
+                animateTo({ duration: 400, curve: curves.springMotion() }, () => {
+                  this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
+                })
+              }, 150)
+            } else {
+              this.currentIndex = 0;
+              this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
+            }
+            this.tabsController.changeIndex(0);
           }
-          this.tabsController.changeIndex(0);
-        }
-        if (this.pageStack.size() > 0) {
-          this.pageStack.clear();
-        }
+          if (this.pageStack.size() > 0) {
+            this.pageStack.clear();
+          }
 
-        // 2. 延迟触发详情页，确保 Tab 切换和堆栈清空的渲染周期已完成
-        // 使用更合理的延时，并先设置数据再设开关
-        setTimeout(() => {
-          this.detailData = targetSub;
-          AppStorage.setOrCreate('detailSubscriptionData', targetSub);
-
+          // 2. 延迟触发详情页
           setTimeout(() => {
-            // 再次确认数据，防止闭包捕获旧值
             this.detailData = targetSub;
             AppStorage.setOrCreate('detailSubscriptionData', targetSub);
-            if (this.isAnimationEnabled) {
-              animateTo({ duration: 400, curve: Curve.FastOutSlowIn }, () => {
-                this.isDetailVisible = true;
-              });
-            } else {
-              this.isDetailVisible = true;
-            }
 
-            // 3. 详情页展示动画开始后恢复标记
             setTimeout(() => {
-              this.isInternalRedirect = false;
-            }, 500);
-          }, 50);
-        }, 300); // 增加延时确保首页 HomeView 已经 mount
+              this.detailData = targetSub;
+              AppStorage.setOrCreate('detailSubscriptionData', targetSub);
+              if (this.isAnimationEnabled) {
+                animateTo({ duration: 400, curve: Curve.FastOutSlowIn }, () => {
+                  this.isDetailVisible = true;
+                });
+              } else {
+                this.isDetailVisible = true;
+              }
+
+              setTimeout(() => {
+                this.isInternalRedirect = false;
+              }, 500);
+            }, 50);
+          }, 300);
+        }
+      } else if (this.targetAction === 'DirectAddSubscription') {
+        hilog.info(0xFEED, 'Index', 'Handling DirectAddSubscription action');
+        const targetSub = AppStorage.get<SubscriptionModel>('targetSubscription');
+        if (targetSub) {
+          AppStorage.setOrCreate('targetAction', '');
+          this.pageStack.pushPathByName('AddSubscription', targetSub);
+        }
+      } else if (this.targetAction === 'ViewCalendar') {
+        hilog.info(0xFEED, 'Index', 'Handling ViewCalendar action');
+        AppStorage.setOrCreate('targetAction', '');
+        this.currentIndex = 1;
+        this.tabsController.changeIndex(1);
+      } else if (this.targetAction === 'ViewStats') {
+        hilog.info(0xFEED, 'Index', 'Handling ViewStats action');
+        AppStorage.setOrCreate('targetAction', '');
+        this.currentIndex = 2;
+        this.tabsController.changeIndex(2);
       }
-    }
+    }, 0);
   }
 
   onWidthChange(mediaQueryResult: mediaquery.MediaQueryResult) {

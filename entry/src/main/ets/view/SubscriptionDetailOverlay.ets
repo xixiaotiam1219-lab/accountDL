@@ -156,7 +156,9 @@ export struct SubscriptionDetailOverlay {
                   ((this.data.merchantName ? this.data.merchantName + ' · ' : '') +
                     (this.data.platform === 'meituan' ? '美团' :
                       (this.data.platform === 'dianping' ? '大众点评' : '抖音'))) :
-                  (this.getBillingCycleShortText() + (this.data.category ? ` · ${this.data.category}` : '')))
+                  (this.data.recordType === 'warranty' ?
+                    ((this.data.brand || '保修期') + (this.data.purchaseChannel ? ` · ${this.data.purchaseChannel}` : '')) :
+                    (this.getBillingCycleShortText() + (this.data.category ? ` · ${this.data.category}` : ''))))
                   .fontSize(14)
                   .fontColor($r('app.color.text_secondary'))
                   .opacity(0.8)
@@ -175,7 +177,7 @@ export struct SubscriptionDetailOverlay {
               Column({ space: 16 }) {
                 // 价格详情
                 Row() {
-                  Text(this.data.recordType === 'groupBuy' ? '支付金额' : '价格')
+                  Text(this.data.recordType === 'groupBuy' ? '支付金额' : (this.data.recordType === 'warranty' ? '购买价格' : '价格'))
                     .fontSize(14)
                     .fontColor($r('app.color.text_secondary'))
                   Blank()
@@ -266,6 +268,87 @@ export struct SubscriptionDetailOverlay {
                       .fontWeight(FontWeight.Medium)
                       .fontColor(this.data.usageStatus === 'used' ? '#9E9E9E' :
                         this.data.usageStatus === 'expired' ? '#F44336' : '#4CAF50')
+                  }
+                  .width('100%')
+
+                } else if (this.data.recordType === 'warranty') {
+                  // ========== 保修/保质期详情 ==========
+                  // 品牌
+                  if (this.data.brand) {
+                    Row() {
+                      Text('品牌')
+                        .fontSize(14)
+                        .fontColor($r('app.color.text_secondary'))
+                      Blank()
+                      Text(this.data.brand)
+                        .fontSize(16)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor($r('app.color.text_primary'))
+                    }
+                    .width('100%')
+                  }
+
+                  // 购买渠道
+                  if (this.data.purchaseChannel) {
+                    Row() {
+                      Text('购买渠道')
+                        .fontSize(14)
+                        .fontColor($r('app.color.text_secondary'))
+                      Blank()
+                      Text(this.data.purchaseChannel)
+                        .fontSize(16)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor($r('app.color.text_primary'))
+                    }
+                    .width('100%')
+                  }
+
+                  // 购买日期
+                  if (this.data.startDate) {
+                    Row() {
+                      Text('购买日期')
+                        .fontSize(14)
+                        .fontColor($r('app.color.text_secondary'))
+                      Blank()
+                      Text(DateUtil.formatDate(this.data.startDate) || '未设置')
+                        .fontSize(16)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor($r('app.color.text_primary'))
+                    }
+                    .width('100%')
+                  }
+
+                  // 保修到期日
+                  Row() {
+                    Text('保修到期')
+                      .fontSize(14)
+                      .fontColor($r('app.color.text_secondary'))
+                    Blank()
+                    Text(DateUtil.formatDate(this.data.nextBillingDate) || '未设置')
+                      .fontSize(16)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor(DateUtil.getDaysUntil(this.data.nextBillingDate) <= 30
+                        ? (this.isNewYearTheme ? $r('app.color.sub_card_ny_text') :
+                          (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.warning_color')))
+                        : $r('app.color.text_primary'))
+                  }
+                  .width('100%')
+
+                  // 保修剩余天数
+                  Row() {
+                    Text('剩余天数')
+                      .fontSize(14)
+                      .fontColor($r('app.color.text_secondary'))
+                    Blank()
+                    Text(DateUtil.getDaysUntil(this.data.nextBillingDate) <= 0 ? '已过保修期' :
+                      `${DateUtil.getDaysUntil(this.data.nextBillingDate)} 天`)
+                      .fontSize(16)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor(DateUtil.getDaysUntil(this.data.nextBillingDate) <= 0 ? '#F44336' :
+                        (DateUtil.getDaysUntil(this.data.nextBillingDate) <= 30
+                          ? (this.isNewYearTheme ? $r('app.color.sub_card_ny_text') :
+                            (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.warning_color')))
+                          : $r('app.color.text_primary')))
                   }
                   .width('100%')
 

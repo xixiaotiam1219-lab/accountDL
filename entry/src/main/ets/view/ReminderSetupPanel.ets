@@ -136,7 +136,7 @@ export struct ReminderSetupPanel {
       Text('暂无需要提醒的订阅')
         .fontSize(16)
         .fontColor($r('app.color.text_secondary'))
-      Text('只有非永久订阅才支持到期提醒')
+      Text('只有非永久订阅或保修物品才支持到期提醒')
         .fontSize(13)
         .fontColor($r('app.color.text_hint'))
         .margin({ top: 8 })
@@ -583,11 +583,11 @@ export struct ReminderSetupPanel {
   @Builder reminderBuilder(){
     Column() {
       Column() {
-        if (this.subscriptions.filter(s => s.billingCycle !== 'Lifetime').length === 0) {
+        if (this.subscriptions.filter(s => s.billingCycle !== 'Lifetime' || s.recordType === 'warranty').length === 0) {
           this.ReminderEmptyState()
         } else {
           List() {
-            ForEach(this.subscriptions.filter(s => s.billingCycle !== 'Lifetime'),
+            ForEach(this.subscriptions.filter(s => s.billingCycle !== 'Lifetime' || s.recordType === 'warranty'),
               (item: SubscriptionModel, idx) => {
                 ListItem() {
                   Row() {

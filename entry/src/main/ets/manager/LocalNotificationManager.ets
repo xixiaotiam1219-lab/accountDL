@@ -28,7 +28,8 @@ export class LocalNotificationManager {
    * @param sub 订阅对象
    */
   public async scheduleReminder(sub: SubscriptionModel): Promise<void> {
-    if (!sub.id || sub.billingCycle === 'Lifetime' || sub.isDeleted || sub.reminderDaysBefore === undefined || sub.reminderDaysBefore === null) {
+    // 允许 warranty 类型的 Lifetime 周期设置提醒
+    if (!sub.id || (sub.billingCycle === 'Lifetime' && sub.recordType !== 'warranty') || sub.isDeleted || sub.reminderDaysBefore === undefined || sub.reminderDaysBefore === null) {
       if (sub.id) {
         await this.cancelReminder(sub.id);
       }
@@ -65,8 +66,8 @@ export class LocalNotificationManager {
     const reminder: reminderAgentManager.ReminderRequestCalendar = {
       reminderType: reminderAgentManager.ReminderType.REMINDER_TYPE_CALENDAR,
       dateTime: dateTime,
-      title: sub.recordType === 'groupBuy' ? '团购券过期提醒' : '订阅到期提醒',
-      content: sub.recordType === 'groupBuy' ? `您的团购券 ${sub.name} 即将过期` : `您的订阅 ${sub.name} 即将到期 (${sub.currency} ${sub.price})`,
+      title: sub.recordType === 'groupBuy' ? '团购券过期提醒' : (sub.recordType === 'warranty' ? '保修到期提醒' : '订阅到期提醒'),
+      content: sub.recordType === 'groupBuy' ? `您的团购券 ${sub.name} 即将过期` : (sub.recordType === 'warranty' ? `您的 ${sub.name} 保修即将到期` : `您的订阅 ${sub.name} 即将到期 (${sub.currency} ${sub.price})`),
       slotType: notificationManager.SlotType.SERVICE_INFORMATION,
       wantAgent: {
         pkgName: 'com.xxtstudio.accountDL',

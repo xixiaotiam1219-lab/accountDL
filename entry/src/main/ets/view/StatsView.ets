@@ -710,7 +710,8 @@ export struct StatsView {
 
   getUpcomingSoon(): SubscriptionModel[] {
     return this.subscriptions.filter(sub => {
-      if (sub.billingCycle === 'Lifetime') return false;
+      // warranty 类型虽然 billingCycle 为 Lifetime，但也需要显示即将到期
+      if (sub.billingCycle === 'Lifetime' && sub.recordType !== 'warranty') return false;
       const days = DateUtil.getDaysUntil(sub.nextBillingDate);
       return days >= 0 && days <= 7;
     }).sort((a, b) => a.nextBillingDate - b.nextBillingDate);
@@ -718,7 +719,8 @@ export struct StatsView {
 
   getExpiringThisMonth(): SubscriptionModel[] {
     return this.subscriptions.filter(sub => {
-      if (sub.billingCycle === 'Lifetime') return false;
+      // warranty 类型虽然 billingCycle 为 Lifetime，但也需要显示即将到期
+      if (sub.billingCycle === 'Lifetime' && sub.recordType !== 'warranty') return false;
       const days = DateUtil.getDaysUntil(sub.nextBillingDate);
       return days >= 0 && days <= 30;
     });
@@ -728,6 +730,8 @@ export struct StatsView {
     let cycleText = '';
     if (sub.recordType === 'groupBuy') {
       cycleText = '团购';
+    } else if (sub.recordType === 'warranty') {
+      cycleText = '保修';
     } else {
       switch (sub.billingCycle) {
       case 'Monthly':
@@ -748,6 +752,9 @@ export struct StatsView {
       }
     }
     
+    if (sub.recordType === 'warranty' && sub.brand) {
+      return `${cycleText} · ${sub.brand}`;
+    }
     if (sub.subCategory) {
       return `${cycleText} · ${sub.subCategory}`;
     }
@@ -755,7 +762,7 @@ export struct StatsView {
   }
 
   getRankingSubtitle(sub: SubscriptionModel): string {
-    if (sub.billingCycle === 'Lifetime' || sub.billingCycle === 'Indefinite' || sub.recordType === 'groupBuy') {
+    if (sub.billingCycle === 'Lifetime' || sub.billingCycle === 'Indefinite' || sub.recordType === 'groupBuy' || sub.recordType === 'warranty') {
         if (this.rankingFilter === 0) return '本月支出';
         if (this.rankingFilter === 1) return '本季支出';
         return '年度支出';

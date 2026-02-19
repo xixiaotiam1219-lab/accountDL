@@ -18,7 +18,7 @@ export interface SubscriptionModel {
   paymentMethod?: string; // 支付方式 (现金, 银行卡, 支付宝等)
 
   // === 团购券专属字段 ===
-  recordType?: 'subscription' | 'groupBuy'; // 记录类型，默认 subscription
+  recordType?: 'subscription' | 'groupBuy' | 'warranty'; // 记录类型，默认 subscription
   platform?: 'meituan' | 'douyin' | 'dianping'; // 团购平台
   couponCode?: string; // 团购券码
   usageStatus?: 'unused' | 'used' | 'expired'; // 使用状态
@@ -27,4 +27,8 @@ export interface SubscriptionModel {
   couponImage?: string; // 券码截图路径
   usageTime?: string; // 使用时间范围 (周一至周日等) - 这是文本描述
   realUsageTime?: number; // 实际核销/使用时间 (Timestamp)
+
+  // === 保修/保质期专属字段 ===
+  brand?: string; // 品牌名称
+  purchaseChannel?: string; // 购买渠道 (京东、天猫、线下门店等)
 }

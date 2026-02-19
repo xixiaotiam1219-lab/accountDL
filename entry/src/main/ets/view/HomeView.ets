@@ -12,6 +12,8 @@ import { SubscriptionIcon } from './SubscriptionIcon';
 import { PreferenceUtil } from '../utils/PreferenceUtil';
 import { hdsEffect, hdsMaterial, HdsNavDestination, HdsNavigationMenuItemOptions,
   ScrollEffectType } from '@kit.UIDesignKit';
+import { FunctionComponent, FunctionController } from '@kit.AgentFrameworkKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 import { ReminderSetupPanel } from './ReminderSetupPanel';
 import { LocalIconManager } from '../utils/LocalIconManager';
@@ -30,14 +32,31 @@ export struct HomeView {
   @Consume('pageStack') pageStack: NavPathStack;
   @StorageLink('isOnline') isOnline: boolean = true;
 
+  // Agent Props
+  private controller: FunctionController = new FunctionController();
+  // TODO: Replace with real Agent ID from platform
+  private agentId: string = 'agent0244e963799347bdb18995e6416726ea';
+
   @StorageLink('isSyncing') isSyncing: boolean = false;
   @StorageLink('isLoggedIn') @Watch('onLoggedInChange') isLoggedIn: boolean = false;
+  
 
   onLoggedInChange() {
     if (this.isLoggedIn) {
       this.loadLocalData();
       this.checkAIConfig();
     }
+  }
+
+  initListeners() {
+    this.controller?.on('agentDialogOpened', this.onAgentOpenedCallback)
+    this.controller?.on('agentDialogClosed', this.onAgentClosedCallback)
+  }
+  onAgentOpenedCallback = () => {
+    hilog.info(0x0001, 'HomeView', 'agent dialog opened callback')
+  }
+  onAgentClosedCallback = () => {
+    hilog.info(0x0001, 'HomeView', 'agent dialog closed callback')
   }
   @StorageLink('isVip') isVip: boolean = false;
   @StorageLink('showVipTheme') showVipTheme: boolean = true;
@@ -64,7 +83,7 @@ export struct HomeView {
   @State sortOrder: string = 'date_asc'; // date_asc, date_desc, price_desc, price_asc, name_asc
   @State pendingNavigationItem: SubscriptionModel | null = null;
   @State showSyncGuide: boolean = false; // 控制同步指南显示
-  @StorageLink('homeCurrentTab') currentTab: 'subscription' | 'groupBuy' = 'subscription'; // 订阅/团购切换
+  @StorageLink('homeCurrentTab') currentTab: 'subscription' | 'groupBuy' | 'warranty' = 'subscription'; // 订阅/团购/保修切换
   @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
   @StorageLink('smartHandMode') smartHandMode: 'left' | 'right' | 'center' = 'center';
 
@@ -235,6 +254,7 @@ export struct HomeView {
   }
 
   async aboutToAppear() {
+    this.initListeners();
     this.onVisibleChange();
     // Load persisted sort order before loading data
     this.sortOrder = await PreferenceUtil.getInstance().loadSortOrder();
@@ -282,6 +302,8 @@ export struct HomeView {
   }
 
   aboutToDisappear() {
+    this.controller?.off('agentDialogOpened')
+    this.controller?.off('agentDialogClosed')
     // Subscribers will be handled by system GC if component is destroyed,
     // but the references are held in this.busSubscribers as long as HomeView exists.
     this.immersiveDisablingListening();
@@ -457,6 +479,9 @@ export struct HomeView {
   getFilteredSubscriptions(): SubscriptionModel[] {
     if (this.currentTab === 'groupBuy') {
       return this.subscriptions.filter(item => item.recordType === 'groupBuy');
+    }
+    if (this.currentTab === 'warranty') {
+      return this.subscriptions.filter(item => item.recordType === 'warranty');
     }
     // 默认显示订阅记录（包括没有 recordType 字段的旧数据）
     return this.subscriptions.filter(item => !item.recordType || item.recordType === 'subscription');
@@ -1145,6 +1170,30 @@ export struct HomeView {
     }
   }
 
+  @Builder AgentStackBuilder() {
+    Row() {
+      if (deviceInfo.distributionOSApiVersion >= 60100) {
+        FunctionComponent({
+          agentId: this.agentId,
+          onError: (err: BusinessError) => {
+            hilog.error(0x0001, 'HomeView', `Agent err: ${JSON.stringify(err)}, message: ${err.message}`)
+          },
+          options: {
+            title: '', // Icon only
+            queryText: '使用显示全部订阅工具，直接打印工具返回的数据包'
+          },
+          controller: this.controller
+        })
+        .width(40)
+        .height(40)
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.End)
+    .padding({ right: 114 }) // 增加间距：提醒 + 分享约 104vp，加 12vp 间隙
+  }
+
 @Builder homeBuilder(){
   Stack({ alignContent: Alignment.Top }) {
     // 主内容区域
@@ -1353,6 +1402,40 @@ export struct HomeView {
                       this.currentTab = 'groupBuy';
                     });
                   })
+
+                  Button() {
+                    Text("保修")
+                      .fontSize(14)
+                      .fontWeight(this.currentTab === 'warranty' ? FontWeight.Bold : FontWeight.Normal)
+                      .fontColor(this.currentTab === 'warranty' ?
+                        (this.isNewYearTheme ? '#FFD700' :
+                          (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
+                        $r('app.color.text_secondary'))
+                  }
+                  .linearGradient(this.currentTab === 'warranty' ?
+                    (this.isNewYearTheme ? {
+                      angle: 135,
+                      colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
+                    } :
+                      (this.showVipTheme ? {
+                        angle: 135,
+                        colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
+                      } : undefined)) : undefined)
+                  .backgroundColor(this.currentTab === 'warranty' ?
+                    (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
+                    Color.Transparent)
+                  .borderRadius(14)
+                  .padding({
+                    left: 20,
+                    right: 20,
+                    top: 6,
+                    bottom: 6
+                  })
+                  .onClick(() => {
+                    animateTo({ duration: this.isAnimationEnabled ? 300 : 0, curve: Curve.EaseInOut }, () => {
+                      this.currentTab = 'warranty';
+                    });
+                  })
                 }
                 .backgroundColor($r('app.color.page_background'))
                 .borderRadius(16)
@@ -1529,6 +1612,7 @@ export struct HomeView {
         avoidLayoutSafeArea: true,
         content: {
           title: { mainTitle: '订阅概览' },
+          stackBuilder: (): void => this.AgentStackBuilder(),
           menu: {
             value: [
               {
@@ -1595,6 +1679,7 @@ export struct HomeView {
         avoidLayoutSafeArea: true,
         content: {
           title: { mainTitle: '订阅概览' },
+          stackBuilder: (): void => this.AgentStackBuilder(),
           menu: {
             value: [
               {
@@ -1778,8 +1863,3 @@ struct SwipeDeleteButton {
   }
 }
 
-class ExportData {
-  version: number = 1;
-  timestamp: number = 0;
-  subscriptions: SubscriptionModel[] = [];
-}

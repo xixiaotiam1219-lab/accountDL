@@ -248,30 +248,44 @@ export default class EntryFormAbility extends FormExtensionAbility {
                   const days = isLifetime ? 999 : DateUtil.getDaysUntil(item.nextBillingDate);
                   const dateStr = DateUtil.formatShortDate(item.nextBillingDate);
 
-                   const obj = new CardItemData();
-                   obj.title = item.name || '未知订阅';
-                   
-                   if (isGroupBuy) {
-                     const statusText: string = item.usageStatus === 'used' ? '已使用' : (item.usageStatus === 'expired' ? '已过期' : `剩 ${DateUtil.getDaysUntil(item.nextBillingDate)} 天`);
-                     obj.content = item.merchantName ? `${item.merchantName} | ${statusText}` : statusText;
-                   } else {
-                     obj.content = isLifetime ? `购买:${dateStr}` : `到期:${dateStr}`;
-                   }
-                   
-                   obj.icon = iconKey;
-                   obj.isExpiring = !isLifetime && days <= 3;
-                   obj.isLifetime = isLifetime;
-                   obj.isGroupBuy = isGroupBuy;
-                    
-                   let priceStr = `${item.currency === 'USD' ? '$' : '¥'}${item.price}`;
-                   if (!isGroupBuy) {
-                     if (item.billingCycle === 'Monthly') priceStr += '/月';
-                     else if (item.billingCycle === 'Yearly') priceStr += '/年';
-                     else if (item.billingCycle === 'Quarterly') priceStr += '/季';
-                     else if (item.billingCycle === 'Lifetime') priceStr += '/永久';
-                     else if (item.billingCycle === 'Indefinite') priceStr += '/不定';
-                   }
-                   obj.price = priceStr;
+                const isWarranty = item.recordType === 'warranty' || !!item.brand || !!item.purchaseChannel;
+                const obj = new CardItemData();
+                obj.title = item.name || (isWarranty ? '未知保修' : '未知订阅');
+
+                if (isGroupBuy) {
+                  const statusText: string = item.usageStatus === 'used' ? '已使用' : (item.usageStatus === 'expired' ? '已过期' : `剩 ${DateUtil.getDaysUntil(item.nextBillingDate)} 天`);
+                  obj.content = item.merchantName ? `${item.merchantName} | ${statusText}` : statusText;
+                } else if (isWarranty) {
+                  // 保修卡片显示“保修到期”
+                  obj.content = `保修:${dateStr}`;
+                } else {
+                  obj.content = isLifetime ? `购买:${dateStr}` : `到期:${dateStr}`;
+                }
+
+                obj.icon = iconKey;
+                // 普通订阅和保修在剩余3天内标红；团购券如果是未使用且剩余3天内也标红
+                if (isGroupBuy) {
+                  obj.isExpiring = item.usageStatus === 'unused' && days <= 3;
+                } else {
+                  obj.isExpiring = !isLifetime && days <= 3;
+                }
+                obj.isLifetime = isLifetime;
+                obj.isGroupBuy = isGroupBuy;
+
+                let priceStr = `${item.currency === 'USD' ? '$' : '¥'}${item.price}`;
+                if (!isGroupBuy && !isWarranty) {
+                  if (item.billingCycle === 'Monthly') priceStr += '/月';
+                  else if (item.billingCycle === 'Yearly') priceStr += '/年';
+                  else if (item.billingCycle === 'Quarterly') priceStr += '/季';
+                  else if (item.billingCycle === 'Lifetime') priceStr += '/永久';
+                  else if (item.billingCycle === 'Indefinite') priceStr += '/不定';
+                } else if (isWarranty) {
+                  // 保修显示购买渠道或品牌
+                  if (item.purchaseChannel) priceStr = item.purchaseChannel;
+                  else if (item.brand) priceStr = item.brand;
+                  else priceStr = '保修';
+                }
+                obj.price = priceStr;
                    
                     obj.fullDate = DateUtil.formatDate(item.nextBillingDate);
                     // --- 核心优化：只同步必要的最小化数据，避免触发桌面卡片 128KB 限制 ---
@@ -287,8 +301,9 @@ export default class EntryFormAbility extends FormExtensionAbility {
 
               const formData = new WidgetFormData();
               formData.totalCount = subs.length;
-              // --- 核心优化：对卡片列表进行截断，最多只展示前10条数据，防止数据量过大导致更新失败 ---
-              formData.widgetData = widgetList.slice(0, 10);
+              // --- 核心优化：解除卡片列表截断限制，应用户要求允许展示更多数据 ---
+              // formData.widgetData = widgetList.slice(0, 10);
+              formData.widgetData = widgetList;
               formData.isLoggedIn = true; 
               formData.activeThemeId = await PreferenceUtil.getInstance().loadThemeId();
 

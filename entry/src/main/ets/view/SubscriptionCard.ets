@@ -44,6 +44,9 @@ export struct SubscriptionCard {
     if (this.data.recordType === 'groupBuy') {
       return '团购';
     }
+    if (this.data.recordType === 'warranty') {
+      return '保修';
+    }
     switch (this.data.billingCycle) {
       case 'Monthly': return '月付';
       case 'Quarterly': return '季付';
@@ -135,6 +138,13 @@ export struct SubscriptionCard {
                       Span(' · ')
                       Span(`${this.data.quantity}张`)
                     }
+                  } else if (this.data.recordType === 'warranty') {
+                    // 保修类型：显示品牌和购买渠道
+                    Span(this.data.brand || '保修期')
+                    if (this.data.purchaseChannel) {
+                      Span(' · ')
+                      Span(this.data.purchaseChannel)
+                    }
                   } else {
                     Span(this.getBillingCycleShortText())
                     
@@ -182,7 +192,7 @@ export struct SubscriptionCard {
                     .margin({ bottom: 4 })
                 }
                 
-                if (this.data.billingCycle !== 'Lifetime') {
+                if (this.data.billingCycle !== 'Lifetime' || this.data.recordType === 'warranty') {
                   Row() {
                     if (this.data.recordType === 'groupBuy') {
                        // 团购券状态显示
@@ -191,6 +201,18 @@ export struct SubscriptionCard {
                          .fontSize(11)
                          .fontWeight(FontWeight.Medium)
                          .fontColor(this.getUsageStatusColor())
+                    } else if (this.data.recordType === 'warranty') {
+                       // 保修到期状态显示
+                       Text(DateUtil.getDaysUntil(this.data.nextBillingDate) <= 0 ? '已过保修期' :
+                         (DateUtil.getDaysUntil(this.data.nextBillingDate) === 0 ? '今日到期' :
+                           `保修剩 ${DateUtil.getDaysUntil(this.data.nextBillingDate)} 天`))
+                         .fontSize(11)
+                         .fontWeight(FontWeight.Medium)
+                         .fontColor(DateUtil.getDaysUntil(this.data.nextBillingDate) <= 0 ? '#F44336' :
+                           (DateUtil.getDaysUntil(this.data.nextBillingDate) <= 30 ?
+                             (this.isNewYearTheme ? $r('app.color.sub_card_ny_text') :
+                               (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.warning_color'))) :
+                             $r('app.color.text_secondary')))
                     } else {
                        if (this.data.isAutoRenewal !== false) {
                          SymbolGlyph($r('sys.symbol.repeat'))
@@ -207,7 +229,7 @@ export struct SubscriptionCard {
                            : $r('app.color.text_secondary'))
                     }
                   }
-                  .opacity(this.data.recordType === 'groupBuy' || DateUtil.getDaysUntil(this.data.nextBillingDate) <= 3 ? 1 : 0.8)
+                  .opacity(this.data.recordType === 'groupBuy' || this.data.recordType === 'warranty' || DateUtil.getDaysUntil(this.data.nextBillingDate) <= 3 ? 1 : 0.8)
                 }
               }
               .alignItems(HorizontalAlign.End)
