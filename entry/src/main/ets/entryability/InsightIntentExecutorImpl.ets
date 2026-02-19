@@ -1,439 +1,675 @@
-import { common, insightIntent, InsightIntentExecutor, UIExtensionContentSession } from '@kit.AbilityKit';
+import { common, insightIntent, InsightIntentExecutor } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { SubscriptionModel } from '../model/SubscriptionModel';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
-import { DateUtil } from '../utils/DateUtil';
 import { PreferenceUtil } from '../utils/PreferenceUtil';
+import { DateUtil } from '../utils/DateUtil';
+import { SubscriptionModel } from '../model/SubscriptionModel';
+import { LocalIconManager } from '../utils/LocalIconManager';
+import { matchMemberService } from '../utils/MemberServiceConfig';
+import { util } from '@kit.ArkTS';
 
 const TAG = 'InsightIntentExecutorImpl';
 
+interface AgentRecordItem {
+  title: string;
+  content: string;
+  price: number;
+}
+
 class Constants {
-  // add_record 前台执行
   public static INTENT_ADD_RECORD = "AddRecord";
-  // query_record 前台执行
   public static INTENT_QUERY_RECORD = "QueryRecord";
-  // get_all_records 后台执行
   public static INTENT_GET_ALL_RECORDS = "GetAllRecords";
+  public static INTENT_QUERY_SUBSCRIPTION = "QuerySubscription";
+  public static INTENT_QUERY_VOUCHER = "QueryVoucher";
+  public static INTENT_QUERY_WARRANTY = "QueryWarranty";
 }
 
 export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
-  constructor() {
-    super();
-    hilog.info(0xFEED, TAG, 'InsightIntentExecutorImpl instance created');
-  }
 
   /**
    * override 执行前台UIAbility意图
    *
    * @param name 意图名称
    * @param param 意图参数
-   * @param pageLoader 窗口
+   * @param pageLoader WindowStage实例
    * @returns 意图调用结果
    */
-  onExecuteInUIAbilityForegroundMode(name: string, param: Record<string, Object>, pageLoader: window.WindowStage):
-    Promise<insightIntent.ExecuteResult> {
-    
-    hilog.info(0xFEED, TAG, `onExecuteInUIAbilityForegroundMode called: name=${name}, param=${JSON.stringify(param)}`);
+  async onExecuteInUIAbilityForegroundMode(name: string, param: Record<string, Object>, pageLoader: window.WindowStage): Promise<insightIntent.ExecuteResult> {
+    hilog.info(0xFEED, TAG, `onExecuteInUIAbilityForegroundMode [Cold/Warm Start] called: name=${name}`);
 
-    switch (name) {
-      case Constants.INTENT_ADD_RECORD:
-        return this.handleAddRecord(param, pageLoader);
-      case Constants.INTENT_QUERY_RECORD:
-        return this.handleQueryRecord(param, pageLoader);
-      default:
-        hilog.warn(0xFEED, TAG, `Unknown intent name: ${name}`);
-        pageLoader.loadContent('pages/Index');
-        break;
+    // 1. 快速初始化基础配置
+    try {
+      const context = (this.context as Object) as common.UIAbilityContext;
+      // 这里的初始化主要为了 AppStorage 能在页面加载前注入数据，但不能阻塞太久
+      await PreferenceUtil.getInstance().loadPreference(context);
+      await SubscriptionRepository.getInstance().init(context);
+      // 补全图标库初始化，确保查询结果中的图标路径能正确生成
+      await LocalIconManager.getInstance().init(context);
+    } catch (e) {
+      hilog.error(0x0001, TAG, `Quick Initialize failed during foreground execute: ${e}`);
     }
-    
-    return Promise.resolve({
-      code: -1,
-      result: {
-        message: 'Unsupported intent execution mode or unknown intent'
+
+    // 2. 构造即时反馈文案 (针对所有查询意图统一引导)
+    let fastResultText = "已找到记录，详情已呈现在屏幕上。";
+    if (name === Constants.INTENT_QUERY_WARRANTY) {
+      fastResultText = "正在为您查询保修详情，请看屏幕。";
+    } else if (name === Constants.INTENT_QUERY_VOUCHER) {
+      fastResultText = "正在为您查找相关的代金券，请看屏幕。";
+    }
+
+    // 3. 异步触发重度逻辑以更新 AppStorage (不等待，防止冷启动超时)
+    if (name === Constants.INTENT_GET_ALL_RECORDS) {
+      this.handleGetAllRecords();
+    } else if (name === Constants.INTENT_QUERY_VOUCHER) {
+      this.handleQueryVoucher(param);
+    } else if (name === Constants.INTENT_QUERY_WARRANTY) {
+      this.handleQueryWarranty(param);
+    } else if (name === Constants.INTENT_QUERY_SUBSCRIPTION) {
+      // 显式注入订阅过滤器，确保不混入代金券或保修记录
+      param['recordTypeFilter'] = 'subscription';
+      this.handleQueryRecord(param);
+    } else {
+      // 兜底逻辑：处理通用 QueryRecord 意图。
+      // 若用户未明确指定过滤器，默认为 'subscription'，解决用户反馈的“查订阅却带出代金券”问题。
+      if (!param['recordTypeFilter'] && !param['record_type_filter']) {
+        param['recordTypeFilter'] = 'subscription';
       }
-    } as insightIntent.ExecuteResult);
+      this.handleQueryRecord(param);
+    }
+
+    // 4. 立即返回，满足小艺的 2s/冷启动 响应要求
+    hilog.info(0xFEED, TAG, `onExecuteInUIAbilityForegroundMode returning fast response.`);
+    return {
+      code: 0,
+      result: {
+        'resultText': fastResultText,
+        'result': 'success'
+      }
+    };
   }
 
   /**
    * override 执行后台UIAbility意图
    *
-   * @param intentName 意图名称
-   * @param intentParam 意图参数
+   * @param name 意图名称
+   * @param param 意图参数
    * @returns 意图调用结果
    */
-  async onExecuteInUIAbilityBackgroundMode(intentName: string, intentParam: Record<string, Object>):
-    Promise<insightIntent.ExecuteResult> {
-    hilog.info(0xFEED, TAG, `onExecuteInUIAbilityBackgroundMode called: name=${intentName}, param=${JSON.stringify(intentParam)}`);
-    
-    switch (intentName) {
-      case Constants.INTENT_QUERY_RECORD:
-        try {
-          // Prevent potential crash in LocalNotificationManager due to missing preferences
-          await PreferenceUtil.getInstance().loadPreference((this.context as Object) as common.Context);
-          
-          // await SubscriptionRepository.getInstance().init((this.context as Object) as common.Context);
-          // const allSubs = await SubscriptionRepository.getInstance().queryAll();
-          
-          // --- MOCK DATA FOR TESTING (Force return test data) ---
-          const nowTime = new Date().getTime();
-          // Ensure dates fall into expected ranges:
-          // This Month: +3 days
-          // Next Month: +20 days (assuming we are not at end of month, or calculating carefully)
-          // To be safe for "Next Month", let's use a fixed date relative to now that is definitely next month.
-          const nextMonthDate = new Date();
-          nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-          nextMonthDate.setDate(15); // Middle of next month
+  async onExecuteInUIAbilityBackgroundMode(name: string, param: Record<string, Object>): Promise<insightIntent.ExecuteResult> {
+    hilog.info(0xFEED, TAG, `onExecuteInUIAbilityBackgroundMode [AddRecord] called: name=${name}`);
 
-          const allSubs: SubscriptionModel[] = [
-            {
-              id: 1001, uuid: 'mock_netflix', name: 'Netflix Premium', price: 15.99, currency: 'USD', billingCycle: 'Monthly', 
-              nextBillingDate: nowTime + 3 * 24 * 3600 * 1000, // +3 days (This Month likely)
-              category: 'Entertainment', isDeleted: false, isAutoRenewal: true, 
-              recordType: 'subscription', startDate: nowTime, lastModified: nowTime,
-              subCategory: '', paymentMethod: 'Credit Card', icon: ''
-            },
-            {
-              id: 1002, uuid: 'mock_spotify', name: 'Spotify Duo', price: 12.99, currency: 'USD', billingCycle: 'Monthly', 
-              nextBillingDate: nextMonthDate.getTime(), // Definitely Next Month
-              category: 'Music', isDeleted: false, isAutoRenewal: true,
-              recordType: 'subscription', startDate: nowTime, lastModified: nowTime,
-              subCategory: '', paymentMethod: 'PayPal', icon: '' 
-            },
-            {
-              id: 1003, uuid: 'mock_kfc', name: '肯德基全家桶券', price: 59.9, currency: 'CNY', billingCycle: 'Indefinite',
-              nextBillingDate: nowTime + 2 * 24 * 3600 * 1000, // +2 days (This Month/Urgent)
-              usageStatus: 'unused', recordType: 'groupBuy', platform: 'meituan', merchantName: '肯德基',
-              category: 'Food', isDeleted: false, startDate: nowTime, lastModified: nowTime,
-              subCategory: '', isAutoRenewal: false, paymentMethod: 'WeChat', icon: ''
-            },
-             {
-              id: 9999, uuid: 'mock_today', name: 'Today Test (Catch-All)', price: 0.01, currency: 'CNY', billingCycle: 'Monthly',
-              nextBillingDate: nowTime + 1000, // +1 second
-              category: 'Other', isDeleted: false, isAutoRenewal: true,
-              recordType: 'subscription', startDate: nowTime, lastModified: nowTime,
-              subCategory: '', paymentMethod: 'None', icon: ''
-            }
-          ];
-          hilog.info(0xFEED, TAG, `[MOCK] Loaded ${allSubs.length} items. Params: ${JSON.stringify(intentParam)}`);
-          
-          // Support both camelCase (config) and snake_case (common LLM output)
-          const queryType = (intentParam['queryType'] as string) || (intentParam['query_type'] as string) || 'expiration';
-          const timeRange = (intentParam['timeRange'] as string) || (intentParam['time_range'] as string) || 'next_30_days'; // Default
-          
-          let resultData: Record<string, Object> = {};
+    try {
+      const context = (this.context as Object) as common.UIAbilityContext;
+      await PreferenceUtil.getInstance().loadPreference(context);
+      await SubscriptionRepository.getInstance().init(context);
+      await LocalIconManager.getInstance().init(context);
+    } catch (e) {
+      hilog.error(0x0001, TAG, `Initialization failed: ${e}`);
+    }
 
-          // --- 1. Determine Logic based on Query Type ---
-          if (queryType === 'expiration') {
-            // --- Expiration Logic ---
-            const now = new Date();
-            let startDate = now.getTime(); 
-            let endDate = now.getTime() + 30 * 24 * 60 * 60 * 1000; // Default 30 days
-            let dateDescription = "最近30天";
-
-            if (timeRange === 'this_month') {
-              const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-              startDate = now.getTime();
-              endDate = endOfMonth.getTime();
-              dateDescription = "本月剩余时间内";
-            } else if (timeRange === 'next_month') {
-              const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
-              const endOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59, 999);
-              startDate = startOfNextMonth.getTime();
-              endDate = endOfNextMonth.getTime();
-              dateDescription = "下个月";
-            } else if (timeRange === 'this_year' || timeRange === 'year') {
-               const endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
-               startDate = now.getTime();
-               endDate = endOfYear.getTime();
-               dateDescription = "今年剩余时间内";
-            }
-
-            const expiring = allSubs.filter(s => s.nextBillingDate >= startDate && s.nextBillingDate <= endDate);
-            
-            // Generate Plain Text List
-            const recordsListText = expiring.length > 0 
-                ? expiring.map((s, index) => `${index + 1}. ${s.name} (${DateUtil.formatShortDate(s.nextBillingDate)})`).join("\n") 
-                : "无";
-
-            const summary = expiring.length > 0
-                ? `为您找到 ${expiring.length} 条${dateDescription}到期的记录：${expiring.map(s => `${s.name}(${DateUtil.formatShortDate(s.nextBillingDate)})`).join("，")}。`
-                : `在${dateDescription}没有找到即将到期的订阅记录。`;
-
-            resultData = {
-              'resultText': summary,
-              'count': expiring.length,
-              'totalAmount': expiring.reduce((sum, s) => sum + s.price, 0).toFixed(2),
-              'records': recordsListText
-            };
-
-          } else {
-            // --- Expense / General Query Logic ---
-            const timeRange = (intentParam['timeRange'] as string) || 'month';
-            let summaryText = "";
-            let total = 0;
-            let recordsListText = "";
-
-            if (timeRange === 'year' || timeRange === 'this_year') {
-               // Yearly Estimation
-               total = allSubs.reduce((sum, s) => sum + (s.price * 12), 0);
-               const subNames = allSubs.map(s => s.name).join("，");
-               summaryText = `您当前共有 ${allSubs.length} 项有效订阅：${subNames}。年度预估总支出约为 ${total.toFixed(2)} 元。`;
-               recordsListText = allSubs.map((s, index) => `${index + 1}. ${s.name} - 约${(s.price * 12).toFixed(2)}/年`).join("\n");
-            } else {
-               // Monthly Default
-               total = allSubs.reduce((sum, s) => sum + s.price, 0);
-               const subNames = allSubs.map(s => s.name).join("，");
-               summaryText = `您当前共有 ${allSubs.length} 项有效订阅：${subNames}。月度预估总支出为 ${total.toFixed(2)} 元。`;
-               recordsListText = allSubs.map((s, index) => `${index + 1}. ${s.name} - ${s.price}/${s.billingCycle || '月'}`).join("\n");
-            }
-
-            resultData = {
-              'resultText': summaryText,
-              'count': allSubs.length,
-              'totalAmount': total.toFixed(2),
-              'records': recordsListText
-            };
-          }
-
-          hilog.info(0xFEED, TAG, `[RETURN] InsightIntent Result: ${JSON.stringify(resultData)}`);
-
-          return {
-            code: 0,
-            result: resultData
-          };
-        } catch (e) {
-          hilog.error(0x0001, TAG, `Background query failed: ${e}`);
-          const errorMsg = "抱歉，查询本地数据时遇到一点问题，请稍后重试。";
-          return {
-            code: 0, // 即使查询失败也返回0，由 resultText 告知
-            result: {
-              'resultText': errorMsg,
-              'count': 0,
-              'totalAmount': '0.00'
-            }
-          };
-        }
-      case Constants.INTENT_GET_ALL_RECORDS:
-        try {
-           hilog.info(0xFEED, TAG, `[GetAllRecords] Executing full dump intent.`);
-           
-           // Ensure environment is ready
-           await PreferenceUtil.getInstance().loadPreference((this.context as Object) as common.Context);
-           
-           // --- MOCK DATA ---
-           const nowTime = new Date().getTime();
-           const nextMonthDate = new Date();
-           nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-           nextMonthDate.setDate(15); 
-
-           const allSubs: SubscriptionModel[] = [
-            {
-              id: 1001, uuid: 'mock_netflix', name: 'Netflix Premium', price: 15.99, currency: 'USD', billingCycle: 'Monthly', 
-              nextBillingDate: nowTime + 3 * 24 * 3600 * 1000, 
-              category: 'Entertainment', isDeleted: false, isAutoRenewal: true, 
-              recordType: 'subscription', startDate: nowTime, lastModified: nowTime,
-              subCategory: '', paymentMethod: 'Credit Card', icon: ''
-            },
-            {
-              id: 1002, uuid: 'mock_spotify', name: 'Spotify Duo', price: 12.99, currency: 'USD', billingCycle: 'Monthly', 
-              nextBillingDate: nextMonthDate.getTime(),
-              category: 'Music', isDeleted: false, isAutoRenewal: true,
-              recordType: 'subscription', startDate: nowTime, lastModified: nowTime,
-              subCategory: '', paymentMethod: 'PayPal', icon: '' 
-            },
-            {
-              id: 1003, uuid: 'mock_kfc', name: '肯德基全家桶券', price: 59.9, currency: 'CNY', billingCycle: 'Indefinite',
-              nextBillingDate: nowTime + 2 * 24 * 3600 * 1000, 
-              usageStatus: 'unused', recordType: 'groupBuy', platform: 'meituan', merchantName: '肯德基',
-              category: 'Food', isDeleted: false, startDate: nowTime, lastModified: nowTime,
-              subCategory: '', isAutoRenewal: false, paymentMethod: 'WeChat', icon: ''
-            },
-            {
-              id: 9999, uuid: 'mock_today', name: 'Today Test (Catch-All)', price: 0.01, currency: 'CNY', billingCycle: 'Monthly',
-              nextBillingDate: nowTime + 1000, 
-              category: 'Other', isDeleted: false, isAutoRenewal: true,
-              recordType: 'subscription', startDate: nowTime, lastModified: nowTime,
-              subCategory: '', paymentMethod: 'None', icon: ''
-            }
-          ];
-
-          const total = allSubs.reduce((sum, s) => sum + s.price, 0);
-          const recordsListText = allSubs.map((s, index) => `${index + 1}. ${s.name} (${s.price})`).join("; ");
-          
-          const summary = `查询成功。共找到 ${allSubs.length} 条记录：${recordsListText}。`;
-
-          const resultData: Record<string, Object> = {
-              'resultText': summary,
-              'count': allSubs.length,
-              'totalAmount': total.toFixed(2),
-              'records': recordsListText,
-              'errorMessage': "" // Explicitly add this to potentially match agent expectation
-          };
-
-          hilog.info(0xFEED, TAG, `[RETURN] GetAllRecords Result: ${JSON.stringify(resultData)}`);
-
-          return {
-            code: 0,
-            result: resultData
-          };
-
-        } catch (e) {
-           hilog.error(0x0001, TAG, `GetAllRecords failed: ${e}`);
-           return {
-             code: 0, 
-             result: {
-               'resultText': "查询全部数据时出错。",
-               'errorMessage': `${e}`
-             }
-           };
-        }
-
+    switch (name) {
+      case Constants.INTENT_ADD_RECORD:
+        return this.handleAddRecord(param);
       default:
+        hilog.warn(0xFEED, TAG, `Unknown background intent: ${name}`);
         return {
           code: -1,
           result: {
-            message: 'Unknown background intent'
+            message: 'Unknown background intent',
+            resultText: '抱歉，暂时无法处理该后台请求。'
           }
         };
     }
   }
 
-  private async handleAddRecord(param: Record<string, Object>, pageLoader: window.WindowStage): Promise<insightIntent.ExecuteResult> {
-    hilog.info(0xFEED, TAG, `handleAddRecord called with params: ${JSON.stringify(param)}`);
+  private async handleGetAllRecords(): Promise<insightIntent.ExecuteResult> {
     try {
-      // 1. 解析参数
-      const recordType = param['recordType'] as string || 'subscription';
-      const name = param['name'] as string || '';
-      const priceStr = param['price'] as string || '0';
-      const purchaseDateStr = param['purchaseDate'] as string;
-      const expireDateStr = param['expireDate'] as string; // For groupBuy/warranty
-      const cycle = param['cycle'] as string; // For subscription billing cycle
-      const platform = param['platform'] as string; // For groupBuy platform
-      const brand = param['brand'] as string; // For warranty brand
-      const purchaseChannel = param['purchaseChannel'] as string; // For warranty channel (from updated config)
+      hilog.info(0xFEED, TAG, `[GetAllRecords] Executing full dump intent.`);
+      const allSubs = await SubscriptionRepository.getInstance().queryAll();
+      const activeSubs = allSubs.filter(s => !s.isDeleted);
 
-      // 2. 构建 SubscriptionModel
-      const newRecord: SubscriptionModel = {
-        id: new Date().getTime(), // Temporary ID
-        uuid: '', // New record
-        name: name,
-        price: parseFloat(priceStr),
-        currency: 'CNY', // Fixed to CNY as per config
-        recordType: recordType as 'subscription' | 'groupBuy' | 'warranty',
-        billingCycle: 'Monthly', // Default
-        nextBillingDate: new Date().getTime(), // Default to now, will override
-        startDate: new Date().getTime(), // Default to now, will override
-        icon: '', // Default icon logic will handle this in UI
-        category: '其他',
-        lastModified: new Date().getTime(),
-        isDeleted: false,
-        isAutoRenewal: true,
-        paymentMethod: '微信支付', // Default
+      const totalCount = activeSubs.length;
+      const recordsListText = activeSubs.slice(0, 5).map((s, index) =>
+        `${index + 1}. ${s.name} - ${s.currency === 'USD' ? '$' : '¥'}${s.price}`
+      ).join("; ");
+
+      // 简化返回给 Agent 的文案，详情通过 UI 卡片展示
+      const resultText = totalCount > 0 
+        ? "查询成功，所有记录已在屏幕上为您列出。" 
+        : "您目前没有任何订阅或消费记录。";
+
+      const resultData: Record<string, Object> = {
+        'resultText': resultText,
+        'result': resultText,
+        'answer': resultText,
+        'text': resultText,
+        'count': totalCount,
+        'records': JSON.stringify(activeSubs) // Keep for UI or debug
       };
 
-      // 3. 处理特定字段
-      if (purchaseDateStr) {
-        const purchaseDate = new Date(purchaseDateStr);
-        if (!isNaN(purchaseDate.getTime())) {
-          newRecord.startDate = purchaseDate.getTime();
-          // For subscription, next billing date starts from purchase date unless cycle logic applies
-          newRecord.nextBillingDate = purchaseDate.getTime(); 
-        }
-      }
+      hilog.info(0xFEED, TAG, `[RETURN] GetAllRecords Final Result: ${JSON.stringify(resultData)}`);
 
-      if (recordType === 'subscription') {
-        if (cycle) {
-          // Map cycle string from agent (Monthly, Quarterly, Yearly) to SubscriptionModel
-          if (['Monthly', 'Quarterly', 'Yearly', 'Lifetime', 'Indefinite'].includes(cycle)) {
-             newRecord.billingCycle = cycle as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite';
-          }
-        }
-        // Calculate next billing date based on start date and cycle? 
-        // For simplicity, let the UI handle the "next billing" calculation initial logic, 
-        // or just set nextBillingDate to purchaseDate for now (meaning "starts now").
-      } else if (recordType === 'groupBuy') {
-        newRecord.billingCycle = 'Indefinite'; // Internal representation if needed, though model uses recordType
-        if (platform) {
-          // Map platform to enum if possible, or store as is if model supports arbitrary strings (model defines enum)
-          if (['meituan', 'douyin', 'dianping'].includes(platform)) {
-             newRecord.platform = platform as 'meituan' | 'douyin' | 'dianping';
-          }
-        }
-        if (expireDateStr) {
-           const expireDate = new Date(expireDateStr);
-           if (!isNaN(expireDate.getTime())) {
-             newRecord.nextBillingDate = expireDate.getTime(); // Group buy expiration is stored in nextBillingDate
-           }
-        }
-      } else if (recordType === 'warranty') {
-        newRecord.billingCycle = 'Indefinite';
-        if (brand) newRecord.brand = brand;
-        if (purchaseChannel) newRecord.purchaseChannel = purchaseChannel; // Assuming this field exists in model
-        
-        if (expireDateStr) {
-           const expireDate = new Date(expireDateStr);
-           if (!isNaN(expireDate.getTime())) {
-             newRecord.nextBillingDate = expireDate.getTime(); // Warranty expiration is stored in nextBillingDate
-           }
-        }
-      }
-
-      // 4. 将数据传递给 UI
-      // 使用 AppStorage 传递临时数据
-      AppStorage.setOrCreate('targetSubscription', newRecord);
-      AppStorage.setOrCreate('targetAction', 'DirectAddSubscription'); // Custom action to trigger routing in Index.ets
-
-      // 5. 加载页面
-      pageLoader.loadContent('pages/Index');
+      // Push to UI via AppStorage
+      AppStorage.setOrCreate('queryResultData', resultData);
+      AppStorage.setOrCreate('isQueryResultsVisible', true);
 
       return {
         code: 0,
-        result: {
-          message: 'Redirecting to add page'
-        }
+        result: resultData
       };
     } catch (e) {
-      hilog.error(0x0000, TAG, `handleAddRecord failed: ${e}`);
+      hilog.error(0x0001, TAG, `GetAllRecords failed: ${e}`);
       return {
-        code: -1,
+        code: 0, // Still return 0 so user sees the error message in resultText instead of "Execution Failed"
         result: {
-          message: 'Failed to process add record intent'
+          'resultText': "查询全部数据时出错。",
+          'errorMessage': `${e}`
         }
       };
     }
   }
 
-  private async handleQueryRecord(param: Record<string, Object>, pageLoader: window.WindowStage): Promise<insightIntent.ExecuteResult> {
-     hilog.info(0xFEED, TAG, `handleQueryRecord called with params: ${JSON.stringify(param)}`);
-     try {
-       const queryType = param['queryType'] as string || 'expense';
-       
-       if (queryType === 'expiration') {
-          // Calendar View
-          AppStorage.setOrCreate('targetAction', 'ViewCalendar');
-       } else {
-          // Stats View (expense)
-          AppStorage.setOrCreate('targetAction', 'ViewStats');
-       }
+  private async handleQueryVoucher(param: Record<string, Object>): Promise<insightIntent.ExecuteResult> {
+    param['queryType'] = 'expiration';
+    param['recordTypeFilter'] = 'groupBuy';
+    return this.handleQueryRecord(param);
+  }
 
-       pageLoader.loadContent('pages/Index');
+  private async handleQueryWarranty(param: Record<string, Object>): Promise<insightIntent.ExecuteResult> {
+    param['queryType'] = 'expiration';
+    param['recordTypeFilter'] = 'warranty';
+    // 如果有 productName 参数，可以在这里做额外过滤 logic
+    return this.handleQueryRecord(param);
+  }
 
-       return {
-         code: 0,
-         result: {
-           message: 'Redirecting to query page'
+  private async handleQueryRecord(param: Record<string, Object>): Promise<insightIntent.ExecuteResult> {
+    try {
+      hilog.info(0xFEED, TAG, `[QueryRecord] Executing query logic. Param: ${JSON.stringify(param)}`);
+      const recordTypeFilter = (param['recordTypeFilter'] as string) || ''; 
+      const allSubs = await SubscriptionRepository.getInstance().queryAll();
+      
+      const queryType = (param['queryType'] as string) || (param['query_type'] as string) || 'expiration';
+      const timeRange = (param['timeRange'] as string) || (param['time_range'] as string) || 'next_30_days';
+
+      const now = new Date();
+      let startDate = 0;
+      let endDate = 0;
+      let dateDescription = "";
+      let specificMonthQuery = false;
+      let useRangeSummation = false; 
+
+      const isExpenseQuery = queryType === 'expense';
+      const isExpirationQuery = queryType === 'expiration';
+
+      if (timeRange === 'this_year' || timeRange === 'year') {
+         const currentYear = now.getFullYear();
+         startDate = isExpirationQuery ? now.getTime() : new Date(currentYear, 0, 1, 0, 0, 0, 0).getTime();
+         const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+         endDate = endOfYear.getTime();
+         dateDescription = "今年";
+         useRangeSummation = isExpenseQuery;
+      } else if (timeRange === 'next_year') {
+         const nextYear = now.getFullYear() + 1;
+         startDate = new Date(nextYear, 0, 1, 0, 0, 0, 0).getTime();
+         const endOfYear = new Date(nextYear, 11, 31, 23, 59, 59, 999);
+         endDate = endOfYear.getTime();
+         dateDescription = "明年";
+         useRangeSummation = isExpenseQuery;
+      } else if (timeRange === 'this_quarter') {
+         const currMonth = now.getMonth();
+         const quarterStartMonth = Math.floor(currMonth / 3) * 3;
+         startDate = isExpirationQuery ? now.getTime() : new Date(now.getFullYear(), quarterStartMonth, 1, 0, 0, 0, 0).getTime();
+         endDate = new Date(now.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999).getTime();
+         dateDescription = "本季度";
+         useRangeSummation = isExpenseQuery;
+      } else if (timeRange === 'next_quarter') {
+         const currMonth = now.getMonth();
+         const quarterStartMonth = Math.floor(currMonth / 3) * 3 + 3; 
+         startDate = new Date(now.getFullYear(), quarterStartMonth, 1, 0, 0, 0, 0).getTime();
+         endDate = new Date(now.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999).getTime();
+         dateDescription = "下季度";
+         useRangeSummation = isExpenseQuery;
+      } else if (timeRange === 'this_month') {
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        startDate = isExpirationQuery ? now.getTime() : new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
+        endDate = endOfMonth.getTime();
+        dateDescription = "本月";
+        useRangeSummation = isExpenseQuery;
+      } else if (timeRange === 'next_month') {
+        const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
+        const endOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59, 999);
+        startDate = startOfNextMonth.getTime();
+        endDate = endOfNextMonth.getTime();
+        dateDescription = "下月";
+        useRangeSummation = isExpenseQuery;
+        specificMonthQuery = true;
+      } else {
+        const yearMatch = timeRange.match(/^\d{4}$/);
+        const quarterMatch = timeRange.match(/^(\d{4})[-/][qQ]([1-4])$/);
+
+        if (yearMatch) {
+             const y = parseInt(yearMatch[0]);
+             startDate = new Date(y, 0, 1, 0, 0, 0, 0).getTime();
+             endDate = new Date(y, 11, 31, 23, 59, 59, 999).getTime();
+             dateDescription = `${y}年`;
+             useRangeSummation = true;
+        } else if (quarterMatch) {
+             const y = parseInt(quarterMatch[1]);
+             const q = parseInt(quarterMatch[2]); 
+             const qStartMonth = (q - 1) * 3;
+             startDate = new Date(y, qStartMonth, 1, 0, 0, 0, 0).getTime();
+             endDate = new Date(y, qStartMonth + 3, 0, 23, 59, 59, 999).getTime();
+             dateDescription = `${y}年${q}季度`;
+             useRangeSummation = true;
+        } else {
+            const specificDate = new Date(timeRange);
+            if (!isNaN(specificDate.getTime())) {
+                 startDate = new Date(specificDate.getFullYear(), specificDate.getMonth(), 1, 0, 0, 0, 0).getTime();
+                 const endOfMonth = new Date(specificDate.getFullYear(), specificDate.getMonth() + 1, 0, 23, 59, 59, 999);
+                 endDate = endOfMonth.getTime();
+                 dateDescription = `${specificDate.getFullYear()}年${specificDate.getMonth() + 1}月`;
+                 useRangeSummation = isExpenseQuery;
+                 specificMonthQuery = true;
+            } else {
+                 startDate = now.getTime();
+                 endDate = now.getTime() + 30 * 24 * 60 * 60 * 1000;
+                 dateDescription = "未来30天";
+            }
+        }
+      }
+
+      let activeSubs = allSubs.filter(s => {
+        if (s.isDeleted) return false;
+        
+        // 增加类型过滤逻辑
+        if (recordTypeFilter && s.recordType !== recordTypeFilter) {
+          return false;
+        }
+        
+        if (useRangeSummation) {
+            // (Note: useRangeSummation is mostly true for Expense queries or multi-month ranges)
+            if (s.billingCycle === 'Lifetime' || s.billingCycle === 'Indefinite' || s.recordType === 'groupBuy') {
+                 if (s.recordType === 'groupBuy') {
+                     const days = DateUtil.getDaysUntil(s.nextBillingDate);
+                     if (s.usageStatus === 'expired' || (s.usageStatus !== 'used' && days < 0)) return false;
+                 }
+                 let targetDate: Date;
+                 if (s.recordType === 'groupBuy') {
+                    targetDate = s.realUsageTime ? new Date(s.realUsageTime) : new Date(s.nextBillingDate);
+                 } else {
+                    targetDate = new Date(s.startDate || s.nextBillingDate);
+                 }
+                 const tTime = targetDate.getTime();
+                 return tTime >= startDate && tTime <= endDate;
+            }
+
+            let tempDate = s.nextBillingDate;
+            if (tempDate >= startDate && tempDate <= endDate) return true;
+            
+            if (s.billingCycle === 'Monthly' || s.billingCycle === 'Quarterly' || s.billingCycle === 'Yearly') {
+                 // Forward (Only project forward if it's an Expense query AND item auto-renews)
+                 if (tempDate < startDate && s.isAutoRenewal) {
+                     let d = new Date(tempDate);
+                     let safety = 0;
+                     while (d.getTime() < startDate && safety < 120) {
+                         if (s.billingCycle === 'Monthly') d.setMonth(d.getMonth() + 1);
+                         else if (s.billingCycle === 'Quarterly') d.setMonth(d.getMonth() + 3);
+                         else if (s.billingCycle === 'Yearly') d.setFullYear(d.getFullYear() + 1);
+                         safety++;
+                     }
+                     if (d.getTime() >= startDate && d.getTime() <= endDate) return true;
+                 }
+                 // Backward
+                 if (tempDate > endDate) {
+                     let d = new Date(tempDate);
+                     let safety = 0;
+                     while (d.getTime() > endDate && safety < 120) {
+                         if (s.billingCycle === 'Monthly') d.setMonth(d.getMonth() - 1);
+                         else if (s.billingCycle === 'Quarterly') d.setMonth(d.getMonth() - 3);
+                         else if (s.billingCycle === 'Yearly') d.setFullYear(d.getFullYear() - 1);
+                         safety++;
+                     }
+                     if (d.getTime() >= startDate && d.getTime() <= endDate) return true;
+                 }
+            }
+            return false;
+        }
+
+        // Standard Expiration/Range Logic (No projection for certain future months)
+        if (s.billingCycle === 'Lifetime' && s.recordType !== 'warranty') return false; 
+        
+        let targetRealDate = s.nextBillingDate;
+        if (targetRealDate >= startDate && targetRealDate <= endDate) return true;
+        
+        // ONLY project for immediate rolling window (next_30_days) or CURRENT month
+        const isRollingWindow = timeRange === 'next_30_days' || timeRange === 'this_month';
+        if (isRollingWindow && targetRealDate < startDate && (s.billingCycle === 'Monthly' || s.billingCycle === 'Quarterly' || s.billingCycle === 'Yearly')) {
+             if (!s.isAutoRenewal) return false; 
+             let d = new Date(targetRealDate);
+             let safety = 0;
+             while (d.getTime() < startDate && safety < 120) {
+                 if (s.billingCycle === 'Monthly') d.setMonth(d.getMonth() + 1);
+                 else if (s.billingCycle === 'Quarterly') d.setMonth(d.getMonth() + 3);
+                 else if (s.billingCycle === 'Yearly') d.setFullYear(d.getFullYear() + 1);
+                 safety++;
+             }
+             if (d.getTime() >= startDate && d.getTime() <= endDate) return true;
+        }
+        return false;
+      });
+
+      // Update dates for display projection ONLY FOR EXPENSE QUERIES
+      if (isExpenseQuery && activeSubs.length > 0) {
+         activeSubs = activeSubs.map(s => {
+             if (!s.isAutoRenewal) return s; 
+             let projectedDate = s.nextBillingDate;
+             if (projectedDate < startDate && (s.billingCycle === 'Monthly' || s.billingCycle === 'Quarterly' || s.billingCycle === 'Yearly')) {
+                 let d = new Date(projectedDate);
+                 let safety = 0;
+                 while (d.getTime() < startDate && safety < 120) {
+                     if (s.billingCycle === 'Monthly') d.setMonth(d.getMonth() + 1);
+                     else if (s.billingCycle === 'Quarterly') d.setMonth(d.getMonth() + 3);
+                     else if (s.billingCycle === 'Yearly') d.setFullYear(d.getFullYear() + 1);
+                     safety++;
+                 }
+                 if (d.getTime() >= startDate && d.getTime() <= endDate) {
+                     projectedDate = d.getTime();
+                 }
+             }
+             if (projectedDate !== s.nextBillingDate) {
+                 const newItem = JSON.parse(JSON.stringify(s)) as SubscriptionModel;
+                 newItem.nextBillingDate = projectedDate;
+                 return newItem;
+             }
+             return s;
+         });
+      }
+
+      let summaryText = "";
+      let resultText = "";
+      const totalCount = activeSubs.length;
+
+      let totalAmount = 0;
+      
+      if (useRangeSummation) {
+         // Strict Range Calculation (Generalization of Year Logic)
+         activeSubs.forEach(sub => {
+            const price = Number(sub.price);
+            if (isNaN(price) || price <= 0) return;
+
+            // 1. One-time subscriptions
+            if (sub.billingCycle === 'Lifetime' || sub.billingCycle === 'Indefinite' || sub.recordType === 'groupBuy') {
+                 // GroupBuy logic
+                 if (sub.recordType === 'groupBuy') {
+                     const days = DateUtil.getDaysUntil(sub.nextBillingDate);
+                     if (sub.usageStatus === 'expired' || (sub.usageStatus !== 'used' && days < 0)) {
+                         return;
+                     }
+                 }
+                 
+                 let targetDate: Date;
+                 if (sub.recordType === 'groupBuy') {
+                    targetDate = sub.realUsageTime ? new Date(sub.realUsageTime) : new Date(sub.nextBillingDate);
+                 } else {
+                    targetDate = new Date(sub.startDate || sub.nextBillingDate);
+                 }
+                 
+                 const tTime = targetDate.getTime();
+                 if (tTime >= startDate && tTime <= endDate) {
+                     totalAmount += price;
+                 }
+                 return;
+            }
+
+            // 2. Recurring subscriptions
+            let billingDate = new Date(sub.nextBillingDate);
+            if (isNaN(billingDate.getTime())) return;
+
+            // Backtrack to find the first occurrence before or at start of range
+            while (billingDate.getTime() > startDate) {
+                let prevDate = new Date(billingDate);
+                if (sub.billingCycle === 'Monthly') prevDate.setMonth(prevDate.getMonth() - 1);
+                else if (sub.billingCycle === 'Quarterly') prevDate.setMonth(prevDate.getMonth() - 3);
+                else if (sub.billingCycle === 'Yearly') prevDate.setFullYear(prevDate.getFullYear() - 1);
+                else break; 
+                
+                // Safety break for infinite loops
+                if (prevDate.getTime() < startDate - 400 * 24 * 3600 * 1000) { 
+                    break;
+                }
+                
+                if (prevDate.getTime() <= startDate) {
+                    billingDate = prevDate;
+                    break; 
+                }
+                billingDate = prevDate;
+            }
+
+            // Forward track to sum up expenses within range
+            while (billingDate.getTime() <= endDate) {
+                 const bTime = billingDate.getTime();
+                if (bTime >= startDate && bTime <= endDate) {
+                    totalAmount += price;
+                }
+
+                if (sub.billingCycle === 'Monthly') billingDate.setMonth(billingDate.getMonth() + 1);
+                else if (sub.billingCycle === 'Quarterly') billingDate.setMonth(billingDate.getMonth() + 3);
+                else if (sub.billingCycle === 'Yearly') billingDate.setFullYear(billingDate.getFullYear() + 1);
+                else break;
+
+                // If NOT auto-renewing, it only happens once at the recorded nextBillingDate
+                if (!sub.isAutoRenewal) break; 
+            }
+         });
+      } else {
+          totalAmount = activeSubs.reduce((sum, s) => {
+              if (s.recordType === 'warranty') return sum;
+              return sum + s.price;
+          }, 0);
+      }
+
+      if (activeSubs.length > 0) {
+        if (isExpenseQuery) {
+             resultText = `已为您生成${dateDescription}支出预估：总计约 ¥${totalAmount.toFixed(2)}。`;
+        } else if (recordTypeFilter === 'groupBuy') {
+             resultText = `已为您找到${dateDescription}即将过期的团购券共 ${totalCount} 张，请看屏幕。`;
+        } else if (recordTypeFilter === 'warranty') {
+             resultText = `已为您找到${dateDescription}保修记录共 ${totalCount} 条，请看屏幕。`;
+        } else {
+             resultText = `已为您找到${dateDescription}即将到期的订阅共 ${totalCount} 条，请看屏幕。`;
+        }
+      } else {
+         if (recordTypeFilter === 'groupBuy') {
+           resultText = `在${dateDescription}没有找到任何团购券记录。`;
+         } else if (recordTypeFilter === 'warranty') {
+           resultText = `在${dateDescription}没有找到相关的保修记录。`;
+         } else {
+           resultText = `在${dateDescription}没有找到符合要求的记录。`;
          }
-       };
+      }
 
-     } catch (e) {
-       hilog.error(0x0000, TAG, `handleQueryRecord failed: ${e}`);
-       return {
-         code: -1,
-         result: {
-           message: 'Failed to process query intent'
-         }
-       };
-     }
+
+      if (!resultText && totalCount > 0) {
+         resultText = `查询成功，共找到 ${totalCount} 条记录，请查看结果详情。`;
+      } else if (!resultText && totalCount === 0) {
+         resultText = `在${dateDescription}没有找到任何订阅记录。`;
+      }
+
+      const resultData: Record<string, Object> = {
+        'resultText': resultText,
+        'result': resultText,
+        'answer': resultText,
+        'text': resultText,
+        'count': totalCount,
+        'totalAmount': totalAmount.toFixed(2),
+        'records': JSON.stringify(activeSubs), 
+        'errorMessage': ""
+      };
+
+      hilog.info(0xFEED, TAG, `[RETURN] QueryRecord Result: ${JSON.stringify(resultData)}`);
+
+      AppStorage.setOrCreate('queryResultData', resultData);
+      AppStorage.setOrCreate('isQueryResultsVisible', true);
+
+      return { code: 0, result: resultData };
+
+    } catch (e) {
+      hilog.error(0x0001, TAG, `QueryRecord failed: ${e}`);
+      return {
+        code: 0,
+        result: {
+          'resultText': "查询出错。",
+          'errorMessage': `${e}`
+        }
+      };
+    }
+  }
+
+  private async handleAddRecord(param: Record<string, Object>): Promise<insightIntent.ExecuteResult> {
+    try {
+      hilog.info(0xFEED, TAG, `[AddRecord] Params received: ${JSON.stringify(param)}`);
+      
+      const name = (param['name'] as string) || "未命名订阅";
+      const priceStr = (param['price'] as string) || "0";
+      // 提取数字：移除所有非数字和小数点的字符 (如 "CNY", "¥", "$")
+      const cleanedPriceStr = priceStr.replace(/[^0-9.]/g, '');
+      const price = parseFloat(cleanedPriceStr);
+      
+      // 兼容性识别：优先 billingCycle，备选 cycle
+      let cycle = (param['billingCycle'] as string) || (param['cycle'] as string) || "Monthly";
+      
+      // 周期归一化：支持“循环”、“每月”、“年付”等口语
+      const cycleLower = cycle.toLowerCase();
+      if (cycleLower.includes('year') || cycleLower.includes('年')) {
+        cycle = 'Yearly';
+      } else if (cycleLower.includes('quarter') || cycleLower.includes('季')) {
+        cycle = 'Quarterly';
+      } else if (cycleLower.includes('month') || cycleLower.includes('月')) {
+        cycle = 'Monthly';
+      } else if (cycleLower.includes('life') || cycleLower.includes('终身') || cycleLower.includes('买断')) {
+        cycle = 'Lifetime';
+      } else if (cycleLower.includes('indefinite') || cycleLower.includes('不定') || cycleLower.includes('随机')) {
+        cycle = 'Indefinite';
+      }
+
+      // 提取提醒天数 (默认为1天)
+      let reminderDaysBefore = 1;
+      if (param['reminderDaysBefore'] !== undefined) {
+        reminderDaysBefore = parseInt(param['reminderDaysBefore'] as string);
+      } else if (param['reminder'] !== undefined) {
+        // 兼容口语化参数名
+        const reminderStr = param['reminder'] as string;
+        const match = reminderStr.match(/(\d+)/);
+        if (match) {
+          reminderDaysBefore = parseInt(match[1]);
+        }
+      }
+
+      // 自动尝试匹配图标
+      let iconPath = '';
+      try {
+        // 1. 尝试从本地图标库匹配 (LocalIconManager)
+        let appInfo = await LocalIconManager.getInstance().getAppInfo(name);
+        
+        // 2. 如果没匹配到，尝试去掉常见后缀再次匹配 (如：腾讯视频会员 -> 腾讯视频)
+        if (!appInfo) {
+          const cleanName = name.replace(/(会员|VIP|订阅|套餐|卷|代金券|服务|卡|Premium|Member)$/i, '').trim();
+          if (cleanName && cleanName !== name) {
+            hilog.info(0xFEED, TAG, `[AddRecord] Retry icon match with cleaned name: ${cleanName}`);
+            appInfo = await LocalIconManager.getInstance().getAppInfo(cleanName);
+          }
+        }
+
+        if (appInfo && appInfo.icon) {
+          iconPath = appInfo.icon;
+          hilog.info(0xFEED, TAG, `[AddRecord] Auto-detected local app icon: ${iconPath}`);
+        } else {
+          // 3. 尝试从服务配置库匹配 (MemberServiceConfig)
+          const service = matchMemberService(name);
+          if (service && service.icon) {
+            iconPath = service.icon;
+            hilog.info(0xFEED, TAG, `[AddRecord] Auto-detected service config icon: ${iconPath}`);
+          }
+        }
+      } catch (iconErr) {
+        hilog.warn(0xFEED, TAG, `[AddRecord] Failed to detect icon: ${iconErr}`);
+      }
+
+      // 提取日期 (YYYY-MM-DD)
+      const expireDateStr = (param['expireDate'] as string);
+      const purchaseDateStr = (param['purchaseDate'] as string);
+      
+      let nextBillingDate = new Date().getTime();
+      let startDate = new Date().getTime();
+
+      if (expireDateStr) {
+        const date = new Date(expireDateStr);
+        if (!isNaN(date.getTime())) {
+          nextBillingDate = date.getTime();
+        }
+      }
+      
+      if (purchaseDateStr) {
+        const date = new Date(purchaseDateStr);
+        if (!isNaN(date.getTime())) {
+          startDate = date.getTime();
+        }
+      }
+
+      // 智能推算到期日：如果用户未提供到期日，但提供了开始日期或使用了默认开始日期(今)，
+      // 且周期为 Monthly/Yearly/Quarterly，则自动往后推算。
+      if (!expireDateStr && cycle !== 'Lifetime' && cycle !== 'Indefinite') {
+        const d = new Date(startDate);
+        if (cycle === 'Monthly') {
+          d.setMonth(d.getMonth() + 1);
+        } else if (cycle === 'Quarterly') {
+          d.setMonth(d.getMonth() + 3);
+        } else if (cycle === 'Yearly') {
+          d.setFullYear(d.getFullYear() + 1);
+        }
+        nextBillingDate = d.getTime();
+        hilog.info(0xFEED, TAG, `[AddRecord] Auto-calculated nextBillingDate: ${d.toISOString()} based on cycle ${cycle}`);
+      }
+
+      // SubscriptionModel 是接口，使用对象字面量初始化
+      const newSub: SubscriptionModel = {
+        uuid: util.generateRandomUUID(true), 
+        name: name,
+        price: isNaN(price) ? 0 : price,
+        billingCycle: cycle as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite',
+        nextBillingDate: nextBillingDate,
+        startDate: startDate,
+        currency: 'CNY',
+        icon: iconPath, 
+        lastModified: new Date().getTime(),
+        isDeleted: false,
+        isAutoRenewal: true,
+        reminderDaysBefore: reminderDaysBefore,
+        reminderTime: "09:00"
+      };
+
+      await SubscriptionRepository.getInstance().insert(newSub);
+
+      const resultText = `已为您添加${cycle === 'Yearly' ? '年付' : '订阅'}：${name}，金额 ¥${price}。将在到期前 ${reminderDaysBefore} 天提醒您。`;
+      
+      const resultData: Record<string, Object> = {
+        'resultText': resultText
+      };
+
+      hilog.info(0xFEED, TAG, `[RETURN] AddRecord Result: ${JSON.stringify(resultData)}`);
+      return { code: 0, result: resultData };
+
+    } catch (e) {
+      hilog.error(0x0001, TAG, `AddRecord failed: ${e}`);
+      return {
+        code: 0,
+        result: {
+          'resultText': "添加订阅失败。",
+          'errorMessage': `${e}`
+        }
+      };
+    }
   }
 }

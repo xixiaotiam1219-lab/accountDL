@@ -28,6 +28,7 @@ export class LocalIconManager {
   private static instance: LocalIconManager;
   private appDataMap: Record<string, AppData> = {};
   private isLoaded: boolean = false;
+  private initPromise: Promise<void> | null = null;
   private context: Context | null = null;
   private cacheDir: string = '';
   private customIconDir: string = '';
@@ -66,57 +67,46 @@ export class LocalIconManager {
    }
 
   public async init(context: Context): Promise<void> {
-    if (this.isLoaded) {
-      return;
+    if (this.initPromise) {
+      return this.initPromise;
     }
-    try {
-      this.context = context;
-      this.cacheDir = context.filesDir + '/icons';
-      this.customIconDir = context.filesDir + '/imported_icons';
-      this.customConfigPath = this.customIconDir + '/icon_index.json';
-      
-      this.ensureDir(this.cacheDir);
-      this.ensureDir(this.customIconDir);
-
-      const resourceManager = context.resourceManager;
-      
-      // DEBUG: List rawfiles to verify visibility
+    
+    this.initPromise = new Promise(async (resolve) => {
       try {
-        const files = await resourceManager.getRawFileList('');
-        console.info('RawFile List:', JSON.stringify(files));
-        if (!files.includes('app_data.json')) {
-           console.error('CRITICAL: app_data.json NOT FOUND in getRawFileList response!');
+        this.context = context;
+        this.cacheDir = context.filesDir + '/icons';
+        this.customIconDir = context.filesDir + '/imported_icons';
+        this.customConfigPath = this.customIconDir + '/icon_index.json';
+        
+        this.ensureDir(this.cacheDir);
+        this.ensureDir(this.customIconDir);
+
+        const resourceManager = context.resourceManager;
+        
+        // Try to load built-in icons
+        try {
+          const fileData = await resourceManager.getRawFileContent('app_data.json');
+          const textDecoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
+          const jsonString = textDecoder.decodeWithStream(fileData);
+          this.appDataMap = JSON.parse(jsonString) as Record<string, AppData>;
+        } catch (e) {
+          console.error('LocalIconManager: Failed to load built-in app_data.json', JSON.stringify(e));
         }
-      } catch (listErr) {
-        console.error('Failed to list rawfiles:', JSON.stringify(listErr));
-      }
+        
+        // Load custom icons
+        await this.loadCustomIcons();
 
-      // Try to load built-in icons, but don't blocking initialization on failure
-      try {
-        const fileData = await resourceManager.getRawFileContent('app_data.json');
-        const textDecoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
-        const jsonString = textDecoder.decodeWithStream(fileData);
-        this.appDataMap = JSON.parse(jsonString) as Record<string, AppData>;
+        this.isLoaded = true;
+        console.info('LocalIconManager loaded successfully, total apps:', Object.keys(this.appDataMap).length);
+        resolve();
       } catch (e) {
-        console.error('LocalIconManager: Failed to load built-in app_data.json', JSON.stringify(e));
-        // Continue to allow custom icons to work
+        console.error('LocalIconManager init failed:', JSON.stringify(e));
+        this.initPromise = null; // 重置 promise 以允许重试
+        resolve();
       }
-      
-      // Load custom icons
-      await this.loadCustomIcons();
+    });
 
-      this.isLoaded = true;
-      console.info('LocalIconManager loaded successfully, total apps:', Object.keys(this.appDataMap).length);
-      
-      // DEBUG: List custom dir on init
-      if (this.exists(this.customIconDir)) {
-          this.listDirRecursive(this.customIconDir);
-      }
-    } catch (e) {
-      console.error('LocalIconManager init failed:', JSON.stringify(e));
-      // Even if everything fails, mark as loaded so we don't retry loop infinitely, but empty
-      this.isLoaded = true;
-    }
+    return this.initPromise;
   }
 
   private async loadCustomIcons() {
@@ -747,34 +737,24 @@ export class LocalIconManager {
     return ''; // No remote fallback
   }
 
+  private async initWait(): Promise<void> {
+    if (!this.isLoaded && this.initPromise) {
+      await this.initPromise;
+    }
+  }
+
   public async getAppInfo(appName: string): Promise<AppInfo | null> {
+    await this.initWait();
     if (!this.isLoaded || !appName) {
       return null;
     }
-    
-    let data = this.appDataMap[appName];
-    let matchedName = appName;
-
-    if (!data) {
-       const res = this.searchInternal(appName);
-       if (res) {
-          data = res.data;
-          // matchedName = res.key; // retain original search term or use matched key? user prefers query usually.
-       }
-    }
-
-    if (data) {
-      // Process icon
-      const iconPath = await this.resolveIconPath(data);
-      return {
-        name: matchedName,
-        icon: iconPath,
-        category: data.c,
-        isCustom: data.isCustom
-      };
-    }
-    
-    return null;
+    const result = this.searchInternal(appName);
+    return result ? {
+      name: result.key,
+      icon: await this.resolveIconPath(result.data),
+      category: result.data.c,
+      isCustom: result.data.isCustom
+    } : null;
   }
 
   /* 同步搜索，但在获取Icon时可能需要异步IO */
@@ -820,11 +800,13 @@ export class LocalIconManager {
   private searchInternal(keyword: string): SearchResult | null {
     let bestMatch: SearchResult | null = null;
     let shortestKeyLength = Infinity;
+    const lowerKeyword = keyword.toLowerCase();
 
     const keys = Object.keys(this.appDataMap);
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i];
-      if (key.includes(keyword) || keyword.includes(key)) {
+      const lowerKey = key.toLowerCase();
+      if (lowerKey.includes(lowerKeyword) || lowerKeyword.includes(lowerKey)) {
         if (key.length < shortestKeyLength) {
           shortestKeyLength = key.length;
           bestMatch = { key: key, data: this.appDataMap[key] };
@@ -835,6 +817,7 @@ export class LocalIconManager {
   }
 
   public async getAllApps(): Promise<AppInfo[]> {
+    await this.initWait();
     if (!this.isLoaded) return [];
     
     const results: AppInfo[] = [];
@@ -857,7 +840,8 @@ export class LocalIconManager {
     return results;
   }
 
-  public getAllCategories(): string[] {
+  public async getAllCategories(): Promise<string[]> {
+      await this.initWait();
       if (!this.isLoaded) return [];
       const categories = new Set<string>();
       Object.values(this.appDataMap).forEach(d => categories.add(d.c));

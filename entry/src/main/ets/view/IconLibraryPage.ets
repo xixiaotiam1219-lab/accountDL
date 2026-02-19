@@ -153,7 +153,7 @@ export struct IconLibraryPage {
     try {
       LocalIconManager.getInstance().init(getContext(this)).then(async () => {
         this.icons = await LocalIconManager.getInstance().getAllApps();
-        const cats = LocalIconManager.getInstance().getAllCategories();
+        const cats = await LocalIconManager.getInstance().getAllCategories();
         this.categories = ['全部', ...cats];
         this.filterIcons();
         this.isLoading = false;

@@ -10,7 +10,29 @@
                 "executeMode": [
                     "background"
                 ]
-            }
+            },
+            "inputParams": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "price",
+                    "type": "string"
+                },
+                {
+                    "name": "billingCycle",
+                    "type": "string"
+                },
+                {
+                    "name": "expireDate",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderDaysBefore",
+                    "type": "string"
+                }
+            ]
         },
         {
             "intentName": "QueryRecord",
@@ -20,9 +42,37 @@
             "uiAbility": {
                 "ability": "EntryAbility",
                 "executeMode": [
-                    "background"
+                    "foreground"
                 ]
-            }
+            },
+            "inputParams": [
+                {
+                    "name": "queryType",
+                    "type": "string"
+                },
+                {
+                    "name": "timeRange",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "resultText",
+                    "type": "string"
+                },
+                {
+                    "name": "count",
+                    "type": "number"
+                },
+                {
+                    "name": "totalAmount",
+                    "type": "string"
+                },
+                {
+                    "name": "records",
+                    "type": "string"
+                }
+            ]
         },
         {
             "intentName": "GetAllRecords",
@@ -32,9 +82,99 @@
             "uiAbility": {
                 "ability": "EntryAbility",
                 "executeMode": [
-                    "background"
+                    "foreground"
                 ]
-            }
+            },
+            "outputParams": [
+                {
+                    "name": "resultText",
+                    "type": "string"
+                },
+                {
+                    "name": "count",
+                    "type": "number"
+                },
+                {
+                    "name": "items",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "intentName": "QuerySubscription",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "foreground"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "queryType",
+                    "type": "string"
+                },
+                {
+                    "name": "timeRange",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "resultText",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "intentName": "QueryVoucher",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "foreground"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "timeRange",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "resultText",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "intentName": "QueryWarranty",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "foreground"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "productName",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "resultText",
+                    "type": "string"
+                }
+            ]
         }
     ]
 }

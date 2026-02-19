@@ -1082,7 +1082,7 @@ export struct AddSubscription {
 
               // 3. 价格区
               Column() {
-                Text(`${this.currency}${this.price || '0.00'}`)
+                Text(`${this.currency === 'USD' ? '$' : '¥'}${this.price || '0.00'}`)
                   .fontSize(18)
                   .fontWeight(FontWeight.Bold)
                   .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
@@ -1674,7 +1674,7 @@ export struct AddSubscription {
                     .margin({ bottom: 12 })
 
                   Row({ space: 4 }) {
-                    Text(this.currency)
+                    Text(this.currency === 'USD' ? '$' : '¥')
                       .fontSize(36)
                       .fontWeight(FontWeight.Bold)
                       .fontColor($r('app.color.text_primary'))
@@ -2177,7 +2177,7 @@ export struct AddSubscription {
               .margin({ right: 12 })
 
               Column() {
-                Text(`${this.currency}${this.price || '0.00'}`)
+                Text(`${this.currency === 'USD' ? '$' : '¥'}${this.price || '0.00'}`)
                   .fontSize(18)
                   .fontWeight(FontWeight.Bold)
                   .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
@@ -2388,7 +2388,7 @@ export struct AddSubscription {
                     .margin({ bottom: 12 })
 
                   Row({ space: 4 }) {
-                    Text(this.currency)
+                    Text(this.currency === 'USD' ? '$' : '¥')
                       .fontSize(36)
                       .fontWeight(FontWeight.Bold)
                       .fontColor($r('app.color.text_primary'))
@@ -2675,7 +2675,7 @@ export struct AddSubscription {
 
                 // 3. 价格区 (显示当前识别/输入的金额)
                 Column() {
-                  Text(`${this.currency}${this.price || '0.00'}`)
+                  Text(`${this.currency === 'USD' ? '$' : '¥'}${this.price || '0.00'}`)
                     .fontSize(18)
                     .fontWeight(FontWeight.Bold)
                     .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
@@ -3245,7 +3245,7 @@ export struct AddSubscription {
                     .margin({ bottom: 12 })
 
                   Row({ space: 4 }) {
-                    Text(this.currency)
+                    Text(this.currency === 'USD' ? '$' : '¥')
                       .fontSize(36)
                       .fontWeight(FontWeight.Bold)
                       .fontColor($r('app.color.text_primary'))

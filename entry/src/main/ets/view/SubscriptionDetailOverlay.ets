@@ -182,7 +182,7 @@ export struct SubscriptionDetailOverlay {
                     .fontColor($r('app.color.text_secondary'))
                   Blank()
                   Row() {
-                    Text(this.data.currency)
+                    Text(this.data.currency === 'USD' ? '$' : '¥')
                       .fontSize(14)
                       .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') :
                         (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.text_primary')))

@@ -171,7 +171,7 @@ export struct SubscriptionCard {
               // 3. 右侧价格与状态区
               Column() {
                 Row() {
-                  Text(`${this.data.currency}`)
+                  Text(this.data.currency === 'USD' ? '$' : '¥')
                     .fontSize(14)
                     .fontWeight(FontWeight.Medium)
                     .fontColor($r('app.color.text_primary'))

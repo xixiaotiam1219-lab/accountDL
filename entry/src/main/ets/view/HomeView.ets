@@ -34,6 +34,7 @@ export struct HomeView {
 
   // Agent Props
   private controller: FunctionController = new FunctionController();
+  @State dualEdgeLightController: hdsEffect.ShaderEffectController = new hdsEffect.ShaderEffectController();
   // TODO: Replace with real Agent ID from platform
   private agentId: string = 'agent0244e963799347bdb18995e6416726ea';
 
@@ -1172,7 +1173,6 @@ export struct HomeView {
 
   @Builder AgentStackBuilder() {
     Row() {
-      if (deviceInfo.distributionOSApiVersion >= 60100) {
         FunctionComponent({
           agentId: this.agentId,
           onError: (err: BusinessError) => {
@@ -1180,13 +1180,41 @@ export struct HomeView {
           },
           options: {
             title: '', // Icon only
-            queryText: '使用显示全部订阅工具，直接打印工具返回的数据包'
+            queryText: '介绍一下你自己'
           },
           controller: this.controller
         })
+        .visualEffect(new hdsEffect.HdsEffectBuilder()
+          .shaderEffect({
+            effectType: hdsEffect.EffectType.DUAL_EDGE_FLOW_LIGHT,
+            animation: {
+              duration: 4000,
+              iterations: -1,
+              autoPlay: true,
+              onFinish: () => {
+                console.info('Succeeded in finishing');
+              }
+            },
+            controller: this.dualEdgeLightController,
+            params: {
+              firstEdgeFlowLight: {
+                startPos: 0,
+                endPos: 1.0,
+                color: '#1AD0F1',
+              },
+              secondEdgeFlowLight: {
+                startPos: 0.5,
+                endPos: 1.5,
+                color: '#FFA4E5',
+              }
+            }
+          })
+          .buildEffect())
         .width(40)
         .height(40)
-      }
+        .borderRadius('50%')
+        .clip(true)
+
     }
     .width('100%')
     .height('100%')
