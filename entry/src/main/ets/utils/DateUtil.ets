@@ -2,7 +2,10 @@ export class DateUtil {
   /**
    * 格式化日期为 YYYY-MM-DD
    */
-  static formatDate(date: Date | number): string {
+  static formatDate(date: Date | number | undefined | null): string {
+    if (date === undefined || date === null) {
+      return '';
+    }
     const d = typeof date === 'number' ? new Date(date) : date;
     const year = d.getFullYear();
     const month = (d.getMonth() + 1).toString().padStart(2, '0');
@@ -13,7 +16,10 @@ export class DateUtil {
   /**
    * 格式化日期为 YY-MM-DD
    */
-  static formatShortDate(date: Date | number): string {
+  static formatShortDate(date: Date | number | undefined | null): string {
+    if (date === undefined || date === null) {
+      return '';
+    }
     const d = typeof date === 'number' ? new Date(date) : date;
     const year = d.getFullYear().toString().slice(-2);
     const month = (d.getMonth() + 1).toString().padStart(2, '0');
@@ -28,8 +34,8 @@ export class DateUtil {
    */
   static isSameDay(date1: Date, date2: Date): boolean {
     return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getDate() === date2.getDate();
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate();
   }
 
   /**
@@ -45,7 +51,7 @@ export class DateUtil {
     // 重置 target 为当天的 00:00:00
     const targetDay = new Date(target);
     targetDay.setHours(0, 0, 0, 0);
-    
+
     const diffTime = targetDay.getTime() - now.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
@@ -55,7 +61,7 @@ export class DateUtil {
    */
   static isSameMonth(date1: Date, date2: Date): boolean {
     return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth();
+      date1.getMonth() === date2.getMonth();
   }
 
   /**
@@ -87,15 +93,15 @@ export class DateUtil {
     // We should first set to the 1st of the target month
     const tempDate = new Date(d.getFullYear(), targetMonth, 1);
     const daysInTargetMonth = DateUtil.getDaysInMonth(tempDate.getFullYear(), tempDate.getMonth());
-    
+
     // Clamp the day
     const originalDay = d.getDate();
     const newDay = Math.min(originalDay, daysInTargetMonth);
-    
+
     tempDate.setDate(newDay);
     // Keep original time if needed (though we usually care about date only)
     tempDate.setHours(d.getHours(), d.getMinutes(), d.getSeconds(), d.getMilliseconds());
-    
+
     return tempDate;
   }
 
@@ -103,21 +109,21 @@ export class DateUtil {
    * 安全地减击年份 (避免 2-29 减 1 年变成 3-01 的问题)
    */
   static safeSubtractYear(date: Date, years: number): Date {
-     const d = new Date(date);
-     const targetYear = d.getFullYear() - years;
-     const month = d.getMonth();
-     
-     // Check leap year case: Feb 29 -> Feb 28
-     if (month === 1 && d.getDate() === 29) {
-        if (!((targetYear % 4 === 0 && targetYear % 100 !== 0) || targetYear % 400 === 0)) {
-           // Target is not leap year
-           d.setFullYear(targetYear);
-           d.setDate(28);
-           return d;
-        }
-     }
-     d.setFullYear(targetYear);
-     return d;
+    const d = new Date(date);
+    const targetYear = d.getFullYear() - years;
+    const month = d.getMonth();
+
+    // Check leap year case: Feb 29 -> Feb 28
+    if (month === 1 && d.getDate() === 29) {
+      if (!((targetYear % 4 === 0 && targetYear % 100 !== 0) || targetYear % 400 === 0)) {
+        // Target is not leap year
+        d.setFullYear(targetYear);
+        d.setDate(28);
+        return d;
+      }
+    }
+    d.setFullYear(targetYear);
+    return d;
   }
 
   /**
@@ -129,13 +135,13 @@ export class DateUtil {
     // JS Date automatically handles month overflow/underflow
     const tempDate = new Date(d.getFullYear(), targetMonth, 1);
     const daysInTargetMonth = DateUtil.getDaysInMonth(tempDate.getFullYear(), tempDate.getMonth());
-    
+
     const originalDay = d.getDate();
     const newDay = Math.min(originalDay, daysInTargetMonth);
-    
+
     tempDate.setDate(newDay);
     tempDate.setHours(d.getHours(), d.getMinutes(), d.getSeconds(), d.getMilliseconds());
-    
+
     return tempDate;
   }
 
@@ -143,20 +149,20 @@ export class DateUtil {
    * 安全地增加年份 (避免 2-29 加 1 年变成 3-01 的问题)
    */
   static safeAddYear(date: Date, years: number): Date {
-     const d = new Date(date);
-     const targetYear = d.getFullYear() + years;
-     
-     // Check leap year case: Feb 29 -> Feb 28
-     if (d.getMonth() === 1 && d.getDate() === 29) {
-        const isLeap = (targetYear % 4 === 0 && targetYear % 100 !== 0) || (targetYear % 400 === 0);
-        if (!isLeap) {
-           d.setFullYear(targetYear);
-           d.setMonth(1);
-           d.setDate(28);
-           return d;
-        }
-     }
-     d.setFullYear(targetYear);
-     return d;
+    const d = new Date(date);
+    const targetYear = d.getFullYear() + years;
+
+    // Check leap year case: Feb 29 -> Feb 28
+    if (d.getMonth() === 1 && d.getDate() === 29) {
+      const isLeap = (targetYear % 4 === 0 && targetYear % 100 !== 0) || (targetYear % 400 === 0);
+      if (!isLeap) {
+        d.setFullYear(targetYear);
+        d.setMonth(1);
+        d.setDate(28);
+        return d;
+      }
+    }
+    d.setFullYear(targetYear);
+    return d;
   }
 }

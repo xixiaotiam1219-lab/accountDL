@@ -50,7 +50,7 @@ struct Index {
   private listener = mediaquery.matchMediaSync('(width >= 600vp)');
   @State currentIndex: number = 0;
   @State showLoginSheet: boolean = false;
-
+  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
   @StorageLink('targetAction') @Watch('onTargetActionChange') targetAction: string = '';
   @State tabBarVisible: boolean = true; // Tab 栏可见性
   @StorageLink('animationDuration') animationDuration: number = 300;
@@ -68,15 +68,16 @@ struct Index {
   @StorageLink('isTabBarCollapsed') isTabBarCollapsed: boolean = false; // TabBar collapse state
   @StorageLink('isSmartGestureEnabled') @Watch('onSmartGestureChange') isSmartGestureEnabled: boolean = false;
   @StorageLink('collapseSide') collapseSide: 'left' | 'right' = 'right'; // TabBar collapse direction
+  @StorageLink('smartHandMode') smartHandMode: 'left' | 'right' | 'center' = 'center'; // Smart Gesture Mode
   @State tabBarScale: number = 1.0; // 用于位置切换时的动效反馈
   @State indicatorScale: Scale = { x: 1.0, y: 1.0 }; // 液滴挤压变形
-  
+
   // 全局导入状态
   @StorageLink('importData') @Watch('onImportDataChange') importData: ExportData | null = null;
   @State showImportSheet: boolean = false;
   @State localImportSubs: SubscriptionModel[] = [];
   @State isInternalRedirect: boolean = false; // 标记是否为内部跳转，防止 onChange 误关闭详情页
-  
+
   // 标题栏状态
   @State rotateAngle: number = 0;
   @State isRotating: boolean = false;
@@ -93,70 +94,87 @@ struct Index {
   }
 
   onTargetActionChange() {
-    if (this.targetAction === 'AddSubscription') {
-      hilog.info(0x0000, 'Index', 'Handling AddSubscription action');
-      AppStorage.setOrCreate('hasShownUpcomingSheet', true);
-      // Process on NEXT tick to avoid render conflict
-      setTimeout(() => {
-          AppStorage.setOrCreate('targetAction', '');
-          this.onAddClick();
-      }, 0);
-    } else if (this.targetAction === 'ViewSubscriptionDetail') {
-      hilog.info(0x0000, 'Index', 'Handling ViewSubscriptionDetail action');
-      const targetSub = AppStorage.get<SubscriptionModel>('targetSubscription');
-      if (targetSub) {
-        // 关键：先打标，防止 Tab 切换导致面板关闭
-        this.isInternalRedirect = true;
+    // 关键：将所有逻辑包裹在 setTimeout 中，确保在渲染周期外执行，避免 "changed during render" 错误
+    setTimeout(() => {
+      if (!this.targetAction) {
+        return;
+      }
+
+      if (this.targetAction === 'AddSubscription') {
+        hilog.info(0xFEED, 'Index', 'Handling AddSubscription action');
+        AppStorage.setOrCreate('hasShownUpcomingSheet', true);
         AppStorage.setOrCreate('targetAction', '');
-        
-        // 1. 切换 Tab 和清空堆栈
-        if (this.currentIndex !== 0) {
+        this.onAddClick();
+      } else if (this.targetAction === 'ViewSubscriptionDetail') {
+        hilog.info(0xFEED, 'Index', 'Handling ViewSubscriptionDetail action');
+        const targetSub = AppStorage.get<SubscriptionModel>('targetSubscription');
+        if (targetSub) {
+          this.isInternalRedirect = true;
+          AppStorage.setOrCreate('targetAction', '');
+
+          // 1. 切换 Tab 和清空堆栈
+          if (this.currentIndex !== 0) {
             if (this.isAnimationEnabled) {
-                animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
-                    this.currentIndex = 0;
-                    this.indicatorScale = { x: 1.25, y: 0.8 } as Scale;
-                })
-                setTimeout(() => {
-                    animateTo({ duration: 400, curve: curves.springMotion() }, () => {
-                        this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
-                    })
-                }, 150)
-            } else {
+              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
                 this.currentIndex = 0;
-                this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
+                this.indicatorScale = { x: 1.25, y: 0.8 } as Scale;
+              })
+              setTimeout(() => {
+                animateTo({ duration: 400, curve: curves.springMotion() }, () => {
+                  this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
+                })
+              }, 150)
+            } else {
+              this.currentIndex = 0;
+              this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
             }
             this.tabsController.changeIndex(0);
-        }
-        if (this.pageStack.size() > 0) {
+          }
+          if (this.pageStack.size() > 0) {
             this.pageStack.clear();
-        }
-        
-        // 2. 延迟触发详情页，确保 Tab 切换和堆栈清空的渲染周期已完成
-        // 使用更合理的延时，并先设置数据再设开关
-        setTimeout(() => {
-          this.detailData = targetSub; 
-          AppStorage.setOrCreate('detailSubscriptionData', targetSub);
-          
+          }
+
+          // 2. 延迟触发详情页
           setTimeout(() => {
-            // 再次确认数据，防止闭包捕获旧值
             this.detailData = targetSub;
             AppStorage.setOrCreate('detailSubscriptionData', targetSub);
-            if (this.isAnimationEnabled) {
-              animateTo({ duration: 400, curve: Curve.FastOutSlowIn }, () => {
-                this.isDetailVisible = true;
-              });
-            } else {
-              this.isDetailVisible = true;
-            }
-            
-            // 3. 详情页展示动画开始后恢复标记
+
             setTimeout(() => {
-              this.isInternalRedirect = false;
-            }, 500);
-          }, 50);
-        }, 300); // 增加延时确保首页 HomeView 已经 mount
+              this.detailData = targetSub;
+              AppStorage.setOrCreate('detailSubscriptionData', targetSub);
+              if (this.isAnimationEnabled) {
+                animateTo({ duration: 400, curve: Curve.FastOutSlowIn }, () => {
+                  this.isDetailVisible = true;
+                });
+              } else {
+                this.isDetailVisible = true;
+              }
+
+              setTimeout(() => {
+                this.isInternalRedirect = false;
+              }, 500);
+            }, 50);
+          }, 300);
+        }
+      } else if (this.targetAction === 'DirectAddSubscription') {
+        hilog.info(0xFEED, 'Index', 'Handling DirectAddSubscription action');
+        const targetSub = AppStorage.get<SubscriptionModel>('targetSubscription');
+        if (targetSub) {
+          AppStorage.setOrCreate('targetAction', '');
+          this.pageStack.pushPathByName('AddSubscription', targetSub);
+        }
+      } else if (this.targetAction === 'ViewCalendar') {
+        hilog.info(0xFEED, 'Index', 'Handling ViewCalendar action');
+        AppStorage.setOrCreate('targetAction', '');
+        this.currentIndex = 1;
+        this.tabsController.changeIndex(1);
+      } else if (this.targetAction === 'ViewStats') {
+        hilog.info(0xFEED, 'Index', 'Handling ViewStats action');
+        AppStorage.setOrCreate('targetAction', '');
+        this.currentIndex = 2;
+        this.tabsController.changeIndex(2);
       }
-    }
+    }, 0);
   }
 
   onWidthChange(mediaQueryResult: mediaquery.MediaQueryResult) {
@@ -182,30 +200,30 @@ struct Index {
       const windowClass = context.windowStage.getMainWindowSync();
       const rect = windowClass.getWindowProperties().windowRect;
       const widthVp = this.getUIContext().px2vp(rect.width);
-      
+
       const newIsWide = widthVp >= 600;
       hilog.info(0x0000, 'Index', `refreshWideStatus: widthVp=${widthVp}, newIsWide=${newIsWide}`);
-      
+
       if (this.isWide !== newIsWide) {
         this.isWide = newIsWide;
         AppStorage.setOrCreate('isWide', this.isWide);
       }
-      
+
       // 恢复状态逻辑：只有物理上是宽屏时，才考虑恢复用户的平行视界偏好
       PreferenceUtil.getInstance().loadSplitViewEnabled().then((prefEnabled: boolean) => {
         if (this.isWide) {
-           // 如果偏好是开启，则确保 AppStorage 也是开启
-           if (prefEnabled && !this.isSplitViewEnabled) {
-             AppStorage.setOrCreate('isSplitViewEnabled', true);
-           } else if (!prefEnabled && this.isSplitViewEnabled) {
-             // 如果偏好是关闭，则确保 AppStorage 也是关闭
-             AppStorage.setOrCreate('isSplitViewEnabled', false);
-           }
+          // 如果偏好是开启，则确保 AppStorage 也是开启
+          if (prefEnabled && !this.isSplitViewEnabled) {
+            AppStorage.setOrCreate('isSplitViewEnabled', true);
+          } else if (!prefEnabled && this.isSplitViewEnabled) {
+            // 如果偏好是关闭，则确保 AppStorage 也是关闭
+            AppStorage.setOrCreate('isSplitViewEnabled', false);
+          }
         } else {
-           // 窄屏下必须关闭平行视界（强制单栏）
-           if (this.isSplitViewEnabled) {
-             AppStorage.setOrCreate('isSplitViewEnabled', false);
-           }
+          // 窄屏下必须关闭平行视界（强制单栏）
+          if (this.isSplitViewEnabled) {
+            AppStorage.setOrCreate('isSplitViewEnabled', false);
+          }
         }
         // 状态同步后，立即刷新占位图可见性
         this.updatePlaceholderVisibility();
@@ -237,7 +255,7 @@ struct Index {
 
     // Initialize pageStack handle for others
     if (!AppStorage.get<NavPathStack>('pageStack')) {
-        AppStorage.setOrCreate('pageStack', this.pageStack);
+      AppStorage.setOrCreate('pageStack', this.pageStack);
     }
 
     this.listener.on('change', (result: mediaquery.MediaQueryResult) => {
@@ -256,28 +274,28 @@ struct Index {
 
     // 0. 会员状态已在 EntryAbility 中预加载，此处只需检查过期并移除遮罩
     PreferenceUtil.getInstance().loadMembership().then((_: MembershipInfo) => {
-       // 检查本地缓存过期情况（即使离线）
-       this.checkMembershipExpiry(); 
+      // 检查本地缓存过期情况（即使离线）
+      this.checkMembershipExpiry();
     });
 
     // Load Split Navigation preference
     PreferenceUtil.getInstance().get('isWide', false).then((val: preferences.ValueType) => {
-        const isWideVal = val as boolean;
-        if (isWideVal) {
-            this.isWide = isWideVal;
-        }
+      const isWideVal = val as boolean;
+      if (isWideVal) {
+        this.isWide = isWideVal;
+      }
     });
     // Initialize memory with saved state
-        this.refreshWideStatus(); // 首次加载时同步物理状态
+    this.refreshWideStatus(); // 首次加载时同步物理状态
     // Load New Year Watermark Preference
     PreferenceUtil.getInstance().loadNewYearWatermarkEnabled();
-    
+
     this.isWide = this.listener.matches;
     AppStorage.setOrCreate('isWide', this.isWide);
 
     // Check for updates silently
     setTimeout(() => {
-       UpdateManager.getInstance().checkUpdate(getContext(this) as common.UIAbilityContext, true);
+      UpdateManager.getInstance().checkUpdate(getContext(this) as common.UIAbilityContext, true);
     }, 2000); // Delay check to prioritize startup rendering
 
     // 定期检查 pageStack 大小，更新 Tab 栏可见性和占位界面
@@ -290,7 +308,7 @@ struct Index {
     });
 
     if (this.targetAction) {
-        this.onTargetActionChange();
+      this.onTargetActionChange();
     }
 
     // 如果此前的状态是已登录，则自动尝试静默登录以刷新 Session
@@ -304,7 +322,7 @@ struct Index {
         this.checkMembershipExpiry();
       }).catch((err: BusinessError) => {
         // 仅记录日志，不打扰用户，也不退出登录（此时 AccountMonitor 已经处理过是否退出的逻辑了）
-         });
+      });
     }
 
     // Initialize Smart Gesture
@@ -314,7 +332,7 @@ struct Index {
 
     // 检查是否有挂起的导入数据
     if (this.importData) {
-        this.checkImportData();
+      this.checkImportData();
     }
 
     // 检查协议更新
@@ -335,11 +353,11 @@ struct Index {
 
     try {
       const lastConfirmedVersion: number = await PreferenceUtil.getInstance().getLastAgreementVersion();
-      
+
       // 如果本地记录的已确认版本 小于 当前代码要求的最新版本
       if (lastConfirmedVersion < LATEST_AGREEMENT_VERSION) {
         hilog.info(0x0000, 'Index', `Agreement update detected: ${lastConfirmedVersion} -> ${LATEST_AGREEMENT_VERSION}`);
-        
+
         promptAction.showDialog({
           title: '用户协议更新',
           message: '为了更好地为您提供服务，我们更新了\r\n《用户协议》及免责声明。\r\n请您在继续使用前请点击“了解更多”进行详细阅读。\r\n点击“我知道了”默认代表您已同意更新后的《用户协议》及免责声明。\r\n若您不同意《用户协议》及免责声明中的内容，您可以在我的-撤销隐私协议进行数据注销处理并退出本应用。',
@@ -356,12 +374,12 @@ struct Index {
           }
         });
       }
-      
+
       // 同时仍然备份一下 APP 版本号作为一般记录（可选）
-      const flags: number = 0; 
+      const flags: number = 0;
       const info: bundleManager.BundleInfo = await bundleManager.getBundleInfoForSelf(flags);
       await PreferenceUtil.getInstance().saveLastKnownVersion(`${info.versionName} (${info.versionCode})`);
-      
+
     } catch (e) {
       hilog.error(0x0000, 'Index', `checkUserAgreementUpdate failed: ${JSON.stringify(e)}`);
     }
@@ -376,9 +394,9 @@ struct Index {
   private checkImportData() {
     if (!this.importData) return;
     if (!this.importData.subscriptions || !Array.isArray(this.importData.subscriptions)) {
-        promptAction.showToast({ message: '数据解析失败', duration: 2500 });
-        AppStorage.setOrCreate('importData', null);
-        return;
+      promptAction.showToast({ message: '数据解析失败', duration: 2500 });
+      AppStorage.setOrCreate('importData', null);
+      return;
     }
     this.localImportSubs = this.importData.subscriptions;
     this.showImportSheet = true;
@@ -389,10 +407,17 @@ struct Index {
   }
 
   onSmartGestureChange() {
+    // Save state
+    PreferenceUtil.getInstance().saveSmartGestureEnabled(this.isSmartGestureEnabled);
+
     if (this.isSmartGestureEnabled) {
       this.subscribeSmartGesture();
     } else {
       this.unsubscribeSmartGesture();
+      // Reset to center mode when disabled
+      animateTo({ duration: 600, curve: curves.springMotion(0.4, 0.8) }, () => {
+        this.smartHandMode = 'center';
+      });
     }
   }
 
@@ -400,26 +425,31 @@ struct Index {
     try {
       motion.on('holdingHandChanged', (data: motion.HoldingHandStatus) => {
         hilog.info(0x0000, 'Index', `SmartGesture: holdingHandChanged=${data}`);
-        
-        let targetSide: 'left' | 'right' = this.collapseSide;
-        if (data === motion.HoldingHandStatus.LEFT_HAND_HELD) {
-          targetSide = 'left';
-        } else if (data === motion.HoldingHandStatus.RIGHT_HAND_HELD) {
-          targetSide = 'right';
-        }
 
-        if (targetSide !== this.collapseSide) {
-           // 优雅的弹簧动画：先微缩，再弹动到位
-           animateTo({ duration: 600, curve: curves.springMotion(0.4, 0.8) }, () => {
-              this.collapseSide = targetSide;
-              this.tabBarScale = 0.92;
-           });
-           
-           setTimeout(() => {
-              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
-                 this.tabBarScale = 1.0;
-              });
-           }, 150);
+        if (data === motion.HoldingHandStatus.LEFT_HAND_HELD) {
+          // 左手窄模式：立即响应
+          animateTo({ duration: 600, curve: curves.springMotion(0.4, 0.8) }, () => {
+            this.smartHandMode = 'left';
+            // 如果已收起，则切换收起方向；否则保持展开状态
+            if (this.isTabBarCollapsed) {
+              this.collapseSide = 'left';
+            }
+          });
+        } else if (data === motion.HoldingHandStatus.RIGHT_HAND_HELD) {
+          // 右手窄模式：立即响应
+          animateTo({ duration: 600, curve: curves.springMotion(0.4, 0.8) }, () => {
+            this.smartHandMode = 'right';
+            // 如果已收起，则切换收起方向；否则保持展开状态
+            if (this.isTabBarCollapsed) {
+              this.collapseSide = 'right';
+            }
+          });
+        } else {
+          // 双手或无握姿 -> 恢复中心位置（但不自动展开）
+          animateTo({ duration: 600, curve: curves.springMotion(0.4, 0.8) }, () => {
+            this.smartHandMode = 'center';
+            // Remove auto-expand logic: isTabBarCollapsed remains as is
+          });
         }
       });
       hilog.info(0x0000, 'Index', 'subscribeSmartGesture succeeded');
@@ -509,9 +539,9 @@ struct Index {
       // Delay clear to avoid render conflict if triggered during build
       // Also check if stack is already empty to avoid redundant updates
       if (this.pageStack.size() > 0) {
-          setTimeout(() => {
-              this.pageStack.clear();
-          }, 0);
+        setTimeout(() => {
+          this.pageStack.clear();
+        }, 0);
       }
     }
   }
@@ -519,7 +549,7 @@ struct Index {
   updatePlaceholderVisibility() {
     // Only show placeholder if screen is wide AND split view is enabled AND stack is empty
     const shouldShow = this.isWide && this.isSplitViewEnabled && this.pageStack.size() === 0;
-    
+
     if (shouldShow && this.placeholderOpacity === 0) {
       // 首次显示或状态切换回主屏时：淡入显示
       if (this.isAnimationEnabled) {
@@ -530,7 +560,7 @@ struct Index {
         this.placeholderOpacity = 1;
       }
     }
- else if (!shouldShow && this.placeholderOpacity === 1) {
+    else if (!shouldShow && this.placeholderOpacity === 1) {
       // 切换到二级页面或关闭平行世界时：立即隐藏
       this.placeholderOpacity = 0;
     }
@@ -580,10 +610,10 @@ struct Index {
       // 中间的 "添加" 按钮 (Rudder Style)
       Column() {
         Column() {
-           SymbolGlyph($r('sys.symbol.plus'))
-             .fontSize(28)
-             .fontWeight(FontWeight.Bold)
-             .fontColor([Color.White])
+          SymbolGlyph($r('sys.symbol.plus'))
+            .fontSize(28)
+            .fontWeight(FontWeight.Bold)
+            .fontColor([Color.White])
         }
         .width(56)
         .height(56)
@@ -594,15 +624,15 @@ struct Index {
         .margin({ bottom: 20 }) // Make it protrude upwards
         .scale({ x: this.addButtonScale, y: this.addButtonScale })
         .onClick(() => {
-            animateTo({ duration: 50, curve: Curve.Sharp }, () => {
-              this.addButtonScale = 0.8;
+          animateTo({ duration: 50, curve: Curve.Sharp }, () => {
+            this.addButtonScale = 0.8;
+          });
+          setTimeout(() => {
+            animateTo({ duration: 300, curve: Curve.FastOutSlowIn }, () => {
+              this.addButtonScale = 1.0;
             });
-            setTimeout(() => {
-              animateTo({ duration: 300, curve: Curve.FastOutSlowIn }, () => {
-                this.addButtonScale = 1.0;
-              });
-              this.onAddClick();
-            }, 50);
+            this.onAddClick();
+          }, 50);
         })
       }
       .width('100%')
@@ -612,14 +642,14 @@ struct Index {
     } else {
       // 普通 Tab - unused in custom bar but kept for reference
       TabBarItem({
-          index: index,
-          currentIndex: this.currentIndex,
-          name: name,
-          icon: icon,
-          onSelect: () => {
-              this.currentIndex = index;
-              this.tabsController.changeIndex(index);
-          }
+        index: index,
+        currentIndex: this.currentIndex,
+        name: name,
+        icon: icon,
+        onSelect: () => {
+          this.currentIndex = index;
+          this.tabsController.changeIndex(index);
+        }
       })
     }
   }
@@ -631,208 +661,221 @@ struct Index {
   @Builder CustomFloatingTabBar() {
     Row() {
       if (this.isTabBarCollapsed) {
-          // 收起状态：显示展开按钮
-          Stack({ alignContent: Alignment.Center }) {
-             SymbolGlyph(this.collapseSide === 'right' ? $r('sys.symbol.chevron_left') : $r('sys.symbol.chevron_right'))
-               .fontSize(24)
-               .fontWeight(FontWeight.Bold)
-               .fontColor([this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
+        // 收起状态：显示展开按钮
+        Stack({ alignContent: Alignment.Center }) {
+          SymbolGlyph(this.collapseSide === 'right' ? $r('sys.symbol.chevron_left') : $r('sys.symbol.chevron_right'))
+            .fontSize(24)
+            .fontWeight(FontWeight.Bold)
+            .fontColor([this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
+        }
+        .width('100%')
+        .height('100%')
+        .padding({ top: 2, bottom: 2 })
+        .onClick(() => {
+          if (this.isAnimationEnabled) {
+            animateTo({ duration: 300, curve: Curve.FastOutSlowIn }, () => {
+              this.isTabBarCollapsed = false;
+            })
+          } else {
+            this.isTabBarCollapsed = false;
           }
-          .width('100%')
-          .height('100%')
-          .padding({ top: 2, bottom: 2 })
-          .onClick(() => {
-             if (this.isAnimationEnabled) {
-               animateTo({ duration: 300, curve: Curve.FastOutSlowIn }, () => {
-                 this.isTabBarCollapsed = false;
-               })
-             } else {
-               this.isTabBarCollapsed = false;
-             }
-          })
+        })
       } else {
-          // 展开状态：显示完整 TabBar
-          // 首页
-          TabBarItem({
-            index: 0,
-            currentIndex: this.currentIndex,
-            name: '首页',
-            icon: $r('sys.symbol.house'),
-            indicatorScale: this.indicatorScale,
-            onSelect: () => {
-              if (this.isAnimationEnabled) {
-                animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
-                  this.currentIndex = 0;
-                  this.indicatorScale = { x: 1.3, y: 0.7 } as Scale;
-                })
-                setTimeout(() => {
-                  animateTo({ duration: 400, curve: curves.springMotion() }, () => {
-                    this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
-                  })
-                }, 150)
-              } else {
+        // 展开状态：显示完整 TabBar
+        // 首页
+        TabBarItem({
+          index: 0,
+          currentIndex: this.currentIndex,
+          name: '首页',
+          icon: $r('sys.symbol.house'),
+          indicatorScale: this.indicatorScale,
+          isCompact: this.smartHandMode !== 'center',
+          onSelect: () => {
+            if (this.isAnimationEnabled) {
+              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
                 this.currentIndex = 0;
-              }
-              this.tabsController.changeIndex(0);
-            }
-          })
-    
-          // 日历
-          TabBarItem({
-            index: 1,
-            currentIndex: this.currentIndex,
-            name: '日历',
-            icon: $r('sys.symbol.calendar'),
-            indicatorScale: this.indicatorScale,
-            onSelect: () => {
-              if (this.isAnimationEnabled) {
-                animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
-                  this.currentIndex = 1;
-                  this.indicatorScale = { x: 1.3, y: 0.7 } as Scale;
+                this.indicatorScale = { x: 1.3, y: 0.7 } as Scale;
+              })
+              setTimeout(() => {
+                animateTo({ duration: 400, curve: curves.springMotion() }, () => {
+                  this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
                 })
-                setTimeout(() => {
-                  animateTo({ duration: 400, curve: curves.springMotion() }, () => {
-                    this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
-                  })
-                }, 150)
-              } else {
-                this.currentIndex = 1;
-              }
-              this.tabsController.changeIndex(1);
+              }, 150)
+            } else {
+              this.currentIndex = 0;
             }
-          })
-    
-          // 中间按钮 (Add)
-          Column() {
-            Column() {
-               SymbolGlyph($r('sys.symbol.plus'))
-                 .fontSize(28)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor([this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)])
-                  .rotate({ angle: this.addButtonAngle })
-            }
-            .width(56)
-            .height(56)
-            .borderRadius(28)
-            .linearGradient(this.isNewYearTheme ? {
-              angle: 135,
-              colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
-            } : (this.showVipTheme ? {
-              angle: 135,
-              colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
-            } : {
-              angle: 0,
-              colors: [[$r('app.color.brand_color'), 0.0], [$r('app.color.brand_color'), 1.0]]
-            }))
-            .backgroundColor(Color.Transparent)
-            .justifyContent(FlexAlign.Center)
-            .shadow({ radius: 10, color: this.isNewYearTheme ? '#40FF2400' : (this.showVipTheme ? '#40E6C07B' : '#40007AFF'), offsetY: 6 })
-            .animation({ duration: this.isAnimationEnabled ? 300 : 0 })
-            .scale({ x: this.addButtonScale, y: this.addButtonScale })
-            .onTouch((event: TouchEvent) => {
-              if (event.type === TouchType.Down) {
-                if (this.isAnimationEnabled && this.isPointLightEnabled) {
-                    animateTo({ duration: 100, curve: Curve.Sharp }, () => {
-                      this.addButtonScale = 0.8;
-                    });
-                    this.addButtonLightSource = hdsEffect.PointLightSourceType.BRIGHT;
-                }
-              } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                animateTo({ duration: 400, curve: Curve.Friction }, () => {
-                  this.addButtonScale = 1.0;
-                });
-                this.addButtonLightSource = hdsEffect.PointLightSourceType.NONE;
-              }
-            })
-            .visualEffect(new hdsEffect.HdsEffectBuilder()
-                .pointLight({
-                  sourceType: this.addButtonLightSource,
-                  illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER // Add button is solid circle, border is fine here
-                })
-                .buildEffect())
-            .onClick(() => {
-                if (this.isAnimationEnabled) {
-                  animateTo({ duration: 300, curve: Curve.FastOutSlowIn }, () => {
-                    this.addButtonAngle += 90;
-                  })
-                } else {
-                  this.addButtonAngle += 90;
-                }
-                // slight delay to match the visual feel of "press then action"
-                setTimeout(() => {
-                  this.onAddClick();
-                }, 100);
-            })
+            this.tabsController.changeIndex(0);
           }
-          .width(70)
-          .height(56)
+        })
+
+        // 日历
+        TabBarItem({
+          index: 1,
+          currentIndex: this.currentIndex,
+          name: '日历',
+          icon: $r('sys.symbol.calendar'),
+          indicatorScale: this.indicatorScale,
+          isCompact: this.smartHandMode !== 'center',
+          onSelect: () => {
+            if (this.isAnimationEnabled) {
+              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
+                this.currentIndex = 1;
+                this.indicatorScale = { x: 1.3, y: 0.7 } as Scale;
+              })
+              setTimeout(() => {
+                animateTo({ duration: 400, curve: curves.springMotion() }, () => {
+                  this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
+                })
+              }, 150)
+            } else {
+              this.currentIndex = 1;
+            }
+            this.tabsController.changeIndex(1);
+          }
+        })
+
+        // 中间按钮 (Add)
+        Column() {
+          Column() {
+            SymbolGlyph($r('sys.symbol.plus'))
+              .fontSize(this.smartHandMode !== 'center' ? 22 : 28)
+              .fontWeight(FontWeight.Bold)
+              .fontColor([this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)])
+              .rotate({ angle: this.addButtonAngle })
+          }
+          .width(this.smartHandMode !== 'center' ? 36 : 56)
+          .height(this.smartHandMode !== 'center' ? 36 : 56)
+          .borderRadius(this.smartHandMode !== 'center' ? 18 : 28)
+          .linearGradient(this.isNewYearTheme ? {
+            angle: 135,
+            colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
+          } : (this.showVipTheme ? {
+            angle: 135,
+            colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
+          } : {
+            angle: 0,
+            colors: [[$r('app.color.brand_color'), 0.0], [$r('app.color.brand_color'), 1.0]]
+          }))
+          .backgroundColor(Color.Transparent)
           .justifyContent(FlexAlign.Center)
-    
-          // 统计
-          TabBarItem({
-            index: 2,
-            currentIndex: this.currentIndex,
-            name: '统计',
-            icon: $r('sys.symbol.square_grid_2x2'),
-            indicatorScale: this.indicatorScale,
-            onSelect: () => {
-              if (this.isAnimationEnabled) {
-                animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
-                  this.currentIndex = 2;
-                  this.indicatorScale = { x: 1.3, y: 0.7 } as Scale;
-                })
-                setTimeout(() => {
-                  animateTo({ duration: 400, curve: curves.springMotion() }, () => {
-                    this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
-                  })
-                }, 150)
-              } else {
+          .shadow({ radius: 10, color: this.isNewYearTheme ? '#40FF2400' : (this.showVipTheme ? '#40E6C07B' : '#40007AFF'), offsetY: 6 })
+          .animation({ duration: this.isAnimationEnabled ? 300 : 0 })
+          .scale({ x: this.addButtonScale, y: this.addButtonScale })
+          .onTouch((event: TouchEvent) => {
+            if (event.type === TouchType.Down) {
+              if (this.isAnimationEnabled && this.isPointLightEnabled) {
+                animateTo({ duration: 100, curve: Curve.Sharp }, () => {
+                  this.addButtonScale = 0.8;
+                });
+                this.addButtonLightSource = hdsEffect.PointLightSourceType.SOFT;
+              }
+            } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+              animateTo({ duration: 400, curve: Curve.Friction }, () => {
+                this.addButtonScale = 1.0;
+              });
+              this.addButtonLightSource = hdsEffect.PointLightSourceType.NONE;
+            }
+          })
+          .visualEffect(new hdsEffect.HdsEffectBuilder()
+            .pointLight({
+              sourceType: this.addButtonLightSource,
+              illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER // Add button is solid circle, border is fine here
+            })
+            .buildEffect())
+          .onClick(() => {
+            if (this.isAnimationEnabled) {
+              animateTo({ duration: 300, curve: Curve.FastOutSlowIn }, () => {
+                this.addButtonAngle += 90;
+              })
+            } else {
+              this.addButtonAngle += 90;
+            }
+            // slight delay to match the visual feel of "press then action"
+            setTimeout(() => {
+              this.onAddClick();
+            }, 100);
+          })
+          .margin({ bottom: this.smartHandMode !== 'center' ? 0 : 20 }) // Compact: Center aligned (0 margin); Normal: Protrude (20 margin)
+        }
+        .width(this.smartHandMode !== 'center' ? 40 : 70)
+        .height(56)
+        .justifyContent(FlexAlign.Center)
+
+        // 统计
+        TabBarItem({
+          index: 2,
+          currentIndex: this.currentIndex,
+          name: '统计',
+          icon: $r('sys.symbol.square_grid_2x2'),
+          indicatorScale: this.indicatorScale,
+          isCompact: this.smartHandMode !== 'center',
+          onSelect: () => {
+            if (this.isAnimationEnabled) {
+              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
                 this.currentIndex = 2;
-              }
-              this.tabsController.changeIndex(2);
-            }
-          })
-    
-          // 我的
-          TabBarItem({
-            index: 3,
-            currentIndex: this.currentIndex,
-            name: '我的',
-            icon: $r('sys.symbol.person'),
-            showRedDot: this.hasNewVersion,
-            indicatorScale: this.indicatorScale,
-            onSelect: () => {
-              if (this.isAnimationEnabled) {
-                animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
-                  this.currentIndex = 3;
-                  this.indicatorScale = { x: 1.3, y: 0.7 } as Scale;
+                this.indicatorScale = { x: 1.3, y: 0.7 } as Scale;
+              })
+              setTimeout(() => {
+                animateTo({ duration: 400, curve: curves.springMotion() }, () => {
+                  this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
                 })
-                setTimeout(() => {
-                  animateTo({ duration: 400, curve: curves.springMotion() }, () => {
-                    this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
-                  })
-                }, 150)
-              } else {
-                this.currentIndex = 3;
-              }
-              this.tabsController.changeIndex(3);
+              }, 150)
+            } else {
+              this.currentIndex = 2;
             }
-          })
+            this.tabsController.changeIndex(2);
+          }
+        })
+
+        // 我的
+        TabBarItem({
+          index: 3,
+          currentIndex: this.currentIndex,
+          name: '我的',
+          icon: $r('sys.symbol.person'),
+          showRedDot: this.hasNewVersion,
+          indicatorScale: this.indicatorScale,
+          isCompact: this.smartHandMode !== 'center',
+          onSelect: () => {
+            if (this.isAnimationEnabled) {
+              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
+                this.currentIndex = 3;
+                this.indicatorScale = { x: 1.3, y: 0.7 } as Scale;
+              })
+              setTimeout(() => {
+                animateTo({ duration: 400, curve: curves.springMotion() }, () => {
+                  this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
+                })
+              }, 150)
+            } else {
+              this.currentIndex = 3;
+            }
+            this.tabsController.changeIndex(3);
+          }
+        })
       }
     }
-    .width(this.isTabBarCollapsed ? '56vp' : (this.isWide ? (this.isSplitViewEnabled ? 'calc(50% - 24vp)' : '60%') : '92%'))
+    .width(this.isTabBarCollapsed ? '56vp' :
+      (this.smartHandMode !== 'center' ? '220vp' : // Ultra-Compact Width
+        (this.isWide ? (this.isSplitViewEnabled ? 'calc(50% - 24vp)' : '60%') : '92%')))
     .height(56) // Restored to 56
-    .backgroundBlurStyle(BlurStyle.Thin) 
+    .backgroundBlurStyle(BlurStyle.Thin)
     .borderRadius(28) // Half of 56
     .shadow({ radius: 16, color: 'rgba(0,0,0,0.08)', offsetY: 4 })
     .justifyContent(FlexAlign.SpaceAround)
     .alignItems(VerticalAlign.Center)
     .padding({ left: 4, right: 4 })
     .margin({
-        bottom: this.getUIContext().px2vp(this.bottomRectHeight) + 8,
-        left: this.isTabBarCollapsed ? 
-            (this.collapseSide === 'left' ? 'calc(4vp)' : (this.isWide && this.isSplitViewEnabled ? 'calc(50% - 60vp)' : 'calc(100% - 60vp)')) : 
-            (this.isWide ? (this.isSplitViewEnabled ? 'calc(0% + 12vp)' : 'calc(20% + 0vp)') : 'calc(4% + 0vp)')
+      bottom: this.getUIContext().px2vp(this.bottomRectHeight) + 8,
+      left: this.isTabBarCollapsed ?
+        (this.collapseSide === 'left' ? '12vp' :
+          (this.collapseSide === 'right' ? 'calc(100% - 68vp)' : // 56 + 12
+            (this.isWide ? (this.isSplitViewEnabled ? 'calc(25% - 28vp)' : 'calc(50% - 28vp)') : 'calc(50% - 28vp)'))) : // Center Collapsed
+        // Expanded Logic
+        (this.smartHandMode === 'left' ? '12vp' :
+          (this.smartHandMode === 'right' ?
+            (this.isWide && this.isSplitViewEnabled ? 'calc(50% - 232vp)' : 'calc(100% - 232vp)') : // 220 + 12
+            (this.isWide ? (this.isSplitViewEnabled ? '12vp' : '20%') : '4%')))
     })
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM]) // 延伸到导航区域
     .opacity(this.tabBarVisible ? 1 : 0) // 透明度动画
@@ -842,23 +885,23 @@ struct Index {
     .gesture(
       PanGesture({ direction: PanDirection.Horizontal })
         .onActionEnd((event: GestureEvent) => {
-           if (!this.isTabBarCollapsed) {
-             if (event.offsetX > 50) {
-               animateTo({ duration: 500, curve: curves.springMotion(0.4, 0.8) }, () => {
-                 this.collapseSide = 'right';
-                 this.isTabBarCollapsed = true;
-                 this.tabBarScale = 0.95;
-               })
-               setTimeout(() => { animateTo({ duration: 400, curve: curves.springMotion() }, () => { this.tabBarScale = 1.0 }) }, 200);
-             } else if (event.offsetX < -50) {
-               animateTo({ duration: 500, curve: curves.springMotion(0.4, 0.8) }, () => {
-                 this.collapseSide = 'left';
-                 this.isTabBarCollapsed = true;
-                 this.tabBarScale = 0.95;
-               })
-               setTimeout(() => { animateTo({ duration: 400, curve: curves.springMotion() }, () => { this.tabBarScale = 1.0 }) }, 200);
-             }
-           }
+          if (!this.isTabBarCollapsed) {
+            if (event.offsetX > 50) {
+              animateTo({ duration: 500, curve: curves.springMotion(0.4, 0.8) }, () => {
+                this.collapseSide = 'right';
+                this.isTabBarCollapsed = true;
+                this.tabBarScale = 0.95;
+              })
+              setTimeout(() => { animateTo({ duration: 400, curve: curves.springMotion() }, () => { this.tabBarScale = 1.0 }) }, 200);
+            } else if (event.offsetX < -50) {
+              animateTo({ duration: 500, curve: curves.springMotion(0.4, 0.8) }, () => {
+                this.collapseSide = 'left';
+                this.isTabBarCollapsed = true;
+                this.tabBarScale = 0.95;
+              })
+              setTimeout(() => { animateTo({ duration: 400, curve: curves.springMotion() }, () => { this.tabBarScale = 1.0 }) }, 200);
+            }
+          }
         })
 
 
@@ -873,13 +916,13 @@ struct Index {
         .height(120)
         .borderRadius(30)
         .margin({ bottom: 24 })
-      
+
       Text('记得订阅')
         .fontSize(28)
         .fontWeight(FontWeight.Bold)
         .fontColor($r('app.color.text_primary'))
         .margin({ bottom: 8 })
-      
+
       Text('在左侧选择功能开始使用')
         .fontSize(14)
         .fontColor($r('app.color.text_secondary'))
@@ -893,7 +936,7 @@ struct Index {
     .opacity(this.placeholderOpacity)
     .hitTestBehavior(this.isWide && this.isSplitViewEnabled && this.pageStack.size() === 0 ? HitTestMode.Default : HitTestMode.None)
   }
-  
+
   // 同步数据方法
   async syncData() {
     if (this.isRotating) return;
@@ -906,11 +949,11 @@ struct Index {
       AppStorage.setOrCreate('isSyncing', false);
     }, 800);
   }
-  
+
   @Builder TitleBarOverlayBuilder() {
     Row({ space: 8 }) {
       Blank()
-      
+
       if (this.currentIndex === 0) {
         // 提醒管理按钮
         HeaderActionButton({
@@ -924,16 +967,16 @@ struct Index {
         HeaderActionButton({
           icon: $r('sys.symbol.share'),
           action: () => {
-             if (!this.isLoggedIn) {
-                if (this.isWide && this.isSplitViewEnabled) {
-                  this.pageStack.removeByName('Login');
-                  this.pageStack.pushPathByName('Login', null);
-                } else {
-                  this.showLoginSheet = true;
-                }
-                return;
-             }
-             HarmonyShareManager.getInstance().activeShare();
+            if (!this.isLoggedIn) {
+              if (this.isWide && this.isSplitViewEnabled) {
+                this.pageStack.removeByName('Login');
+                this.pageStack.pushPathByName('Login', null);
+              } else {
+                this.showLoginSheet = true;
+              }
+              return;
+            }
+            HarmonyShareManager.getInstance().activeShare();
           }
         })
 
@@ -959,7 +1002,7 @@ struct Index {
           icon: $r('sys.symbol.arrow_clockwise'),
           angle: this.rotateAngle,
           action: () => {
-             this.syncData();
+            this.syncData();
           }
         })
       }
@@ -985,23 +1028,23 @@ struct Index {
     // Construct object step-by-step to avoid untyped object literal errors
     let title: Record<string, Object> = { 'mainTitle': mainTitle };
     let content: Record<string, Object> = {
-       'title': title,
-       'stackBuilder': (): void => this.TitleBarOverlayBuilder()
+      'title': title,
+      'stackBuilder': (): void => this.TitleBarOverlayBuilder()
     };
     let options: Record<string, Object> = {
-       'avoidLayoutSafeArea': true,
-       'enableComponentSafeArea': false,
-       'content': content
+      'avoidLayoutSafeArea': true,
+      'enableComponentSafeArea': false,
+      'content': content
     };
-    
+
     return options as Object as HdsNavigationTitleBarOptions;
   }
 
   @Builder NavigationBuilder(name: string, param: Object) {
     if (name === 'AddSubscription') {
-       // Placeholder for potential AddSubscription navigation
+      // Placeholder for potential AddSubscription navigation
     } else if (name === 'IconLibraryPage') {
-       IconLibraryPage()
+      IconLibraryPage()
     }
   }
 
@@ -1013,88 +1056,92 @@ struct Index {
       mode: 'verify',
       onSuccess: () => {
         animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
-           this.isLocked = false;
+          this.isLocked = false;
         });
       }
     })
     // Let PasswordLockPage handle background with blur
-    .backgroundColor(Color.Transparent)
+      .backgroundColor(Color.Transparent)
   }
 
   build() {
     Stack({ alignContent: Alignment.BottomStart }) {
       // Wrapper for blur effect
       Stack({ alignContent: Alignment.BottomStart }) {
-          // 1. New Year Watermark (Layer 0 - Above background color, below content)
-          // 1. Background Watermark (Layer 0)
-          BackgroundWatermark()
+        // 1. New Year Watermark (Layer 0 - Above background color, below content)
+        // 1. Background Watermark (Layer 0)
+        BackgroundWatermark()
 
-          // Background / Base Layer
-          Row() {
-            // --- Main Content Area ---
-            HdsNavigation(this.pageStack) {
-                Tabs({ barPosition: BarPosition.End, index: this.currentIndex, controller: this.tabsController }) {
-                  TabContent() { HomeView({ isVisible: this.currentIndex === 0 }) }.tabBar(null).backgroundColor(Color.Transparent)
-                  TabContent() { CalendarView({ isVisible: this.currentIndex === 1 }) }.tabBar(null).backgroundColor(Color.Transparent)
-                  TabContent() { StatsView({ isVisible: this.currentIndex === 2 }) }.tabBar(null).backgroundColor(Color.Transparent)
-                  TabContent() { SettingsView({ isVisible: this.currentIndex === 3 }) }.tabBar(null).backgroundColor(Color.Transparent)
-                }
-                .backgroundColor(Color.Transparent)
-                .barHeight(0)
-                .scrollable(false)
-                .onAppear(() => {
-                    // 增强：首次加载时从偏好加载一次
-                    PreferenceUtil.getInstance().loadSplitViewEnabled().then((enabled: boolean) => {
-                        if (this.isWide && enabled && !this.isSplitViewEnabled) {
-                            AppStorage.setOrCreate('isSplitViewEnabled', true);
-                        }
-                    });
-                })
-                .animationDuration(this.animationDuration)
-                .onChange((index: number) => {
-                  this.currentIndex = index;
-                  // 只有非内部跳转时，才在切换 Tab 时自动关闭详情页
-                  if (!this.isInternalRedirect && this.isDetailVisible) { 
-                    this.isDetailVisible = false; 
-                  }
-                })
-                .width('100%')
-                .height('100%')
+        // Background / Base Layer
+        Row() {
+          // --- Main Content Area ---
+          HdsNavigation(this.pageStack) {
+            Tabs({ barPosition: BarPosition.End, index: this.currentIndex, controller: this.tabsController }) {
+              TabContent() { HomeView({ isVisible: this.currentIndex === 0 }) }.tabBar(null).backgroundColor(Color.Transparent)
+              TabContent() { CalendarView({ isVisible: this.currentIndex === 1 }) }.tabBar(null).backgroundColor(Color.Transparent)
+              TabContent() { StatsView({ isVisible: this.currentIndex === 2 }) }.tabBar(null).backgroundColor(Color.Transparent)
+              TabContent() { SettingsView({ isVisible: this.currentIndex === 3 }) }.tabBar(null).backgroundColor(Color.Transparent)
             }
-            .navBarWidth('50%')
-            .navDestination(this.NavigationBuilder)
-            .mode(this.isSplitViewEnabled ? NavigationMode.Auto : NavigationMode.Stack)
-            .layoutWeight(1)
+            .backgroundColor(Color.Transparent)
+            .barHeight(0)
+            .scrollable(false)
+            .onAppear(() => {
+              // 增强：首次加载时从偏好加载一次
+              PreferenceUtil.getInstance().loadSplitViewEnabled().then((enabled: boolean) => {
+                if (this.isWide && enabled && !this.isSplitViewEnabled) {
+                  AppStorage.setOrCreate('isSplitViewEnabled', true);
+                }
+              });
+            })
+            .animationDuration(this.animationDuration)
+            .onChange((index: number) => {
+              this.currentIndex = index;
+              // 只有非内部跳转时，才在切换 Tab 时自动关闭详情页
+              if (!this.isInternalRedirect && this.isDetailVisible) {
+                this.isDetailVisible = false;
+              }
+            })
+            .width('100%')
             .height('100%')
-            .hideBackButton(true)
-            .titleBar(undefined)
-            .titleMode(HdsNavigationTitleMode.MINI)
-            .hideTitleBar(true)
-            .hideToolBar(true)
-            .backgroundColor(Color.Transparent) // Transparent to show watermark
-            .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
           }
-          .width('100%')
+          .navBarWidth('50%')
+          .navDestination(this.NavigationBuilder)
+          .mode(this.isSplitViewEnabled ? NavigationMode.Auto : NavigationMode.Stack)
+          .layoutWeight(1)
           .height('100%')
-          
-          // Right panel placeholder (only render in wide split mode)
-          if (this.isWide && this.isSplitViewEnabled) {
-            this.PlaceholderBuilder()
-          }
-          
-          // --- Floating TabBar (Always Visible) ---
-          this.CustomFloatingTabBar()
+          .hideBackButton(true)
+          .titleBar(undefined)
+          .titleMode(HdsNavigationTitleMode.MINI)
+          .hideTitleBar(true)
+          .hideToolBar(true)
+          .backgroundColor(Color.Transparent) // Transparent to show watermark
+          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+        }
+        .width('100%')
+        .height('100%')
 
-          // Global Detail Overlay
-          // 移除 currentIndex === 0 的限制，让它能在 Index 层面统一展示（反正跳转后已经在首页了）
-          if (this.isDetailVisible && this.detailData && this.pageStack.size() === 0) {
-            SubscriptionDetailOverlay({ data: this.detailData })
-          }
+        // Right panel placeholder (only render in wide split mode)
+        if (this.isWide && this.isSplitViewEnabled) {
+          this.PlaceholderBuilder()
+        }
+
+        // --- Floating TabBar (Always Visible) ---
+        this.CustomFloatingTabBar()
+
+        // Global Detail Overlay
+        // 移除 currentIndex === 0 的限制，让它能在 Index 层面统一展示（反正跳转后已经在首页了）
+        if (this.isDetailVisible && this.detailData && this.pageStack.size() === 0) {
+          SubscriptionDetailOverlay({ data: this.detailData })
+        }
       }
       .width('100%')
       .height('100%')
       .blur(this.isLocked ? 80 : 0) // Apply privacy blur when locked
       .animation({ duration: 300 })
+
+
+
+
 
       Column()
         .bindSheet($$this.showLoginSheet, this.LoginSheetBuilder(), {
@@ -1121,7 +1168,7 @@ struct Index {
         })
       Column()
         .bindSheet($$this.isLocked, this.PasswordLockSheetBuilder(), {
-           detents: [SheetSize.FIT_CONTENT],
+          detents: [SheetSize.FIT_CONTENT],
           dragBar: false,
           showClose: false,
           backgroundColor: Color.Transparent,
@@ -1129,10 +1176,10 @@ struct Index {
           preferType: SheetType.BOTTOM,
 
           shouldDismiss: ((sheetDismiss: SheetDismiss) => {
-             // Prevent dismissal by doing nothing
-             hilog.info(0x0000, 'Index', 'Attempt to dismiss lock sheet blocked');
+            // Prevent dismissal by doing nothing
+            hilog.info(0x0000, 'Index', 'Attempt to dismiss lock sheet blocked');
           })
-      })
+        })
     }
     .height('100%')
     .width('100%')
@@ -1187,9 +1234,9 @@ struct Index {
     // 0. 如果详情页显示，优先关闭详情页
     if (this.isDetailVisible) {
       AppStorage.setOrCreate('isDetailClosing', true);
-      animateTo({ 
-        duration: this.isAnimationEnabled ? this.animationDuration : 0, 
-        curve: Curve.FastOutSlowIn 
+      animateTo({
+        duration: this.isAnimationEnabled ? this.animationDuration : 0,
+        curve: Curve.FastOutSlowIn
       }, () => {
         this.isDetailVisible = false;
       })
@@ -1211,7 +1258,7 @@ struct Index {
       this.currentIndex = 0;
       return true;
     }
-    
+
     // 3. 如果已经在首页且页面栈没有其他页面，则弹出退出确认
     this.showExitConfirm();
     return true;
@@ -1256,91 +1303,101 @@ struct TabBarItem {
   @StorageLink('showVipTheme') showVipTheme: boolean = true;
   @StorageLink('isNewYearTheme') isNewYearTheme: boolean = false;
   @Prop indicatorScale: Scale = { x: 1.0, y: 1.0 };
+  @Prop isCompact: boolean = false;
 
   build() {
-      Column() {
-        // 全包式胶囊背景 (56vp 高度)
-        Stack({ alignContent: Alignment.Center }) {
-          if (this.currentIndex === this.index) {
-            // 增强型液态玻璃胶囊 (兼顾深浅色模式)
-            Stack() {
-              // 1. 动态基底：深色较透，浅色略厚以增加边界感
-              Column()
-                .width('100%')
-                .height('100%')
-                .backgroundColor('rgba(255, 255, 255, 0.18)')
-                .backgroundBlurStyle(BlurStyle.COMPONENT_ULTRA_THIN)
-                .borderRadius(28)
-              
-              // 2. 极轻量边缘高光 (改为更细腻的 0.5vp，不显突兀)
-              Column()
-                .width('100%')
-                .height('100%')
-                .border({ width: 0.5, color: 'rgba(255, 255, 255, 0.15)', radius: 28 })
+    Column() {
+      // 全包式胶囊背景 (56vp 高度)
+      Stack({ alignContent: Alignment.Center }) {
+        if (this.currentIndex === this.index) {
+          // 2.0 优化版：更纯净的"水滴"质感，降低色调干扰
+          Stack() {
+            // 1. 晶透基底：极淡的背景，主要靠模糊撑起质感
+            Column()
+              .width('100%')
+              .height('100%')
+              // 降低不透明度：0.12 -> 0.08，避免显脏
+              .backgroundColor(this.isNewYearTheme ? 'rgba(255, 215, 0, 0.1)' : (this.showVipTheme ? 'rgba(255, 215, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)'))
+              .backgroundBlurStyle(BlurStyle.COMPONENT_THIN) // Thin 比 ULTRA_THIN 稍重一点，增强玻璃感
+              .borderRadius(28)
 
-              // 3. 强化表面光泽 (Sheen)
-              Column()
-                .width('100%')
-                .height('100%')
-                .linearGradient({
-                  angle: 135,
-                  colors: [
-                    ['rgba(255, 255, 255, 0.5)', 0.0] as [ResourceColor, number],
-                    ['rgba(255, 255, 255, 0.0)', 0.4] as [ResourceColor, number],
-                    ['rgba(255, 255, 255, 0.2)', 1.0] as [ResourceColor, number]
-                  ]
-                })
-                .borderRadius(28)
-            }
-            .width('100%')
-            .height('100%')
-            .borderRadius(28) // 重要：确保 Stack 形状为胶囊，防止阴影出现“四角黑边”
-            .shadow({ 
-              radius: 12, 
-              color: this.isNewYearTheme ? 'rgba(255,0,0,0.12)' : (this.showVipTheme ? 'rgba(230,192,123,0.18)' : 'rgba(0,0,0,0.06)'), 
-              offsetY: 2 
+            // 2. 边缘光晕：更柔和的边界
+            Column()
+              .width('100%')
+              .height('100%')
+              .border({
+                width: 0.5,
+                // 降低描边不透明度：0.3/0.4 -> 0.2，更隐形
+                color: this.isNewYearTheme ? 'rgba(255, 215, 0, 0.25)' : (this.showVipTheme ? 'rgba(255, 230, 200, 0.25)' : 'rgba(255, 255, 255, 0.2)'),
+                radius: 28
+              })
+
+            // 3. 表面流光：大幅降低梯度，仅保留顶部微弱反光
+            Column()
+              .width('100%')
+              .height('100%')
+              .linearGradient({
+                direction: GradientDirection.Top,
+                colors: [
+                  // 顶部高光减弱：0.4/0.5 -> 0.25，防止过曝
+                  [this.isNewYearTheme ? 'rgba(255, 255, 255, 0.3)' : 'rgba(255, 255, 255, 0.25)', 0.0],
+                  ['rgba(255, 255, 255, 0.0)', 0.4],
+                  ['rgba(255, 255, 255, 0.0)', 1.0]
+                ]
+              })
+              .borderRadius(28)
+          }
+          .width('100%')
+          .height('100%')
+          .borderRadius(28)
+          // 4. 移除原有阴影，由 HDS SOFT 光效提供更自然的景深感，避免颜色叠加产生的“莫名光晕”
+          .hitTestBehavior(HitTestMode.Transparent)
+          .geometryTransition('tab_indicator')
+          .visualEffect(new hdsEffect.HdsEffectBuilder()
+            .pointLight({
+              sourceType: this.isPointLightEnabled ? hdsEffect.PointLightSourceType.SOFT : hdsEffect.PointLightSourceType.NONE,
+              illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
             })
-            .geometryTransition('tab_indicator')
-            .scale({ x: this.indicatorScale.x, y: this.indicatorScale.y })
-            .transition(TransitionEffect.OPACITY.animation({ duration: 250 }))
-          }
-
-          Column() {
-            SymbolGlyph(this.icon)
-              .fontSize(22)
-              .fontColor([this.currentIndex === this.index ? (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))) : $r('app.color.text_secondary')])
-              .scale({ x: (this.currentIndex === this.index ? 1.1 : 1.0) * this.scaleVal, y: (this.currentIndex === this.index ? 1.1 : 1.0) * this.scaleVal })
-              .fontWeight(this.currentIndex === this.index ? FontWeight.Bold : FontWeight.Normal)
-              .animation({ duration: 350, curve: curves.springMotion(0.4, 0.8) })
-            
-            Text(this.name)
-              .fontSize(9)
-              .fontColor(this.currentIndex === this.index ? (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))) : $r('app.color.text_secondary'))
-              .margin({ top: 1 })
-              .opacity(this.currentIndex === this.index ? 1.0 : 0.6)
-              .fontWeight(this.currentIndex === this.index ? FontWeight.Medium : FontWeight.Normal)
-          }
-          .justifyContent(FlexAlign.Center)
-          
-          if (this.showRedDot) {
-            Circle({ width: 6, height: 6 })
-              .fill(Color.Red)
-              .position({ right: 6, top: 12 })
-          }
+            .buildEffect())
+          .transition(TransitionEffect.OPACITY.animation({ duration: 250, curve: Curve.EaseOut }))
         }
-        .width('100%')
-        .height('100%')
+
+        Column() {
+          SymbolGlyph(this.icon)
+            .fontSize(this.isCompact ? 18 : 22)
+            .fontColor([this.currentIndex === this.index ? (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))) : $r('app.color.text_secondary')])
+            .scale({ x: (this.currentIndex === this.index ? 1.1 : 1.0) * this.scaleVal, y: (this.currentIndex === this.index ? 1.1 : 1.0) * this.scaleVal })
+            .fontWeight(this.currentIndex === this.index ? FontWeight.Bold : FontWeight.Normal)
+            .animation({ duration: 350, curve: curves.springMotion(0.4, 0.8) })
+
+          Text(this.name)
+            .fontSize(this.isCompact ? 8 : 9)
+            .fontColor(this.currentIndex === this.index ? (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))) : $r('app.color.text_secondary'))
+            .margin({ top: 1 })
+            .opacity(this.currentIndex === this.index ? 1.0 : 0.6)
+            .fontWeight(this.currentIndex === this.index ? FontWeight.Medium : FontWeight.Normal)
+        }
+        .justifyContent(FlexAlign.Center)
+
+        if (this.showRedDot) {
+          Circle({ width: 6, height: 6 })
+            .fill(Color.Red)
+            .position({ right: 6, top: 12 })
+        }
       }
-      .width(54)
+      .width('100%')
       .height('100%')
-      .justifyContent(FlexAlign.Center)
+    }
+    .width(this.isCompact ? 32 : 54)
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
     .backgroundColor(Color.Transparent)
     .onTouch((event: TouchEvent) => {
       if (event.type === TouchType.Down) {
         if (this.isAnimationEnabled && this.isPointLightEnabled) {
-            animateTo({ duration: 100, curve: Curve.Sharp }, () => {
-              this.scaleVal = 0.9;
-            });
+          animateTo({ duration: 100, curve: Curve.Sharp }, () => {
+            this.scaleVal = 0.9;
+          });
         }
       } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
         animateTo({ duration: 400, curve: curves.springMotion() }, () => {
@@ -1349,7 +1406,7 @@ struct TabBarItem {
       }
     })
     .onClick(() => {
-       this.onSelect();
+      this.onSelect();
     })
   }
 }
@@ -1371,6 +1428,8 @@ struct HeaderActionButton {
         .fontColor([$r('app.color.text_primary')])
         .rotate({ angle: this.angle })
         .animation({ duration: 800, curve: Curve.FastOutSlowIn })
+
+
     }
     .width(40)
     .height(40)
@@ -1384,13 +1443,13 @@ struct HeaderActionButton {
       .buildEffect())
     .onTouch((event: TouchEvent) => {
       if (this.isPointLightEnabled) {
-          if (event.type === TouchType.Down) {
-            this.isPressed = true;
-            this.lightSource = hdsEffect.PointLightSourceType.BRIGHT;
-          } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-            this.isPressed = false;
-            this.lightSource = hdsEffect.PointLightSourceType.NONE;
-          }
+        if (event.type === TouchType.Down) {
+          this.isPressed = true;
+          this.lightSource = hdsEffect.PointLightSourceType.BRIGHT;
+        } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+          this.isPressed = false;
+          this.lightSource = hdsEffect.PointLightSourceType.NONE;
+        }
       }
     })
     .onClick(() => {

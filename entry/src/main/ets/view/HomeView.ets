@@ -3,19 +3,22 @@ import { SubscriptionCard } from './SubscriptionCard';
 import { NewYearSubscriptionCard } from './NewYearSubscriptionCard';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
 import { DateUtil } from '../utils/DateUtil';
-import { prompt, curves, promptAction } from '@kit.ArkUI';
+import { prompt, curves, promptAction, LengthMetrics } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { common } from '@kit.AbilityKit';
 import { EVENT_SYNC_COMPLETED, EVENT_DATA_CHANGED, GlobalBus } from '../utils/GlobalBus';
 import { LoginSheet } from './LoginSheet';
 import { SubscriptionIcon } from './SubscriptionIcon';
 import { PreferenceUtil } from '../utils/PreferenceUtil';
-import { hdsEffect, HdsNavDestination, HdsNavigationMenuItemOptions } from '@kit.UIDesignKit';
+import { hdsEffect, HdsNavDestination, HdsNavigationMenuItemOptions,
+  ScrollEffectType } from '@kit.UIDesignKit';
+import { FunctionComponent, FunctionController } from '@kit.AgentFrameworkKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 import { ReminderSetupPanel } from './ReminderSetupPanel';
 import { LocalIconManager } from '../utils/LocalIconManager';
 import { HarmonyShareManager } from '../utils/HarmonyShareManager';
-import { commonEventManager } from '@kit.BasicServicesKit';
+import { commonEventManager, deviceInfo } from '@kit.BasicServicesKit';
 
 // 导航参数类型
 class AddSubscriptionNavParams {
@@ -29,14 +32,31 @@ export struct HomeView {
   @Consume('pageStack') pageStack: NavPathStack;
   @StorageLink('isOnline') isOnline: boolean = true;
 
+  // Agent Props
+  private controller: FunctionController = new FunctionController();
+  // TODO: Replace with real Agent ID from platform
+  private agentId: string = 'agent0244e963799347bdb18995e6416726ea';
+
   @StorageLink('isSyncing') isSyncing: boolean = false;
   @StorageLink('isLoggedIn') @Watch('onLoggedInChange') isLoggedIn: boolean = false;
+
 
   onLoggedInChange() {
     if (this.isLoggedIn) {
       this.loadLocalData();
       this.checkAIConfig();
     }
+  }
+
+  initListeners() {
+    this.controller?.on('agentDialogOpened', this.onAgentOpenedCallback)
+    this.controller?.on('agentDialogClosed', this.onAgentClosedCallback)
+  }
+  onAgentOpenedCallback = () => {
+    hilog.info(0x0001, 'HomeView', 'agent dialog opened callback')
+  }
+  onAgentClosedCallback = () => {
+    hilog.info(0x0001, 'HomeView', 'agent dialog closed callback')
   }
   @StorageLink('isVip') isVip: boolean = false;
   @StorageLink('showVipTheme') showVipTheme: boolean = true;
@@ -63,13 +83,17 @@ export struct HomeView {
   @State sortOrder: string = 'date_asc'; // date_asc, date_desc, price_desc, price_asc, name_asc
   @State pendingNavigationItem: SubscriptionModel | null = null;
   @State showSyncGuide: boolean = false; // 控制同步指南显示
-  @StorageLink('homeCurrentTab') currentTab: 'subscription' | 'groupBuy' = 'subscription'; // 订阅/团购切换
+  @StorageLink('homeCurrentTab') currentTab: 'subscription' | 'groupBuy' | 'warranty' = 'subscription'; // 订阅/团购/保修切换
+  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
+  @StorageLink('smartHandMode') smartHandMode: 'left' | 'right' | 'center' = 'center';
+
+
 
   onDetailClosingChange() {
     if (!this.isDetailClosing) {
       // 动画结束后刷新列表，确保数据是最新的（包含排序变动）
       this.loadLocalData();
-      
+
       if (this.pendingNavigationItem) {
         this.navigateToEdit(this.pendingNavigationItem);
         this.pendingNavigationItem = null;
@@ -230,6 +254,7 @@ export struct HomeView {
   }
 
   async aboutToAppear() {
+    this.initListeners();
     this.onVisibleChange();
     // Load persisted sort order before loading data
     this.sortOrder = await PreferenceUtil.getInstance().loadSortOrder();
@@ -277,6 +302,8 @@ export struct HomeView {
   }
 
   aboutToDisappear() {
+    this.controller?.off('agentDialogOpened')
+    this.controller?.off('agentDialogClosed')
     // Subscribers will be handled by system GC if component is destroyed,
     // but the references are held in this.busSubscribers as long as HomeView exists.
     this.immersiveDisablingListening();
@@ -452,6 +479,9 @@ export struct HomeView {
   getFilteredSubscriptions(): SubscriptionModel[] {
     if (this.currentTab === 'groupBuy') {
       return this.subscriptions.filter(item => item.recordType === 'groupBuy');
+    }
+    if (this.currentTab === 'warranty') {
+      return this.subscriptions.filter(item => item.recordType === 'warranty');
     }
     // 默认显示订阅记录（包括没有 recordType 字段的旧数据）
     return this.subscriptions.filter(item => !item.recordType || item.recordType === 'subscription');
@@ -771,7 +801,7 @@ export struct HomeView {
     }
     .width('100%').padding({ top: 40, bottom: 40 }).justifyContent(FlexAlign.Center)
     .onClick(() => {
-       if (!this.isLoggedIn) {
+      if (!this.isLoggedIn) {
         if (this.isWide && this.isSplitViewEnabled) {
           this.pageStack.removeByName('Login');
           this.pageStack.pushPathByName('Login', null);
@@ -970,18 +1000,18 @@ export struct HomeView {
       // 限制最大高度，避免列表过长时占满全屏
       .constraintSize({ maxHeight: '75%' })
       .onAppear(() => {
-         if (this.isAnimationEnabled) {
-             // Reset state first to ensure animation triggers if reopened
-             this.isUpcomingItemsVisible = false;
-             setTimeout(() => {
-                 this.isUpcomingItemsVisible = true;
-             }, 50);
-         } else {
-             this.isUpcomingItemsVisible = true;
-         }
+        if (this.isAnimationEnabled) {
+          // Reset state first to ensure animation triggers if reopened
+          this.isUpcomingItemsVisible = false;
+          setTimeout(() => {
+            this.isUpcomingItemsVisible = true;
+          }, 50);
+        } else {
+          this.isUpcomingItemsVisible = true;
+        }
       })
       .onDisAppear(() => {
-          this.isUpcomingItemsVisible = false;
+        this.isUpcomingItemsVisible = false;
       })
     }
     .backgroundColor($r('app.color.page_background'))
@@ -1140,11 +1170,31 @@ export struct HomeView {
     }
   }
 
+  @Builder AgentStackBuilder() {
+    Row() {
+      if (deviceInfo.distributionOSApiVersion >= 60100) {
+        FunctionComponent({
+          agentId: this.agentId,
+          onError: (err: BusinessError) => {
+            hilog.error(0x0001, 'HomeView', `Agent err: ${JSON.stringify(err)}, message: ${err.message}`)
+          },
+          options: {
+            title: '', // Icon only
+            queryText: '使用显示全部订阅工具，直接打印工具返回的数据包'
+          },
+          controller: this.controller
+        })
+          .width(40)
+          .height(40)
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.End)
+    .padding({ right: 114 }) // 增加间距：提醒 + 分享约 104vp，加 12vp 间隙
+  }
 
-
-  build() {
-    HdsNavDestination() {
-
+  @Builder homeBuilder(){
     Stack({ alignContent: Alignment.Top }) {
       // 主内容区域
       Column() {
@@ -1249,7 +1299,9 @@ export struct HomeView {
             }
 
             // Bottom Spacer
-            GridItem() { Column().height(120) }.columnStart(0).columnEnd(1)
+            GridItem() {
+              Column().height(120)
+            }.columnStart(0).columnEnd(1)
           }
           .columnsTemplate('1fr 1fr')
           .rowsGap(12)
@@ -1279,7 +1331,6 @@ export struct HomeView {
                 .translate({ y: this.animStep1 ? 0 : 50 })
 
 
-
                 Row() {
                   // 订阅/团购切换按钮
                   // 订阅/团购切换按钮
@@ -1289,7 +1340,8 @@ export struct HomeView {
                         .fontSize(14)
                         .fontWeight(this.currentTab === 'subscription' ? FontWeight.Bold : FontWeight.Normal)
                         .fontColor(this.currentTab === 'subscription' ?
-                          (this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
+                          (this.isNewYearTheme ? '#FFD700' :
+                            (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
                           $r('app.color.text_secondary'))
                     }
                     .linearGradient(this.currentTab === 'subscription' ?
@@ -1305,7 +1357,12 @@ export struct HomeView {
                       (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
                       Color.Transparent)
                     .borderRadius(14)
-                    .padding({ left: 20, right: 20, top: 6, bottom: 6 })
+                    .padding({
+                      left: 20,
+                      right: 20,
+                      top: 6,
+                      bottom: 6
+                    })
                     .onClick(() => {
                       animateTo({ duration: this.isAnimationEnabled ? 300 : 0, curve: Curve.EaseInOut }, () => {
                         this.currentTab = 'subscription';
@@ -1317,7 +1374,8 @@ export struct HomeView {
                         .fontSize(14)
                         .fontWeight(this.currentTab === 'groupBuy' ? FontWeight.Bold : FontWeight.Normal)
                         .fontColor(this.currentTab === 'groupBuy' ?
-                          (this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
+                          (this.isNewYearTheme ? '#FFD700' :
+                            (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
                           $r('app.color.text_secondary'))
                     }
                     .linearGradient(this.currentTab === 'groupBuy' ?
@@ -1333,10 +1391,49 @@ export struct HomeView {
                       (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
                       Color.Transparent)
                     .borderRadius(14)
-                    .padding({ left: 20, right: 20, top: 6, bottom: 6 })
+                    .padding({
+                      left: 20,
+                      right: 20,
+                      top: 6,
+                      bottom: 6
+                    })
                     .onClick(() => {
                       animateTo({ duration: this.isAnimationEnabled ? 300 : 0, curve: Curve.EaseInOut }, () => {
                         this.currentTab = 'groupBuy';
+                      });
+                    })
+
+                    Button() {
+                      Text("保修")
+                        .fontSize(14)
+                        .fontWeight(this.currentTab === 'warranty' ? FontWeight.Bold : FontWeight.Normal)
+                        .fontColor(this.currentTab === 'warranty' ?
+                          (this.isNewYearTheme ? '#FFD700' :
+                            (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
+                          $r('app.color.text_secondary'))
+                    }
+                    .linearGradient(this.currentTab === 'warranty' ?
+                      (this.isNewYearTheme ? {
+                        angle: 135,
+                        colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
+                      } :
+                        (this.showVipTheme ? {
+                          angle: 135,
+                          colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
+                        } : undefined)) : undefined)
+                    .backgroundColor(this.currentTab === 'warranty' ?
+                      (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
+                      Color.Transparent)
+                    .borderRadius(14)
+                    .padding({
+                      left: 20,
+                      right: 20,
+                      top: 6,
+                      bottom: 6
+                    })
+                    .onClick(() => {
+                      animateTo({ duration: this.isAnimationEnabled ? 300 : 0, curve: Curve.EaseInOut }, () => {
+                        this.currentTab = 'warranty';
                       });
                     })
                   }
@@ -1424,7 +1521,9 @@ export struct HomeView {
                 this.EmptyState()
               }
               .padding({ left: 24, right: 24 })
-              .transition(TransitionEffect.OPACITY.animation({ duration: this.isAnimationEnabled ? this.animationDuration : 0 }))
+              .transition(TransitionEffect.OPACITY.animation({
+                duration: this.isAnimationEnabled ? this.animationDuration : 0
+              }))
             } else {
               ForEach(this.getFilteredSubscriptions(), (item: SubscriptionModel, index: number) => {
                 ListItem() {
@@ -1434,21 +1533,37 @@ export struct HomeView {
                   .margin({ bottom: 12, left: 16, right: 16 })
                 }
                 .swipeAction({
-                  start: { builder: () => { this.DeleteButton(item, true) } },
-                  end: { builder: () => { this.DeleteButton(item, false) } }
+                  start: {
+                    builder: () => {
+                      this.DeleteButton(item, true)
+                    }
+                  },
+                  end: {
+                    builder: () => {
+                      this.DeleteButton(item, false)
+                    }
+                  }
                 })
               }, (item: SubscriptionModel) => JSON.stringify(item))
             }
-            ListItem() { Column().height(120) }
+            ListItem() {
+              Column().height(120)
+            }
           }
-          .width('100%').height('100%').scrollBar(BarState.Off)
+          .width('100%')
+          .height('100%')
+          .scrollBar(BarState.Off)
           .opacity(this.animStep3 ? 1 : 0)
           .translate({ y: this.animStep3 ? 0 : 50 })
         }
       }
-      .width('100%').height('100%').backgroundColor(Color.Transparent)
+      .width('100%')
+      .height('100%')
+      .backgroundColor(Color.Transparent)
       .onVisibleAreaChange([0.0, 1.0], (isVisible: boolean, currentRatio: number) => {
-        if (isVisible && currentRatio >= 1.0) { this.loadLocalData(); }
+        if (isVisible && currentRatio >= 1.0) {
+          this.loadLocalData();
+        }
       })
       .bindSheet($$this.showLoginSheet, this.LoginSheetBuilder(), {
         detents: [SheetSize.MEDIUM],
@@ -1457,6 +1572,7 @@ export struct HomeView {
         preferType: SheetType.BOTTOM,
         title: { title: '登录', subtitle: '使用华为账号登录' }
       })
+
       Column()
         .bindSheet($$this.showUpcomingSheet, this.UpcomingRenewalsSheet(), {
           detents: [SheetSize.FIT_CONTENT],
@@ -1482,61 +1598,64 @@ export struct HomeView {
 
 
     }
+  }
 
-
-
-
-    }
-    .hideBackButton(true)
-    .hideTitleBar(false)
-
-    .backgroundColor(Color.Transparent)
-    .titleBar({
-      avoidLayoutSafeArea: true,
-      content: {
-        title: { mainTitle: '订阅概览' },
-        menu: {
-          value: [
-            {
-              content: {
-                label: '提醒管理',
-                icon: $r('sys.symbol.bell'),
-                action: (): void => {
-                  getContext(this).eventHub.emit('openReminderSheet');
-                }
-              }
-            } as HdsNavigationMenuItemOptions,
-            {
-              content: {
-                label: '分享',
-                icon: $r('sys.symbol.share'),
-                action: (): void => {
-                  if (!this.isLoggedIn) {
-                    if (this.isWide && this.isSplitViewEnabled) {
-                      this.pageStack.removeByName('Login');
-                      this.pageStack.pushPathByName('Login', null);
-                    } else {
-                      if (this.isAnimationEnabled) {
-                      animateTo({
-                        duration: this.animationDuration,
-                        curve: curves.springMotion(this.animationResponse, this.animationDamping)
-                      }, () => {
-                        this.showLoginSheet = true;
-                      });
-                    } else {
-                      this.showLoginSheet = true;
-                    }
-                    }
-                    return;
-                  }
-                  HarmonyShareManager.getInstance().activeShare();
-                }
-              }
-            } as HdsNavigationMenuItemOptions
-          ]
-        }
+  build() {
+      HdsNavDestination() {
+        this.homeBuilder()
       }
-    })
+      .hideBackButton(true)
+      .hideTitleBar(false)
+      .backgroundColor(Color.Transparent)
+      .titleBar({
+        avoidLayoutSafeArea: true,
+        content: {
+          title: { mainTitle: '订阅概览' },
+          stackBuilder: (): void => this.AgentStackBuilder(),
+          menu: {
+            value: [
+              {
+                content: {
+                  label: '提醒管理',
+                  icon: $r('sys.symbol.bell'),
+                  action: (): void => {
+                    getContext(this).eventHub.emit('openReminderSheet');
+                  }
+                }
+              } as HdsNavigationMenuItemOptions,
+
+              {
+                content: {
+                  label: '分享',
+                  icon: $r('sys.symbol.share'),
+                  action: (): void => {
+                    if (!this.isLoggedIn) {
+                      if (this.isWide && this.isSplitViewEnabled) {
+                        this.pageStack.removeByName('Login');
+                        this.pageStack.pushPathByName('Login', null);
+                      } else {
+                        if (this.isAnimationEnabled) {
+                          animateTo({
+                            duration: this.animationDuration,
+                            curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                          }, () => {
+                            this.showLoginSheet = true;
+                          });
+                        } else {
+                          this.showLoginSheet = true;
+                        }
+                      }
+                      return;
+                    }
+                    HarmonyShareManager.getInstance().activeShare();
+                  }
+                }
+              } as HdsNavigationMenuItemOptions
+            ]
+          }
+        },
+      })
+
   }
 
   @State showReminderSheet: boolean = false;
@@ -1676,8 +1795,3 @@ struct SwipeDeleteButton {
   }
 }
 
-class ExportData {
-  version: number = 1;
-  timestamp: number = 0;
-  subscriptions: SubscriptionModel[] = [];
-}

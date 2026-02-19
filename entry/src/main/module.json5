@@ -7,16 +7,15 @@
     "deviceTypes": [
       "phone",
       "tablet",
-      "2in1"
     ],
     "deliveryWithInstall": true,
     "installationFree": false,
     "requestPermissions": [
       {
         "name": "ohos.permission.INTERNET"
-    },
-    {
-      "name": "ohos.permission.ACCESS_BIOMETRIC"
+      },
+      {
+        "name": "ohos.permission.ACCESS_BIOMETRIC"
       },
       {
         "name": "ohos.permission.GET_NETWORK_INFO"
@@ -88,6 +87,12 @@
         "startWindowIcon": "$media:startIcon",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
+        "metadata": [
+          {
+            "name": "ohos.insight.intent",
+            "resource": "$profile:insight_intent"
+          }
+        ],
         "skills": [
           {
             "entities": [
