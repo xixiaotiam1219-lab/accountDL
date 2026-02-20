@@ -459,7 +459,7 @@ export struct AIConfigPage {
       Row() {
         Stack() {
           Circle().width(32).height(32).fill(num === "1" ? (this.isNewYearTheme ? '#FFE5E5' : (this.showVipTheme ? '#FFF8E1' : '#E8F1FF')) : '#F2F2F2')
-          Text(num).fontSize(16).fontWeight(FontWeight.Bold).fontColor(num === "1" ? (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))) : $r('app.color.text_secondary'))
+          Text(num).fontSize(16).fontWeight(FontWeight.Bold).fontColor(num === "1" ? (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? '#8A6D3B' : $r('app.color.brand_color'))) : $r('app.color.text_secondary'))
         }
         .margin({ right: 12 })
         

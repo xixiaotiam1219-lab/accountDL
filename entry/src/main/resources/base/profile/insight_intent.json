@@ -31,6 +31,176 @@
                 {
                     "name": "reminderDaysBefore",
                     "type": "string"
+                },
+                {
+                    "name": "recordType",
+                    "type": "string"
+                },
+                {
+                    "name": "purchaseDate",
+                    "type": "string"
+                },
+                {
+                    "name": "platform",
+                    "type": "string"
+                },
+                {
+                    "name": "brand",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "intentName": "AddSubscription",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "price",
+                    "type": "string"
+                },
+                {
+                    "name": "billingCycle",
+                    "type": "string"
+                },
+                {
+                    "name": "expireDate",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderDaysBefore",
+                    "type": "string"
+                },
+                {
+                    "name": "isReminderEnabled",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderTime",
+                    "type": "string"
+                },
+                {
+                    "name": "subCategory",
+                    "type": "string"
+                },
+                {
+                    "name": "purchaseDate",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "intentName": "AddVoucher",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "price",
+                    "type": "string"
+                },
+                {
+                    "name": "platform",
+                    "type": "string"
+                },
+                {
+                    "name": "purchaseDate",
+                    "type": "string"
+                },
+                {
+                    "name": "expireDate",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderDaysBefore",
+                    "type": "string"
+                },
+                {
+                    "name": "isReminderEnabled",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderTime",
+                    "type": "string"
+                },
+                {
+                    "name": "merchantName",
+                    "type": "string"
+                },
+                {
+                    "name": "couponCode",
+                    "type": "string"
+                },
+                {
+                    "name": "usageTime",
+                    "type": "string"
+                },
+                {
+                    "name": "quantity",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "intentName": "AddWarranty",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "price",
+                    "type": "string"
+                },
+                {
+                    "name": "brand",
+                    "type": "string"
+                },
+                {
+                    "name": "purchaseDate",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderDaysBefore",
+                    "type": "string"
+                },
+                {
+                    "name": "isReminderEnabled",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderTime",
+                    "type": "string"
                 }
             ]
         },

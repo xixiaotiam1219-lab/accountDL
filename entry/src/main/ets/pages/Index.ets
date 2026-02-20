@@ -273,10 +273,6 @@ struct Index {
     } catch (e) {}
 
     // 0. 会员状态已在 EntryAbility 中预加载，此处只需检查过期并移除遮罩
-    PreferenceUtil.getInstance().loadMembership().then((_: MembershipInfo) => {
-      // 检查本地缓存过期情况（即使离线）
-      this.checkMembershipExpiry();
-    });
 
     // Load Split Navigation preference
     PreferenceUtil.getInstance().get('isWide', false).then((val: preferences.ValueType) => {
@@ -318,8 +314,7 @@ struct Index {
       });
       HuaweiAuthManager.getInstance().login(true).then(() => {
         SubscriptionRepository.getInstance().syncWithCloud();
-        // 检查会员状态并提醒即将到期
-        this.checkMembershipExpiry();
+
       }).catch((err: BusinessError) => {
         // 仅记录日志，不打扰用户，也不退出登录（此时 AccountMonitor 已经处理过是否退出的逻辑了）
       });
@@ -470,70 +465,6 @@ struct Index {
    * 检查会员状态，即将到期时提醒用户续费
    * 每日只提醒一次，避免频繁打扰
    */
-  async checkMembershipExpiry() {
-    const membership: MembershipInfo = await PreferenceUtil.getInstance().loadMembership();
-
-    // 永久会员无需检查
-    if (membership.level === 'lifetime') {
-      return;
-    }
-
-    // 检查是否为 Pro 会员
-    if (membership.level === 'pro' && membership.expiry > 0) {
-      const now = Date.now();
-      const daysLeft = Math.ceil((membership.expiry - now) / (1000 * 60 * 60 * 24));
-
-      // 检查今天是否已经提醒过（避免每次启动都弹窗）
-      const today = new Date().toDateString();
-      const lastCheckDate = AppStorage.get<string>('lastExpiryCheckDate') || '';
-
-      if (lastCheckDate === today) {
-        // 今天已经提醒过（无论是即将到期还是已过期），跳过
-        return;
-      }
-
-      // 已过期
-      if (daysLeft <= 0) {
-        // 更新本地状态为非 VIP
-        AppStorage.setOrCreate('isVip', false);
-        AppStorage.setOrCreate('lastExpiryCheckDate', today);
-
-        // 弹窗提醒
-        promptAction.showDialog({
-          title: '会员已过期',
-          message: '您的 Pro 会员已到期，云同步和云推送功能已暂停。\n\n您的本地数据不会丢失，云端数据也将保留 30 天，续费后可恢复同步。',
-          buttons: [
-            { text: '稍后再说', color: $r('app.color.text_secondary') },
-            { text: '立即续费', color: $r('app.color.brand_color') }
-          ]
-        }).then(result => {
-          if (result.index === 1) {
-            this.pageStack.pushPathByName('Membership', null);
-          }
-        });
-        return;
-      }
-
-      // 即将到期（3天内）
-      if (daysLeft <= 3 && daysLeft > 0) {
-        AppStorage.setOrCreate('lastExpiryCheckDate', today);
-
-        promptAction.showDialog({
-          title: '会员即将到期',
-          message: `您的 Pro 会员将在 ${daysLeft} 天后到期，到期后云同步和云推送功能将暂停。\n\n立即续费可继续享受 VIP 权益。`,
-          buttons: [
-            { text: '稍后再说', color: $r('app.color.text_secondary') },
-            { text: '立即续费', color: $r('app.color.brand_color') }
-          ]
-        }).then(result => {
-          if (result.index === 1) {
-            this.pageStack.pushPathByName('Membership', null);
-          }
-        });
-      }
-    }
-  }
-
   onLoginStatusChange() {
     if (!this.isLoggedIn) {
       // Delay clear to avoid render conflict if triggered during build

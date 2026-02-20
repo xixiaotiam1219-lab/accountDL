@@ -240,4 +240,32 @@ export class LocalNotificationManager {
     const rId: number = await PreferenceUtil.getInstance().get(LocalNotificationManager.KEY_NEW_YEAR_REMINDER_ID, -1) as number;
     return rId !== -1;
   }
+
+  /**
+   * 取消所有订阅相关的系统提醒（通常在登出时调用）
+   * @param subs 需要取消提醒的订阅列表
+   */
+  public async cancelAllReminders(subs: SubscriptionModel[]): Promise<void> {
+    hilog.info(DOMAIN, TAG, `Cancelling all reminders for ${subs.length} subscriptions`);
+    
+    // 1. 取消常规订阅提醒
+    for (const sub of subs) {
+      if (sub.id !== undefined) {
+        const rId = await PreferenceUtil.getInstance().getReminderId(sub.id);
+        if (rId !== -1) {
+          try {
+            await reminderAgentManager.cancelReminder(rId);
+            await PreferenceUtil.getInstance().removeReminderId(sub.id);
+            hilog.info(DOMAIN, TAG, `Cancelled reminder ${rId} for sub ${sub.id}`);
+          } catch (e) {
+            hilog.error(DOMAIN, TAG, `Failed to cancel reminder ${rId} for sub ${sub.id}: ${(e as BusinessError).message}`);
+          }
+        }
+      }
+    }
+
+    // 2. 取消新年提醒
+    await this.cancelNewYearReminder();
+    hilog.info(DOMAIN, TAG, 'All system reminders cleared during logout');
+  }
 }

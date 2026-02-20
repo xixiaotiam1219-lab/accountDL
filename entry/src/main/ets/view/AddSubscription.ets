@@ -102,6 +102,7 @@ export struct AddSubscription {
 
   // RecentPhotoComponent 配置
   private recentPhotoOptions: RecentPhotoOptions = new RecentPhotoOptions();
+  private reminderDaysOptions: string[] = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30'];
 
 
   // 截屏状态监听回调 - 已废弃
@@ -271,6 +272,14 @@ export struct AddSubscription {
       await FloatingBallManager.getInstance().stop();
     } catch (e) {
       hilog.error(0x0000, 'AddSubscription', `Stop floating ball on appear failed: ${e}`);
+    }
+
+    const paramsArray = this.pageStack.getParamByName('AddSubscription') as Object[];
+    if (paramsArray && paramsArray.length > 0) {
+      const params = paramsArray[paramsArray.length - 1] as Record<string, Object>;
+      if (params && params['initialType']) {
+        this.recordType = params['initialType'] as 'subscription' | 'groupBuy' | 'warranty';
+      }
     }
 
     this.triggerAnimations();
@@ -2035,8 +2044,8 @@ export struct AddSubscription {
                       })
                       .onClick(() => {
                         TextPickerDialog.show({
-                          range: ['1', '2', '3', '5', '7'],
-                          selected: ['1', '2', '3', '5', '7'].indexOf(this.reminderDaysBefore.toString()),
+                          range: this.reminderDaysOptions,
+                          selected: this.reminderDaysOptions.indexOf(this.reminderDaysBefore.toString()),
                           onAccept: (value: TextPickerResult) => {
                             this.reminderDaysBefore = parseInt(value.value as string);
                           }
@@ -2516,8 +2525,8 @@ export struct AddSubscription {
                       })
                       .onClick(() => {
                         TextPickerDialog.show({
-                          range: ['1', '2', '3', '5', '7', '14', '30'],
-                          selected: ['1', '2', '3', '5', '7', '14', '30'].indexOf(this.reminderDaysBefore.toString()),
+                          range: this.reminderDaysOptions,
+                          selected: this.reminderDaysOptions.indexOf(this.reminderDaysBefore.toString()),
                           onAccept: (value: TextPickerResult) => {
                             this.reminderDaysBefore = parseInt(value.value as string);
                           }
@@ -3622,8 +3631,8 @@ export struct AddSubscription {
                         })
                         .onClick(() => {
                           TextPickerDialog.show({
-                            range: ['1', '2', '3', '5', '7'],
-                            selected: ['1', '2', '3', '5', '7'].indexOf(this.reminderDaysBefore.toString()),
+                            range: this.reminderDaysOptions,
+                            selected: this.reminderDaysOptions.indexOf(this.reminderDaysBefore.toString()),
                             onAccept: (value: TextPickerResult) => {
                               this.reminderDaysBefore = parseInt(value.value as string);
                             }
@@ -3795,6 +3804,7 @@ export struct AddSubscription {
                   }).then(async (resp) => {
                     if (resp.index === 1) {
                       await SubscriptionRepository.getInstance().delete(this.editId);
+                      SubscriptionRepository.getInstance().updateWidgetSnapshotSync('delete');
                       this.pageStack.pop();
                     }
                   });
@@ -3898,6 +3908,7 @@ export struct AddSubscription {
                   price: parseFloat(this.price),
                   currency: this.currency,
                   // warranty 类型固定使用 Lifetime 周期（一次性购买，到期日即保修到期日）
+                  // 注意：显示逻辑需要根据 recordType 为 warranty 来区分显示“保修”还是“永久”
                   billingCycle: this.recordType === 'warranty' ? 'Lifetime' :
                     (this.billingCycle as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite'),
                   nextBillingDate: this.nextBillingDate.getTime(),
@@ -3934,6 +3945,7 @@ export struct AddSubscription {
                 } else {
                   await SubscriptionRepository.getInstance().insert(newSub);
                 }
+                SubscriptionRepository.getInstance().updateWidgetSnapshotSync('save');
                 this.pageStack.clear();
               })
           }
@@ -4168,7 +4180,7 @@ export struct AddSubscription {
       .onReady((context: NavDestinationContext) => {
         const rawParams = context.pathInfo.param as Record<string, Object>;
         if (rawParams && rawParams['initialType']) {
-          this.recordType = rawParams['initialType'] as 'subscription' | 'groupBuy';
+          this.recordType = rawParams['initialType'] as 'subscription' | 'groupBuy' | 'warranty';
 
           // 来自市场的预填充数据
           if (rawParams['marketplaceName']) {
@@ -4236,6 +4248,10 @@ export struct AddSubscription {
             this.couponImage = params.couponImage || '';
             this.usageTime = params.usageTime || '';
             this.realUsageTime = params.realUsageTime;
+          } else if (this.recordType === 'warranty') {
+            // 加载保修/保质期专属字段
+            this.brand = params.brand || '';
+            this.purchaseChannel = params.purchaseChannel || '';
           }
 
           // 自动修正旧数据的分类

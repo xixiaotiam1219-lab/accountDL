@@ -61,7 +61,8 @@ struct ImportSheetItem {
         icon: this.item.data.icon,
         iconSize: 40,
         iconRadius: 8,
-        showGroupBadge: this.item.data.recordType === 'groupBuy'
+        showGroupBadge: this.item.data.recordType === 'groupBuy',
+        showWarrantyBadge: this.item.data.recordType === 'warranty'
       })
       .margin({ right: 12 })
       .opacity(this.item.status === 'duplicate' ? 0.6 : 1)
@@ -153,6 +154,9 @@ struct ImportSheetItem {
   private getCycleText(item: SubscriptionModel): string {
     if (item.recordType === 'groupBuy') {
        return '团购券';
+    }
+    if (item.recordType === 'warranty') {
+       return '保修';
     }
     const cycle = item.billingCycle;
     switch (cycle) {
@@ -296,6 +300,7 @@ export struct ImportSheet {
       a.currency === b.currency &&
       a.billingCycle === b.billingCycle &&
       a.nextBillingDate === b.nextBillingDate &&
+      (a.recordType || 'subscription') === (b.recordType || 'subscription') &&
       (a.startDate || 0) === (b.startDate || 0) &&
       (a.category || '') === (b.category || '') &&
       (a.subCategory || '') === (b.subCategory || '') &&

@@ -278,6 +278,10 @@ export struct CalendarView {
             targetDate.getDate() === billingDay) {
            isMatch = true; 
         }
+      } else if (sub.recordType === 'warranty') {
+        if (billingDate.getFullYear() === this.currentYear && billingDate.getMonth() === this.currentMonth) {
+          isMatch = true;
+        }
       } else if (sub.billingCycle === 'Monthly') {
         const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
         if (billingDay <= daysInMonth) {
@@ -441,6 +445,9 @@ export struct CalendarView {
   }
 
   getItemPriceInfo(item: SubscriptionModel): string {
+    if (item.recordType === 'warranty') {
+      return '保修到期';
+    }
     let info = `¥${item.price.toFixed(2)}`;
     if (item.recordType === 'groupBuy') {
       // 如果项目名存在且与标题（商家名）不同，则在副标题显示项目名
@@ -458,6 +465,8 @@ export struct CalendarView {
   getItemCycleTag(item: SubscriptionModel): string {
     if (item.recordType === 'groupBuy') {
       return '团购';
+    } else if (item.recordType === 'warranty') {
+      return '保修';
     }
     switch (item.billingCycle) {
       case 'Monthly':
@@ -691,7 +700,7 @@ export struct CalendarView {
       // Group Buy: Forward to calculateRangeFromStartDate to show full validity even if used
       // But in Monthly/Status logic, we still respect usage status for markers.
       // Here we want the BAR to be visible for the whole validity.
-      if (sub.recordType === 'groupBuy') {
+      if (sub.recordType === 'groupBuy' || sub.recordType === 'warranty') {
            return this.calculateRangeFromStartDate(sub);
       }
 

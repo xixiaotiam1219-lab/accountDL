@@ -19,6 +19,9 @@ interface AgentRecordItem {
 
 class Constants {
   public static INTENT_ADD_RECORD = "AddRecord";
+  public static INTENT_ADD_SUBSCRIPTION = "AddSubscription";
+  public static INTENT_ADD_VOUCHER = "AddVoucher";
+  public static INTENT_ADD_WARRANTY = "AddWarranty";
   public static INTENT_QUERY_RECORD = "QueryRecord";
   public static INTENT_GET_ALL_RECORDS = "GetAllRecords";
   public static INTENT_QUERY_SUBSCRIPTION = "QuerySubscription";
@@ -72,8 +75,22 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       this.handleQueryRecord(param);
     } else {
       // 兜底逻辑：处理通用 QueryRecord 意图。
-      // 若用户未明确指定过滤器，默认为 'subscription'，解决用户反馈的“查订阅却带出代金券”问题。
-      if (!param['recordTypeFilter'] && !param['record_type_filter']) {
+      // 通过意图参数智能推断 recordTypeFilter
+      let queryTypeStr = ((param['queryType'] as string) || "").toLowerCase();
+      let timeRangeStr = ((param['timeRange'] as string) || "").toLowerCase();
+      let combinedParam = queryTypeStr + " " + timeRangeStr;
+      
+      let inferredType = '';
+      if (combinedParam.includes('保修') || combinedParam.includes('保质期') || combinedParam.includes('延保') || combinedParam.includes('warranty')) {
+        inferredType = 'warranty';
+      } else if (combinedParam.includes('团购') || combinedParam.includes('券') || combinedParam.includes('次卡') || combinedParam.includes('voucher') || combinedParam.includes('groupbuy')) {
+        inferredType = 'groupBuy';
+      }
+
+      if (inferredType) {
+        param['recordTypeFilter'] = inferredType;
+      } else if (!param['recordTypeFilter'] && !param['record_type_filter']) {
+        // 若用户未明确指定且无法推断，默认为 'subscription'，解决用户反馈的“查订阅却带出代金券”问题。
         param['recordTypeFilter'] = 'subscription';
       }
       this.handleQueryRecord(param);
@@ -111,6 +128,15 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
 
     switch (name) {
       case Constants.INTENT_ADD_RECORD:
+        return this.handleAddRecord(param);
+      case Constants.INTENT_ADD_SUBSCRIPTION:
+        param['recordType'] = 'subscription';
+        return this.handleAddRecord(param);
+      case Constants.INTENT_ADD_VOUCHER:
+        param['recordType'] = 'groupBuy';
+        return this.handleAddRecord(param);
+      case Constants.INTENT_ADD_WARRANTY:
+        param['recordType'] = 'warranty';
         return this.handleAddRecord(param);
       default:
         hilog.warn(0xFEED, TAG, `Unknown background intent: ${name}`);
@@ -187,11 +213,27 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
   private async handleQueryRecord(param: Record<string, Object>): Promise<insightIntent.ExecuteResult> {
     try {
       hilog.info(0xFEED, TAG, `[QueryRecord] Executing query logic. Param: ${JSON.stringify(param)}`);
-      const recordTypeFilter = (param['recordTypeFilter'] as string) || '';
+      let recordTypeFilter = (param['recordTypeFilter'] as string) || '';
       const allSubs = await SubscriptionRepository.getInstance().queryAll();
+
+      // 动态推断 recordTypeFilter
+      // 场景：用户说“查一下今年的保修”，小艺触发了 QueryRecord，但没传 recordTypeFilter，且 timeRange="this_year" 或 name="保修"
+      if (!recordTypeFilter) {
+         const timeRangeStr = (param['timeRange'] as string) || '';
+         const nameStr = (param['name'] as string) || '';
+         const rawQuery = JSON.stringify(param); // 作为 fallback，检查整个参数里有没有关键字
+         
+         if (nameStr.includes('保修') || nameStr.includes('保质期') || timeRangeStr.includes('保修') || rawQuery.includes('保修') || timeRangeStr.includes('险') || nameStr.includes('险')) {
+             recordTypeFilter = 'warranty';
+         } else if (nameStr.includes('团购') || nameStr.includes('券') || timeRangeStr.includes('券') || rawQuery.includes('团购')) {
+             recordTypeFilter = 'groupBuy';
+         }
+      }
 
       const queryType = (param['queryType'] as string) || (param['query_type'] as string) || 'expiration';
       const timeRange = (param['timeRange'] as string) || (param['time_range'] as string) || 'next_30_days';
+      const filterBrand = (param['brand'] as string)?.toLowerCase();
+      const filterName = (param['name'] as string)?.toLowerCase();
 
       const now = new Date();
       let startDate = 0;
@@ -248,6 +290,8 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       } else {
         const yearMatch = timeRange.match(/^\d{4}$/);
         const quarterMatch = timeRange.match(/^(\d{4})[-/][qQ]([1-4])$/);
+        // 新增：识别 "未来 X 天/月/年" 或 "过去 X 天/月/年" 等动态天数
+        const dynamicMatch = timeRange.match(/^(next|last|past|in|within)_(\d+)_?(days?|months?|years?|weeks?)$/i);
 
         if (yearMatch) {
           const y = parseInt(yearMatch[0]);
@@ -263,6 +307,38 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           endDate = new Date(y, qStartMonth + 3, 0, 23, 59, 59, 999).getTime();
           dateDescription = `${y}年${q}季度`;
           useRangeSummation = true;
+        } else if (dynamicMatch) {
+          const direction = dynamicMatch[1].toLowerCase();
+          const amount = parseInt(dynamicMatch[2]);
+          const unit = dynamicMatch[3].toLowerCase();
+
+          const isFuture = direction === 'next' || direction === 'in' || direction === 'within';
+          
+          let targetDate = new Date(now.getTime());
+          
+          if (unit.startsWith('day')) {
+            targetDate.setDate(targetDate.getDate() + (isFuture ? amount : -amount));
+            dateDescription = isFuture ? `未来 ${amount} 天` : `过去 ${amount} 天`;
+          } else if (unit.startsWith('week')) {
+            targetDate.setDate(targetDate.getDate() + (isFuture ? amount * 7 : -amount * 7));
+            dateDescription = isFuture ? `未来 ${amount} 周` : `过去 ${amount} 周`;
+          } else if (unit.startsWith('month')) {
+            targetDate.setMonth(targetDate.getMonth() + (isFuture ? amount : -amount));
+            dateDescription = isFuture ? `未来 ${amount} 个月` : `过去 ${amount} 个月`;
+          } else if (unit.startsWith('year')) {
+            targetDate.setFullYear(targetDate.getFullYear() + (isFuture ? amount : -amount));
+            dateDescription = isFuture ? `未来 ${amount} 年` : `过去 ${amount} 年`;
+          }
+
+          if (isFuture) {
+            startDate = now.getTime();
+            endDate = targetDate.getTime();
+          } else {
+            startDate = targetDate.getTime();
+            endDate = now.getTime();
+          }
+          useRangeSummation = isExpenseQuery;
+
         } else {
           const specificDate = new Date(timeRange);
           if (!isNaN(specificDate.getTime())) {
@@ -286,6 +362,21 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         // 增加类型过滤逻辑
         if (recordTypeFilter && s.recordType !== recordTypeFilter) {
           return false;
+        }
+
+        // 新增：名称/品牌精确过滤 (主要针对保修和券)
+        if (filterBrand || (filterName && filterName !== '保修' && filterName !== '团购券' && !filterName.includes('保质期'))) {
+           let matched = false;
+           const sName = s.name.toLowerCase();
+           const sBrand = s.brand?.toLowerCase() || '';
+           
+           if (filterBrand && (sBrand.includes(filterBrand) || sName.includes(filterBrand))) {
+               matched = true;
+           } else if (filterName && (sName.includes(filterName) || sBrand.includes(filterName))) {
+               matched = true;
+           }
+
+           if (!matched) return false;
         }
 
         if (useRangeSummation) {
@@ -554,19 +645,8 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         cycle = 'Indefinite';
       }
 
-      // 提取提醒天数 (默认为1天)
-      let reminderDaysBefore = 1;
-      if (param['reminderDaysBefore'] !== undefined) {
-        reminderDaysBefore = parseInt(param['reminderDaysBefore'] as string);
-      } else if (param['reminder'] !== undefined) {
-        // 兼容口语化参数名
-        const reminderStr = param['reminder'] as string;
-        const match = reminderStr.match(/(\d+)/);
-        if (match) {
-          reminderDaysBefore = parseInt(match[1]);
-        }
-      }
-
+      // 提取提醒天数 (默认为1天) - 已移到下方
+      
       // 自动尝试匹配图标
       let iconPath = '';
       try {
@@ -618,6 +698,72 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         }
       }
 
+      // ==== 提醒相关字段 ====
+      let isReminderEnabled = false; // 默认不开启
+      let reminderDaysBefore = 1;
+
+      // 1. 判断是否开启提醒 (如果用户明确说了"需要提醒", "提个醒"之类，或者指定了提醒天数)
+      const needReminderStr = (param['isReminderEnabled'] as string);
+      if (needReminderStr === 'true' || needReminderStr === '1' || param['reminderDaysBefore'] !== undefined || param['reminder'] !== undefined) {
+        isReminderEnabled = true;
+      }
+      
+      // 2. 提取提醒天数
+      if (param['reminderDaysBefore'] !== undefined) {
+        reminderDaysBefore = parseInt(param['reminderDaysBefore'] as string);
+      } else if (param['reminder'] !== undefined) {
+        const reminderStr = param['reminder'] as string;
+        const match = reminderStr.match(/(\d+)/);
+        if (match) {
+          reminderDaysBefore = parseInt(match[1]);
+        }
+      }
+
+      // 3. 提前提醒时间 (HH:mm)
+      let reminderTime = '09:00'; // 默认 09:00
+      if (param['reminderTime'] !== undefined) {
+        reminderTime = param['reminderTime'] as string;
+      }
+
+      // 提取分类
+      const subCategory = param['subCategory'] as string;
+
+      // 提取团购专属字段
+      const couponCode = param['couponCode'] as string;
+      const merchantName = param['merchantName'] as string;
+      const usageTime = param['usageTime'] as string;
+      let quantity = 1;
+      if (param['quantity'] !== undefined) {
+        quantity = parseInt(param['quantity'] as string);
+        if (isNaN(quantity) || quantity <= 0) {
+           quantity = 1;
+        }
+      }
+
+      // 智能推断业务类型 (recordType)
+      let recordType: 'subscription' | 'groupBuy' | 'warranty' = 'subscription';
+      const recordTypeParam = param['recordType'] as string;
+      const platformParam = param['platform'] as string;
+      const brandParam = param['brand'] as string;
+
+      if (recordTypeParam === 'group_buy' || recordTypeParam === 'groupbuy' || recordTypeParam === 'groupBuy') {
+        recordType = 'groupBuy';
+      } else if (recordTypeParam === 'warranty') {
+        recordType = 'warranty';
+        cycle = 'Lifetime';
+      } else {
+        const nameLower = name.toLowerCase();
+        if (nameLower.includes('保修') || nameLower.includes('延保') || nameLower.includes('碎屏险') || nameLower.includes('保质期') || nameLower.includes('售后') || nameLower.includes('care')) {
+          recordType = 'warranty';
+          cycle = 'Lifetime'; // 保修通常是一次性的属性
+        } else if (nameLower.includes('券') || nameLower.includes('团购') || nameLower.includes('次卡') || nameLower.includes('体验') || nameLower.includes('美团') || nameLower.includes('瑞幸') || nameLower.includes('星巴克') || nameLower.includes('大众点评')) {
+          recordType = 'groupBuy';
+        }
+      }
+
+      // 自动修正自动续费选项 (团购券和保修一般非自动续费)
+      const isAutoRenewal = recordType === 'subscription' && (cycle === 'Monthly' || cycle === 'Quarterly' || cycle === 'Yearly');
+
       // 智能推算到期日：如果用户未提供到期日，但提供了开始日期或使用了默认开始日期(今)，
       // 且周期为 Monthly/Yearly/Quarterly，则自动往后推算。
       if (!expireDateStr && cycle !== 'Lifetime' && cycle !== 'Indefinite') {
@@ -643,16 +789,36 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         startDate: startDate,
         currency: 'CNY',
         icon: iconPath,
+        recordType: recordType,
+        platform: (platformParam as 'meituan' | 'douyin' | 'dianping') || undefined,
+        brand: brandParam || undefined,
+        subCategory: subCategory || undefined,
         lastModified: new Date().getTime(),
         isDeleted: false,
-        isAutoRenewal: true,
-        reminderDaysBefore: reminderDaysBefore,
-        reminderTime: "09:00"
+        isAutoRenewal: isAutoRenewal,
+        reminderDaysBefore: isReminderEnabled ? reminderDaysBefore : 1, // 如果开启才保存
+        reminderTime: reminderTime,
+        couponCode: couponCode || undefined,
+        merchantName: merchantName || undefined,
+        usageTime: usageTime || undefined,
+        quantity: recordType === 'groupBuy' ? quantity : undefined,
+        usageStatus: recordType === 'groupBuy' ? 'unused' : undefined
       };
+
+      // 只有用户明确要求才开启通知
+      if (!isReminderEnabled) {
+          newSub.reminderDaysBefore = undefined;
+          newSub.reminderTime = undefined;
+      }
 
       await SubscriptionRepository.getInstance().insert(newSub);
 
-      const resultText = `已为您添加${cycle === 'Yearly' ? '年付' : '订阅'}：${name}，金额 ¥${price}。将在到期前 ${reminderDaysBefore} 天提醒您。`;
+      let recordTypeName = '订阅';
+      if (recordType === 'groupBuy') recordTypeName = '团购券';
+      if (recordType === 'warranty') recordTypeName = '保修记录';
+      if (recordType === 'subscription' && cycle === 'Yearly') recordTypeName = '年付订阅';
+
+      const resultText = `已为您添加${recordTypeName}：${name}，金额 ¥${price}。将在到期前 ${reminderDaysBefore} 天提醒您。`;
 
       const resultData: Record<string, Object> = {
         'resultText': resultText

@@ -22,6 +22,7 @@ class CardItemData {
   price: string = '';
   fullDate: string = '';
   isGroupBuy: boolean = false;
+  isWarranty: boolean = false;
   originalItem: string = '';
 }
 
@@ -248,7 +249,7 @@ export default class EntryFormAbility extends FormExtensionAbility {
                   const days = isLifetime ? 999 : DateUtil.getDaysUntil(item.nextBillingDate);
                   const dateStr = DateUtil.formatShortDate(item.nextBillingDate);
 
-                const isWarranty = item.recordType === 'warranty' || !!item.brand || !!item.purchaseChannel;
+                const isWarranty = item.recordType === 'warranty';
                 const obj = new CardItemData();
                 obj.title = item.name || (isWarranty ? '未知保修' : '未知订阅');
 
@@ -256,10 +257,10 @@ export default class EntryFormAbility extends FormExtensionAbility {
                   const statusText: string = item.usageStatus === 'used' ? '已使用' : (item.usageStatus === 'expired' ? '已过期' : `剩 ${DateUtil.getDaysUntil(item.nextBillingDate)} 天`);
                   obj.content = item.merchantName ? `${item.merchantName} | ${statusText}` : statusText;
                 } else if (isWarranty) {
-                  // 保修卡片显示“保修到期”
+                  // 保修卡片无论是否为 Lifetime，只要 recordType 是 warranty 就显示保修到期
                   obj.content = `保修:${dateStr}`;
                 } else {
-                  obj.content = isLifetime ? `购买:${dateStr}` : `到期:${dateStr}`;
+                  obj.content = isLifetime ? `永久买断` : `到期:${dateStr}`;
                 }
 
                 obj.icon = iconKey;
@@ -271,6 +272,7 @@ export default class EntryFormAbility extends FormExtensionAbility {
                 }
                 obj.isLifetime = isLifetime;
                 obj.isGroupBuy = isGroupBuy;
+                obj.isWarranty = isWarranty;
 
                 let priceStr = `${item.currency === 'USD' ? '$' : '¥'}${item.price}`;
                 if (!isGroupBuy && !isWarranty) {
@@ -280,10 +282,8 @@ export default class EntryFormAbility extends FormExtensionAbility {
                   else if (item.billingCycle === 'Lifetime') priceStr += '/永久';
                   else if (item.billingCycle === 'Indefinite') priceStr += '/不定';
                 } else if (isWarranty) {
-                  // 保修显示购买渠道或品牌
-                  if (item.purchaseChannel) priceStr = item.purchaseChannel;
-                  else if (item.brand) priceStr = item.brand;
-                  else priceStr = '保修';
+                  // 保修不显示价格周期，显示“保修”字样
+                  priceStr = '保修';
                 }
                 obj.price = priceStr;
                    

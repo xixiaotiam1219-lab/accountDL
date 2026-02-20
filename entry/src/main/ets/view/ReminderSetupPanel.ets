@@ -42,6 +42,7 @@ export struct ReminderSetupPanel {
   @State removeLight: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
 
   @StorageLink('topRectHeight') topRectHeight: number = 0;
+  private reminderDaysOptions: string[] = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30'];
 
   aboutToAppear() {
     this.refreshData();
@@ -162,14 +163,31 @@ export struct ReminderSetupPanel {
                   .width('100%')
                   .margin({ bottom: 12 })
 
-                Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-                  this.DayOption(1, '提前1天')
-                  this.DayOption(2, '提前2天')
-                  this.DayOption(3, '提前3天')
-                  this.DayOption(5, '提前5天')
-                  this.DayOption(7, '提前7天')
+                Row() {
+                  Text(`提前 ${this.selectedDays} 天`)
+                    .fontSize(15)
+                    .fontColor(this.getThemeColor())
+                    .fontWeight(FontWeight.Medium)
+                  Blank()
+                  SymbolGlyph($r('sys.symbol.chevron_right'))
+                    .fontSize(18)
+                    .fontColor([$r('app.color.text_hint')])
                 }
+                .width('100%')
+                .height(48)
+                .padding({ left: 16, right: 12 })
+                .backgroundColor($r('app.color.tag_bg'))
+                .borderRadius(14)
                 .margin({ bottom: 16 })
+                .onClick(() => {
+                  TextPickerDialog.show({
+                    range: this.reminderDaysOptions,
+                    selected: this.reminderDaysOptions.indexOf(this.selectedDays.toString()),
+                    onAccept: (value: TextPickerResult) => {
+                      this.selectedDays = parseInt(value.value as string);
+                    }
+                  })
+                })
 
                 // Time Selection Section
                 Text('提醒时间')
@@ -382,14 +400,31 @@ export struct ReminderSetupPanel {
                   .width('100%')
                   .margin({ bottom: 12 })
 
-                Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-                  this.DayOption(1, '提前1天')
-                  this.DayOption(2, '提前2天')
-                  this.DayOption(3, '提前3天')
-                  this.DayOption(5, '提前5天')
-                  this.DayOption(7, '提前7天')
+                Row() {
+                  Text(`提前 ${this.selectedDays} 天`)
+                    .fontSize(15)
+                    .fontColor(this.getThemeColor())
+                    .fontWeight(FontWeight.Medium)
+                  Blank()
+                  SymbolGlyph($r('sys.symbol.chevron_right'))
+                    .fontSize(18)
+                    .fontColor([$r('app.color.text_hint')])
                 }
+                .width('100%')
+                .height(48)
+                .padding({ left: 16, right: 12 })
+                .backgroundColor($r('app.color.tag_bg'))
+                .borderRadius(14)
                 .margin({ bottom: 16 })
+                .onClick(() => {
+                  TextPickerDialog.show({
+                    range: this.reminderDaysOptions,
+                    selected: this.reminderDaysOptions.indexOf(this.selectedDays.toString()),
+                    onAccept: (value: TextPickerResult) => {
+                      this.selectedDays = parseInt(value.value as string);
+                    }
+                  })
+                })
 
                 // Time Selection Section
                 Text('提醒时间')
@@ -727,47 +762,4 @@ export struct ReminderSetupPanel {
     }
   }
 
-  @Builder DayOption(days: number, label: string) {
-    Text(label)
-      .fontSize(14)
-      .fontWeight(this.selectedDays === days ? FontWeight.Medium : FontWeight.Normal)
-      .fontColor(this.selectedDays === days ? this.getThemeTextColor() : $r('app.color.text_primary'))
-      .linearGradient(this.selectedDays === days ? (this.isNewYearTheme ? {
-            angle: 135,
-            colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
-          } : (this.showVipTheme ? {
-            angle: 135,
-            colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
-          } : {
-            angle: 0,
-            colors: [[$r('app.color.brand_color'), 0.0], [$r('app.color.brand_color'), 1.0]]
-          })) : {
-             angle: 0,
-             colors: [['rgba(0,0,0,0)', 0.0], ['rgba(0,0,0,0)', 1.0]]
-          })
-      .backgroundColor(this.selectedDays === days ? Color.Transparent : $r('app.color.tag_bg')) 
-      .padding({ left: 16, right: 16, top: 10, bottom: 10 })
-      .borderRadius(14)
-      .margin({ right: 10, bottom: 10 })
-      .visualEffect(new hdsEffect.HdsEffectBuilder()
-        .pointLight({
-            sourceType: this.pressedDay === days ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
-            illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-        })
-        .buildEffect())
-      .scale({ x: this.pressedDay === days ? 0.9 : 1, y: this.pressedDay === days ? 0.9 : 1 })
-      .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
-      .onTouch((event: TouchEvent) => {
-          if (event.type === TouchType.Down) {
-             if (this.isAnimationEnabled && this.isPointLightEnabled) { 
-                  this.pressedDay = days;
-             }
-          } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-            this.pressedDay = -1;
-          }
-      })
-      .onClick(() => {
-        this.selectedDays = days;
-      })
-  }
 }

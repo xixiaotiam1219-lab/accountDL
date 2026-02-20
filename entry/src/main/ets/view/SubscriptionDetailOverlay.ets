@@ -82,6 +82,7 @@ export struct SubscriptionDetailOverlay {
       case 'Indefinite':
         return '不定';
       default:
+        if (this.data.recordType === 'warranty') return '保修';
         return '';
     }
   }
@@ -140,7 +141,8 @@ export struct SubscriptionDetailOverlay {
                 name: this.data.recordType === 'groupBuy' ? (this.data.merchantName || this.data.name) : this.data.name,
                 iconSize: 72,
                 iconRadius: 20,
-                showGroupBadge: this.data.recordType === 'groupBuy'
+                showGroupBadge: this.data.recordType === 'groupBuy',
+                showWarrantyBadge: this.data.recordType === 'warranty'
               })
                 .margin({ right: 16 })
 
@@ -340,12 +342,12 @@ export struct SubscriptionDetailOverlay {
                       .fontSize(14)
                       .fontColor($r('app.color.text_secondary'))
                     Blank()
-                    Text(DateUtil.getDaysUntil(this.data.nextBillingDate) <= 0 ? '已过保修期' :
-                      `${DateUtil.getDaysUntil(this.data.nextBillingDate)} 天`)
+                    Text(DateUtil.getDaysUntil(this.data.nextBillingDate) < 0 ? '已过保修期' :
+                      `${DateUtil.getDaysUntil(this.data.nextBillingDate) + 1} 天`)
                       .fontSize(16)
                       .fontWeight(FontWeight.Medium)
-                      .fontColor(DateUtil.getDaysUntil(this.data.nextBillingDate) <= 0 ? '#F44336' :
-                        (DateUtil.getDaysUntil(this.data.nextBillingDate) <= 30
+                      .fontColor(DateUtil.getDaysUntil(this.data.nextBillingDate) < 0 ? '#F44336' :
+                        (DateUtil.getDaysUntil(this.data.nextBillingDate) < 30
                           ? (this.isNewYearTheme ? $r('app.color.sub_card_ny_text') :
                             (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.warning_color')))
                           : $r('app.color.text_primary')))
@@ -430,7 +432,7 @@ export struct SubscriptionDetailOverlay {
                 }
 
                 // 支付方式
-                if (this.data.paymentMethod) {
+                if (this.data.paymentMethod && this.data.recordType !== 'warranty') {
                   Row() {
                     Text('支付方式')
                       .fontSize(14)
