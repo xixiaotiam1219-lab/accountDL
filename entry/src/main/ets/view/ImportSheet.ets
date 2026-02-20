@@ -3,12 +3,16 @@ import { CustomIconItem } from '../utils/HarmonyShareManager';
 import { DateUtil } from '../utils/DateUtil';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
 import { SubscriptionIcon } from './SubscriptionIcon';
-import { hdsEffect } from '@kit.UIDesignKit';
+import { hdsEffect, hdsMaterial, HdsNavigation, HdsNavigationTitleMode, ScrollEffectType } from '@kit.UIDesignKit';
+import { curves, LengthMetrics } from '@kit.ArkUI';
 import { LocalIconManager } from '../utils/LocalIconManager';
 import { util, buffer } from '@kit.ArkTS';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { deviceInfo } from '@kit.BasicServicesKit';
+
+const TITLE_BAR_HEIGHT_MINI: number = 76;
 
 @Observed
 export class ImportItem {
@@ -210,6 +214,7 @@ struct ImportSheetItem {
 export struct ImportSheet {
   @Link isShow: boolean;
   @Link @Watch('onDataChange') importData: SubscriptionModel[];
+  private navStack: NavPathStack = new NavPathStack();
   onImport: () => void = (): void => {};
   onCancel: () => void = (): void => {};
   @State items: ImportItem[] = [];
@@ -222,6 +227,7 @@ export struct ImportSheet {
   @StorageLink('isPointLightEnabled') isPointLightEnabled: boolean = true;
   @State pressedIndex: number = -1;
   @StorageLink('importFileContent') importFileContent: string = ''; // 确保注入此属性以便恢复图标库
+  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
 
   async onDataChange(): Promise<void> {
     // 只有在数据真正为空或第一次加载时才显示全屏Loading，减少切换闪烁
@@ -389,36 +395,7 @@ export struct ImportSheet {
   }
 
   build() {
-    Column() {
-      // Header
-      Row() {
-        Column() {
-          Text('导入订阅数据')
-            .fontSize(24)
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.text_primary'))
-
-          Text(this.isLoading ? '正在分析数据...' : `共检测到 ${this.items.length} 条数据`)
-            .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
-            .margin({ top: 4 })
-        }
-        .alignItems(HorizontalAlign.Start)
-
-        Blank()
-
-        Button('取消')
-          .fontSize(14)
-          .fontColor($r('app.color.text_secondary'))
-          .backgroundColor(Color.Transparent)
-          .onClick(() => {
-            this.isShow = false;
-            this.onCancel();
-          })
-      }
-      .width('100%')
-      .padding({ top: 24, bottom: 20, left: 16, right: 16 })
-
+    HdsNavigation(this.navStack) {
       if (this.isLoading) {
         Column() {
           Stack() {
@@ -429,7 +406,7 @@ export struct ImportSheet {
           }
         }
         .width('100%')
-        .layoutWeight(1)
+        .height('100%')
         .justifyContent(FlexAlign.Center)
       } else {
         List() {
@@ -488,47 +465,83 @@ export struct ImportSheet {
         }
         .width('100%')
         .layoutWeight(1)
-        .padding({ left: 16, right: 16 })
+        .padding({ left: 16, right: 16, top: TITLE_BAR_HEIGHT_MINI, bottom: 80 }) 
         .edgeEffect(EdgeEffect.Spring)
-      }
+        .scrollBar(BarState.Off)
 
-      // Footer Actions
-      Column() {
-        Button(`导入 (${this.items.filter((i: ImportItem) => i.isSelected).length})`)
-          .width('100%')
-          .height(48)
-          .linearGradient(this.isNewYearTheme ? {
-            angle: 135,
-            colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
-          } : (this.showVipTheme ? {
-            angle: 135,
-            colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
-          } : {
-            angle: 135,
-            colors: [[$r('app.color.brand_gradient_start'), 0.0], [$r('app.color.brand_gradient_end'), 1.0]]
-          }))
-          .fontColor(this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White))
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .borderRadius(24)
-          .shadow({
-            radius: 20,
-            color: this.isNewYearTheme ? '#40FF2400' : (this.showVipTheme ? '#40E6C07B' : '#40007AFF'),
-            offsetY: 8
-          })
-          .enabled(this.items.some((i: ImportItem) => i.isSelected))
-          .opacity(this.items.some((i: ImportItem) => i.isSelected) ? 1 : 0.5)
-          .onClick(() => {
-            this.handleImport();
-          })
+        // Footer Actions
+        Column() {
+          Button(`导入 (${this.items.filter((i: ImportItem) => i.isSelected).length})`)
+            .width('100%')
+            .height(48)
+            .linearGradient({
+              angle: 135,
+              colors: [
+                [this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold_start') : $r('app.color.brand_gradient_start')), 0.0],
+                [this.isNewYearTheme ? $r('app.color.new_year_red_end') : (this.showVipTheme ? $r('app.color.vip_gold_end') : $r('app.color.brand_gradient_end')), 1.0]
+              ]
+            })
+            .fontColor(this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White))
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .borderRadius(24)
+            .shadow({
+              radius: 20,
+              color: this.isNewYearTheme ? '#40FF2400' : (this.showVipTheme ? '#40E6C07B' : '#40007AFF'),
+              offsetY: 8
+            })
+            .enabled(this.items.some((i: ImportItem) => i.isSelected))
+            .opacity(this.items.some((i: ImportItem) => i.isSelected) ? 1 : 0.5)
+            .onClick(() => {
+              this.handleImport();
+            })
+        }
+        .padding(16)
+        .width('100%')
+        .backgroundColor(Color.Transparent)
+        .position({ x: 0, y: '100%' })
+        .translate({ y: -80 }) // Floating footer to allow content scroll behind
       }
-      .padding(16)
-      .width('100%')
-      .backgroundColor(Color.Transparent)
     }
+    .backgroundColor($r('app.color.page_background'))
+    .titleBar({
+      content: {
+        title: { 
+          mainTitle: '导入订阅数据',
+          subTitle: this.isLoading ? '正在分析数据...' : `共检测到 ${this.items.length} 条数据`
+        },
+        menu: {
+          value: [
+            {
+              content: {
+                icon: $r('sys.symbol.xmark'),
+                action: () => {
+                  this.isShow = false;
+                  this.onCancel();
+                }
+              }
+            }
+          ]
+        }
+      },
+      style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.IMMERSIVE,
+          materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+        },
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+          blurEffectiveStartOffset: LengthMetrics.vp(0),
+          blurEffectiveEndOffset: LengthMetrics.vp(20)
+        }
+      } : undefined
+    })
+    .titleMode(HdsNavigationTitleMode.MODAL)
+    .mode(NavigationMode.Stack)
+    .hideBackButton(true)
     .width('100%')
     .height('100%')
-    .backgroundColor($r('app.color.page_background'))
   }
 
   async handleImport(): Promise<void> {

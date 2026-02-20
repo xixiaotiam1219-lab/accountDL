@@ -95,7 +95,17 @@ export class AccountMonitor {
     await PreferenceUtil.getInstance().saveAppLockFingerprint(false);
     AppStorage.setOrCreate('hasAppLock', false);
     
-    // 清理本地数据库并广播登出事件
+    // 1. 在清理数据库前，先获取所有订阅并取消系统提醒
+    try {
+      const subs = await SubscriptionRepository.getInstance().queryAll();
+      const notificationManagerModule = await import('../manager/LocalNotificationManager');
+      const LocalNotificationManager = notificationManagerModule.LocalNotificationManager;
+      await LocalNotificationManager.getInstance().cancelAllReminders(subs);
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, `Failed to cancel reminders during logout: ${JSON.stringify(e)}`);
+    }
+
+    // 2. 清理本地数据库并广播登出事件
     SubscriptionRepository.getInstance().clearAllData().then(() => {
        hilog.info(DOMAIN, TAG, 'Local data cleared and broadcasting EVENT_LOGOUT');
        GlobalBus.publish(EVENT_LOGOUT);

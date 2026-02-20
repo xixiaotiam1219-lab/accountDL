@@ -306,9 +306,11 @@ export default class EntryAbility extends UIAbility {
         content: string = '';
         icon: string = '';
         isExpiring: boolean = false;
+        isLifetime: boolean = false;
         price: string = '';
         fullDate: string = '';
         isGroupBuy: boolean = false;
+        isWarranty: boolean = false;
         originalItem: string = '';
       }
 
@@ -445,25 +447,40 @@ export default class EntryAbility extends UIAbility {
           const dateStr = DateUtil.formatShortDate(item.nextBillingDate);
 
           const isGroupBuy = item.recordType === 'groupBuy';
+          const isWarranty = item.recordType === 'warranty';
           cardItem.isGroupBuy = isGroupBuy;
-          cardItem.isExpiring = !isLifetime && !isGroupBuy && days <= 3;
+          cardItem.isWarranty = isWarranty;
+          cardItem.isLifetime = isLifetime;
 
           if (isGroupBuy) {
             const statusText: string = item.usageStatus === 'used' ? '已使用' : (item.usageStatus === 'expired' ? '已过期' : `剩 ${DateUtil.getDaysUntil(item.nextBillingDate)} 天`);
             cardItem.content = item.merchantName ? `${item.merchantName} | ${statusText}` : statusText;
+          } else if (isWarranty) {
+            const days = DateUtil.getDaysUntil(item.nextBillingDate);
+            const statusStr = days < 0 ? '过保' : '在保';
+            cardItem.content = `${statusStr}:${dateStr}`;
           } else {
-            cardItem.content = isLifetime ? `购买:${dateStr}` : `到期:${dateStr}`;
+            cardItem.content = isLifetime ? `永久买断` : `到期:${dateStr}`;
+          }
+
+          // 普通订阅和保修在剩余3天内标红；团购券如果是未使用且剩余3天内也标红
+          if (isGroupBuy) {
+            cardItem.isExpiring = item.usageStatus === 'unused' && days <= 3;
+          } else {
+            cardItem.isExpiring = days <= 3;
           }
 
           cardItem.icon = iconKey;
 
           let priceStr = `${item.currency === 'USD' ? '$' : '¥'}${item.price}`;
-          if (!isGroupBuy) {
+          if (!isGroupBuy && !isWarranty) {
             if (item.billingCycle === 'Monthly') priceStr += '/月';
             else if (item.billingCycle === 'Yearly') priceStr += '/年';
             else if (item.billingCycle === 'Quarterly') priceStr += '/季';
             else if (item.billingCycle === 'Lifetime') priceStr += '/永久';
             else if (item.billingCycle === 'Indefinite') priceStr += '/不定';
+          } else if (isWarranty) {
+            priceStr = '保修';
           }
           cardItem.price = priceStr;
           return cardItem;

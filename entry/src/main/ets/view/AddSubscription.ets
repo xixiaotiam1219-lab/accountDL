@@ -2376,10 +2376,6 @@ export struct AddSubscription {
                       },
                       onDateAccept: (value: Date) => {
                         this.nextBillingDate = value;
-                        // 购买日期默认为到期日前推一年
-                        const purchaseDate = new Date(value);
-                        purchaseDate.setFullYear(purchaseDate.getFullYear() - 1);
-                        this.startDate = purchaseDate;
                       }
                     });
                   })
@@ -3987,7 +3983,7 @@ export struct AddSubscription {
   }
   build() {
 
-    if (deviceInfo.distributionOSApiVersion >= 60100&& this.isHdsTabsEnabled) {
+
       HdsNavDestination() {
           this.addBuilder()
       }
@@ -4012,7 +4008,7 @@ export struct AddSubscription {
             ]
           }
         },
-        style: {
+        style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
           systemMaterialEffect: {
             materialType: hdsMaterial.MaterialType.IMMERSIVE,
             materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
@@ -4023,7 +4019,7 @@ export struct AddSubscription {
             blurEffectiveStartOffset: LengthMetrics.vp(0),
             blurEffectiveEndOffset: LengthMetrics.vp(20)
           }
-        }
+        } : undefined
       })
       .backgroundColor($r('app.color.page_background'))
       .onReady((context: NavDestinationContext) => {
@@ -4149,157 +4145,8 @@ export struct AddSubscription {
         // 只有在检测到截图并正在处理时才自动关闭，如果只是切换回来什么都没做，保留闪控球
       })
 
-    }
-    else {
-      HdsNavDestination() {
-        this.addBuilder()
-      }
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: {
-            mainTitle: this.editId !== -1 ? (this.recordType === 'groupBuy' ? "编辑团购" : "编辑服务") :
-              (this.recordType === 'groupBuy' ? "添加团购" : "添加服务")
-          },
-          menu: {
-            value: [
-              {
-                content: {
-                  icon: $r('sys.symbol.questionmark_circle'),
-                  isEnabled: true,
-                  action: () => {
-                    this.showExampleSheet = true;
-                  }
-                }
-              }
-            ]
-          }
-        },
-      })
-      .backgroundColor($r('app.color.page_background'))
-      .onReady((context: NavDestinationContext) => {
-        const rawParams = context.pathInfo.param as Record<string, Object>;
-        if (rawParams && rawParams['initialType']) {
-          this.recordType = rawParams['initialType'] as 'subscription' | 'groupBuy' | 'warranty';
 
-          // 来自市场的预填充数据
-          if (rawParams['marketplaceName']) {
-            this.name = rawParams['marketplaceName'] as string;
-            this.skipNextSearch = true; // 防止触发搜索覆盖
-          }
-          if (rawParams['marketplaceIcon']) {
-            this.icon = rawParams['marketplaceIcon'] as string;
-          }
-          if (rawParams['marketplaceCategory']) {
-            this.category = rawParams['marketplaceCategory'] as string;
-          }
-          if (rawParams['marketplaceSubCategory']) {
-            this.subCategory = rawParams['marketplaceSubCategory'] as string;
-          }
-          if (rawParams['marketplaceCycle']) {
-            this.billingCycle =
-              rawParams['marketplaceCycle'] as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite';
-          }
-          // 显示预览卡片（与 OCR 识别共用同一标志位）
-          if (rawParams['marketplaceName']) {
-            this.showOCRResult = true;
-          }
-          return;
-        }
 
-        const params = context.pathInfo.param as SubscriptionModel;
-        if (params && (params.id || params.uuid)) {
-          // 防止初始化时的名称设置触发 onChange 导致图标被重置
-          this.skipNextSearch = true;
-          this.editId = params.id || -1;
-          this.uuid = params.uuid;
-          this.name = params.name;
-          this.price = params.price.toString();
-          this.currency = params.currency;
-          this.billingCycle = params.billingCycle;
-          this.nextBillingDate = new Date(params.nextBillingDate);
-          if (params.startDate) {
-            this.startDate = new Date(params.startDate);
-          }
-          this.isAutoRenewal = params.isAutoRenewal !== undefined ? params.isAutoRenewal : true;
-          this.icon = params.icon || '';
-
-          // 加载提醒设置
-          if (params.reminderDaysBefore !== undefined) {
-            this.isReminderEnabled = true;
-            this.isReminderExpanded = true;
-            this.reminderOpacity = 1;
-            this.reminderDaysBefore = params.reminderDaysBefore;
-            this.reminderTime = params.reminderTime || '09:00';
-          }
-
-          this.category = params.category || '其他';
-          this.subCategory = params.subCategory || '';
-          this.paymentMethod = params.paymentMethod || '其他支付方式';
-
-          // 加载团购券特有字段
-          this.recordType = params.recordType || 'subscription';
-          if (this.recordType === 'groupBuy') {
-            this.platform = params.platform || 'meituan';
-            this.couponCode = params.couponCode || '';
-            this.usageStatus = params.usageStatus || 'unused';
-            this.merchantName = params.merchantName || '';
-            this.quantity = params.quantity || 1;
-            this.couponImage = params.couponImage || '';
-            this.usageTime = params.usageTime || '';
-            this.realUsageTime = params.realUsageTime;
-          } else if (this.recordType === 'warranty') {
-            // 加载保修/保质期专属字段
-            this.brand = params.brand || '';
-            this.purchaseChannel = params.purchaseChannel || '';
-          }
-
-          // 自动修正旧数据的分类
-          if (this.category === '其他' && this.name && this.recordType === 'subscription') {
-            const matched = matchMemberService(this.name);
-            if (matched?.category) {
-              this.category = matched.category;
-            }
-          }
-
-          if (this.recordType === 'subscription') {
-            // 加载可用的会员等级选项
-            const service = matchMemberService(this.name);
-            if (service && service.validSubCategories) {
-              this.availableSubCategories = service.validSubCategories;
-            }
-          }
-
-          // 显示信息卡片
-          this.showOCRResult = true;
-          this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
-          // 注意：编辑模式下我们没有 ocrMonthlyPrice/ocrYearlyPrice 的原始数据，
-          // 如果需要显示价格，可以用 params.price 填充其中一个，或者留空只显示名称和日期
-          if (this.recordType === 'subscription') {
-            if (this.billingCycle === 'Monthly') {
-              this.ocrMonthlyPrice = this.price;
-            } else if (this.billingCycle === 'Quarterly') {
-              this.ocrQuarterlyPrice = this.price;
-            } else if (this.billingCycle === 'Yearly') {
-              this.ocrYearlyPrice = this.price;
-            } else if (this.billingCycle === 'Lifetime') {
-              this.ocrLifetimePrice = this.price;
-            }
-          }
-        }
-      })
-      .onBackPressed(() => {
-        this.pageStack.pop();
-        return true;
-      })
-      .onShown(async () => {
-        // 页面显示时（包括从配置页返回），重新检查 API Key 状态，确保及时隐藏提示文字
-        this.hasApiKey = !!(await PreferenceUtil.getInstance().getAIKey());
-
-        // 页面显示时，如果处于截图模式，说明用户手动切换回应用了
-        // 只有在检测到截图并正在处理时才自动关闭，如果只是切换回来什么都没做，保留闪控球
-      })
-    }
 
   }
 

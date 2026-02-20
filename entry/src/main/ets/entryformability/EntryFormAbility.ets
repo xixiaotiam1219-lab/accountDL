@@ -257,8 +257,9 @@ export default class EntryFormAbility extends FormExtensionAbility {
                   const statusText: string = item.usageStatus === 'used' ? '已使用' : (item.usageStatus === 'expired' ? '已过期' : `剩 ${DateUtil.getDaysUntil(item.nextBillingDate)} 天`);
                   obj.content = item.merchantName ? `${item.merchantName} | ${statusText}` : statusText;
                 } else if (isWarranty) {
+                  const statusStr = days < 0 ? '过保' : '在保';
                   // 保修卡片无论是否为 Lifetime，只要 recordType 是 warranty 就显示保修到期
-                  obj.content = `保修:${dateStr}`;
+                  obj.content = `${statusStr}:${dateStr}`;
                 } else {
                   obj.content = isLifetime ? `永久买断` : `到期:${dateStr}`;
                 }
@@ -291,8 +292,10 @@ export default class EntryFormAbility extends FormExtensionAbility {
                     // --- 核心优化：只同步必要的最小化数据，避免触发桌面卡片 128KB 限制 ---
                     const minimalItem: MinimalCardItem = {
                       id: item.id || 0,
+                      uuid: item.uuid,
                       recordType: item.recordType || 'subscription',
                       usageStatus: item.usageStatus || 'unused',
+                      isWarranty: isWarranty,
                       name: item.name || ''
                     };
                     obj.originalItem = JSON.stringify(minimalItem);

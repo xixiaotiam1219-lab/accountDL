@@ -44,11 +44,6 @@
             "name": "SubscriptionMarketplace",
             "pageSourceFile": "src/main/ets/view/SubscriptionMarketplace.ets",
             "buildFunction": "SubscriptionMarketplaceBuilder"
-        },
-        {
-            "name": "AgentTestPage",
-            "pageSourceFile": "src/main/ets/view/AgentTestPage.ets",
-            "buildFunction": "AgentTestPageBuilder"
         }
     ]
 }

@@ -1580,7 +1580,7 @@ export struct SettingsView {
                 Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
               }
 
-              if (this.isHdsTabsSupported) {
+              if (deviceInfo.distributionOSApiVersion >= 60100) {
                 // 1.6.5 HDS Tabs (API 23 Features)
                 Row() {
                   Column() {
@@ -2150,47 +2150,31 @@ export struct SettingsView {
   }
 
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100 &&this.isHdsTabsEnabled == true) {
-      HdsNavDestination() {
-        this.SettingBuilder()
-      }
-      .hideBackButton(true)
-      .hideTitleBar(false)
-      .backgroundColor(Color.Transparent)
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: { mainTitle: '我的' },
-          menu: { value: [] }
-        },
-        style: {
-          systemMaterialEffect: {
-            materialType: hdsMaterial.MaterialType.IMMERSIVE,
-            materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-          },
-          scrollEffectOpts: {
-            enableScrollEffect: true,
-            scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-            blurEffectiveStartOffset: LengthMetrics.vp(0),
-            blurEffectiveEndOffset: LengthMetrics.vp(20)
-          }
-        }
-      })
-    } else {
-      HdsNavDestination() {
-        this.SettingBuilder()
-      }
-      .hideBackButton(true)
-      .hideTitleBar(false)
-      .backgroundColor(Color.Transparent)
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: { mainTitle: '我的' },
-          menu: { value: [] }
-        },
-      })
+    HdsNavDestination() {
+      this.SettingBuilder()
     }
+    .hideBackButton(true)
+    .hideTitleBar(false)
+    .backgroundColor(Color.Transparent)
+    .titleBar({
+      avoidLayoutSafeArea: true,
+      content: {
+        title: { mainTitle: '我的' },
+        menu: { value: [] }
+      },
+      style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.IMMERSIVE,
+          materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+        },
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+          blurEffectiveStartOffset: LengthMetrics.vp(0),
+          blurEffectiveEndOffset: LengthMetrics.vp(20)
+        }
+      } : undefined
+    })
   }
 
   @Builder

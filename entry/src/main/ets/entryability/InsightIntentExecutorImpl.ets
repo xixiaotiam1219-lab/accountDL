@@ -79,18 +79,22 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       let queryTypeStr = ((param['queryType'] as string) || "").toLowerCase();
       let timeRangeStr = ((param['timeRange'] as string) || "").toLowerCase();
       let combinedParam = queryTypeStr + " " + timeRangeStr;
-      
       let inferredType = '';
-      if (combinedParam.includes('保修') || combinedParam.includes('保质期') || combinedParam.includes('延保') || combinedParam.includes('warranty')) {
+      const nameStr = ((param['name'] as string) || "").toLowerCase();
+      const rawQuery = (combinedParam + " " + nameStr);
+
+      if (rawQuery.includes('保修') || rawQuery.includes('保质期') || rawQuery.includes('延保') || rawQuery.includes('售后') || rawQuery.includes('保险') || rawQuery.includes('warranty')) {
         inferredType = 'warranty';
-      } else if (combinedParam.includes('团购') || combinedParam.includes('券') || combinedParam.includes('次卡') || combinedParam.includes('voucher') || combinedParam.includes('groupbuy')) {
+      } else if (rawQuery.includes('团购') || rawQuery.includes('券') || rawQuery.includes('次卡') || rawQuery.includes('返利') || rawQuery.includes('礼品') || rawQuery.includes('voucher') || rawQuery.includes('groupbuy')) {
         inferredType = 'groupBuy';
       }
 
       if (inferredType) {
         param['recordTypeFilter'] = inferredType;
+        hilog.info(0xFEED, TAG, `[QueryRecord] Inferred recordTypeFilter: ${inferredType} from check: ${rawQuery}`);
       } else if (!param['recordTypeFilter'] && !param['record_type_filter']) {
-        // 若用户未明确指定且无法推断，默认为 'subscription'，解决用户反馈的“查订阅却带出代金券”问题。
+        // 兜底策略：只有当请求显然不是针对保修或代金券时，才默认为订阅。
+        // 如果用户只是问“明年的到期”，默认按订阅处理是合理的。
         param['recordTypeFilter'] = 'subscription';
       }
       this.handleQueryRecord(param);
@@ -115,7 +119,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
    * @returns 意图调用结果
    */
   async onExecuteInUIAbilityBackgroundMode(name: string, param: Record<string, Object>): Promise<insightIntent.ExecuteResult> {
-    hilog.info(0xFEED, TAG, `onExecuteInUIAbilityBackgroundMode [AddRecord] called: name=${name}`);
+    hilog.info(0xFEED, TAG, `onExecuteInUIAbilityBackgroundMode calling intent: name=${name}`);
 
     try {
       const context = (this.context as Object) as common.UIAbilityContext;
@@ -231,7 +235,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       }
 
       const queryType = (param['queryType'] as string) || (param['query_type'] as string) || 'expiration';
-      const timeRange = (param['timeRange'] as string) || (param['time_range'] as string) || 'next_30_days';
+      const timeRange = (param['timeRange'] as string) || (param['time_range'] as string) || '';
       const filterBrand = (param['brand'] as string)?.toLowerCase();
       const filterName = (param['name'] as string)?.toLowerCase();
 
@@ -349,9 +353,17 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
             useRangeSummation = isExpenseQuery;
             specificMonthQuery = true;
           } else {
-            startDate = now.getTime();
-            endDate = now.getTime() + 30 * 24 * 60 * 60 * 1000;
-            dateDescription = "未来30天";
+            const isWarrantyQuery = recordTypeFilter === 'warranty';
+            if (isWarrantyQuery) {
+              // 保修查询默认覆盖：过去30天(兼容刚过保) 到 未来2年
+              startDate = now.getTime() - 30 * 24 * 60 * 60 * 1000;
+              endDate = now.getTime() + 730 * 24 * 60 * 60 * 1000;
+              dateDescription = "所有";
+            } else {
+              startDate = now.getTime();
+              endDate = now.getTime() + 30 * 24 * 60 * 60 * 1000;
+              dateDescription = "未来30天";
+            }
           }
         }
       }
@@ -565,11 +577,11 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         if (isExpenseQuery) {
           resultText = `已为您生成${dateDescription}支出预估：总计约 ¥${totalAmount.toFixed(2)}。`;
         } else if (recordTypeFilter === 'groupBuy') {
-          resultText = `已为您找到${dateDescription}即将过期的团购券共 ${totalCount} 张，请看屏幕。`;
+          resultText = `已为您找到${dateDescription}即将过期的团购券共 ${totalCount} 张。`;
         } else if (recordTypeFilter === 'warranty') {
-          resultText = `已为您找到${dateDescription}保修记录共 ${totalCount} 条，请看屏幕。`;
+          resultText = `已为您找到${dateDescription}保修记录共 ${totalCount} 条。`;
         } else {
-          resultText = `已为您找到${dateDescription}即将到期的订阅共 ${totalCount} 条，请看屏幕。`;
+          resultText = `已为您找到${dateDescription}即将到期的订阅共 ${totalCount} 条。`;
         }
       } else {
         if (recordTypeFilter === 'groupBuy') {
@@ -620,7 +632,8 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
 
   private async handleAddRecord(param: Record<string, Object>): Promise<insightIntent.ExecuteResult> {
     try {
-      hilog.info(0xFEED, TAG, `[AddRecord] Params received: ${JSON.stringify(param)}`);
+      // 记录实际接收到的参数，不带硬编码的前缀
+      hilog.info(0xFEED, TAG, `[HandleRecord] Params received: ${JSON.stringify(param)}`);
 
       const name = (param['name'] as string) || "未命名订阅";
       const priceStr = (param['price'] as string) || "0";
@@ -743,20 +756,30 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       // 智能推断业务类型 (recordType)
       let recordType: 'subscription' | 'groupBuy' | 'warranty' = 'subscription';
       const recordTypeParam = param['recordType'] as string;
-      const platformParam = param['platform'] as string;
+      const platformRaw = param['platform'] as string;
       const brandParam = param['brand'] as string;
+
+      // 平台映射规范化：解决小艺可能传回中文导致枚举映射失败的问题
+      let platformParam: 'meituan' | 'douyin' | 'dianping' | undefined = undefined;
+      const lowerPlatform = (platformRaw || '').toLowerCase();
+      if (lowerPlatform === 'meituan' || lowerPlatform.includes('美团')) {
+        platformParam = 'meituan';
+      } else if (lowerPlatform === 'douyin' || lowerPlatform.includes('抖音')) {
+        platformParam = 'douyin';
+      } else if (lowerPlatform === 'dianping' || lowerPlatform.includes('点评')) {
+        platformParam = 'dianping';
+      }
 
       if (recordTypeParam === 'group_buy' || recordTypeParam === 'groupbuy' || recordTypeParam === 'groupBuy') {
         recordType = 'groupBuy';
-      } else if (recordTypeParam === 'warranty') {
+      } else if (recordTypeParam === 'warranty' || (name.toLowerCase().match(/保修|延保|碎屏险|保质期|售后|care/))) {
         recordType = 'warranty';
-        cycle = 'Lifetime';
+        cycle = 'Lifetime'; // 保修资产强制设为永久
       } else {
         const nameLower = name.toLowerCase();
-        if (nameLower.includes('保修') || nameLower.includes('延保') || nameLower.includes('碎屏险') || nameLower.includes('保质期') || nameLower.includes('售后') || nameLower.includes('care')) {
-          recordType = 'warranty';
-          cycle = 'Lifetime'; // 保修通常是一次性的属性
-        } else if (nameLower.includes('券') || nameLower.includes('团购') || nameLower.includes('次卡') || nameLower.includes('体验') || nameLower.includes('美团') || nameLower.includes('瑞幸') || nameLower.includes('星巴克') || nameLower.includes('大众点评')) {
+        if (nameLower.includes('券') || nameLower.includes('团购') || nameLower.includes('次卡') || nameLower.includes('体验') || 
+                   nameLower.includes('美团') || nameLower.includes('瑞幸') || nameLower.includes('星巴克') || nameLower.includes('大众点评') || 
+                   nameLower.includes('抖音') || nameLower.includes('快手')) {
           recordType = 'groupBuy';
         }
       }

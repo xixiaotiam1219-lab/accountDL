@@ -45,7 +45,8 @@ export struct SubscriptionCard {
       return '团购';
     }
     if (this.data.recordType === 'warranty') {
-      return '保修';
+      const days = DateUtil.getDaysUntil(this.data.nextBillingDate);
+      return days < 0 ? '过保' : '在保';
     }
     switch (this.data.billingCycle) {
       case 'Monthly': return '月付';
@@ -177,7 +178,7 @@ export struct SubscriptionCard {
                   .fontWeight(FontWeight.Medium)
                   .fontColor($r('app.color.text_primary'))
                   .margin({ right: 2, top: 2 })
-                Text(`${this.data.price.toFixed(2)}`)
+                Text(`${(this.data.price || 0).toFixed(2)}`)
                   .fontSize(20)
                   .fontWeight(FontWeight.Bold)
                   .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.text_primary')))
@@ -186,7 +187,7 @@ export struct SubscriptionCard {
               .margin({ bottom: 4 })
 
               if (this.data.recordType !== 'groupBuy' && this.data.recordType !== 'warranty' && (this.data.billingCycle === 'Yearly' || this.data.billingCycle === 'Quarterly')) {
-                Text(`≈ ¥${(this.data.billingCycle === 'Yearly' ? this.data.price / 12 : this.data.price / 3).toFixed(2)}/月`)
+                Text(`≈ ¥${(this.data.billingCycle === 'Yearly' ? (this.data.price || 0) / 12 : (this.data.price || 0) / 3).toFixed(2)}/月`)
                   .fontSize(10)
                   .fontColor($r('app.color.text_secondary'))
                   .opacity(0.8)
@@ -204,8 +205,8 @@ export struct SubscriptionCard {
                       .fontColor(this.getUsageStatusColor())
                   } else if (this.data.recordType === 'warranty') {
                     // 保修到期状态显示
-                    Text(DateUtil.getDaysUntil(this.data.nextBillingDate) < 0 ? '已过保修期' :
-                      `保修剩 ${DateUtil.getDaysUntil(this.data.nextBillingDate) + 1} 天`)
+                    Text(DateUtil.getDaysUntil(this.data.nextBillingDate) < 0 ? '过保' :
+                      `在保 (剩 ${DateUtil.getDaysUntil(this.data.nextBillingDate) + 1} 天)`)
                       .fontSize(11)
                       .fontWeight(FontWeight.Medium)
                       .fontColor(DateUtil.getDaysUntil(this.data.nextBillingDate) < 0 ? '#F44336' :

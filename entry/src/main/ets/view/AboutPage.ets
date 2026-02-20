@@ -84,7 +84,7 @@ export struct AboutPage {
   }
 
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) {
+
       HdsNavDestination() {
         Stack({ alignContent: Alignment.Top }) {
           // Universal Background Watermark
@@ -208,7 +208,7 @@ export struct AboutPage {
             mainTitle: '关于应用'
           }
         },
-        style: {
+        style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
           systemMaterialEffect: {
             materialType: hdsMaterial.MaterialType.IMMERSIVE,
             materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
@@ -219,136 +219,10 @@ export struct AboutPage {
             blurEffectiveStartOffset: LengthMetrics.vp(0),
             blurEffectiveEndOffset: LengthMetrics.vp(20)
           }
-        }
+        }:undefined
       })
       .backgroundColor($r('app.color.page_background'))
-    } else {
-      HdsNavDestination() {
-        Stack({ alignContent: Alignment.Top }) {
-          // Universal Background Watermark
-          BackgroundWatermark()
-            .zIndex(0) // Ensure it's behind content
-          // Main Content
-          Column() {
-            // 应用 Logo 与名称
-            Column() {
-              Image($r('app.media.startIcon'))
-                .width(80)
-                .height(80)
-                .borderRadius(16)
-                .margin({ top: 40, bottom: 16 })
-                .shadow({
-                  radius: 10,
-                  color: '#10000000',
-                  offsetX: 0,
-                  offsetY: 4
-                })
 
-              Text("记得订阅")
-                .fontSize(24)
-                .fontWeight(FontWeight.Bold)
-                .fontColor($r('app.color.text_primary'))
-
-              Text(`Version ${this.appVersion}`)
-                .fontSize(14)
-                .fontColor($r('app.color.text_secondary'))
-                .margin({ top: 8 })
-
-            }
-            .width('100%')
-            .alignItems(HorizontalAlign.Center)
-            .opacity(this.animStep1 ? 1 : 0)
-            .translate({ y: this.animStep1 ? 0 : 20 })
-
-            Blank()
-
-            Column({ space: 12 }) {
-              PrivacyListItem({
-                title: "隐私政策",
-                action: () => {
-                  let targetUrl = this.agreementUrl;
-                  try {
-                    const mgmtInfo = privacyManager.getAppPrivacyMgmtInfo();
-                    if (mgmtInfo && mgmtInfo.privacyInfo) {
-                      const privacyLink = mgmtInfo.privacyInfo.find((link: privacyManager.AppPrivacyLink) => link.type ===
-                      privacyManager.AppPrivacyLinkType.PRIVACY_STATEMENT_LINK);
-                      if (privacyLink && privacyLink.url) {
-                        targetUrl = privacyLink.url;
-                      }
-                    }
-                  } catch (e) {
-                    hilog.error(0x0000, 'AboutPage', 'Failed to get privacy url: %{public}s', JSON.stringify(e));
-                  }
-                  this.pageStack.pushPathByName('WebView', new WebViewParam(targetUrl, '隐私政策'));
-                }
-              })
-
-              PrivacyListItem({
-                title: "用户协议",
-                action: () => {
-                  this.pageStack.pushPathByName('WebView', new WebViewParam($rawfile('user_agreement.html'), '用户协议'));
-                }
-              })
-
-              PrivacyListItem({
-                title: "开源许可",
-                action: () => {
-                  this.pageStack.pushPathByName('OpenSourceLicense', null);
-                }
-              })
-
-              PrivacyListItem({
-                title: "闽ICP备2026001305号-2A",
-                action: () => {
-                  this.pageStack.pushPathByName('WebView',
-                    new WebViewParam('https://beian.miit.gov.cn/', 'ICP备案查询'));
-                }
-              })
-
-              PrivacyListItem({
-                title: "撤销隐私政策",
-                isDestructive: true,
-                action: () => {
-                  this.handleDisablePrivacyService();
-                }
-              })
-
-              // 底部元信息
-              Column() {
-                Divider().color($r('app.color.divider_color')).margin({ top: 8, bottom: 16 })
-
-                Text("记得订阅. All Rights Reserved.")
-                  .fontSize(12)
-                  .fontColor($r('app.color.text_secondary'))
-                  .margin({ bottom: 10 })
-              }
-              .width('100%')
-              .alignItems(HorizontalAlign.Center)
-            }
-            .width('90%')
-            .alignItems(HorizontalAlign.Center)
-            .opacity(this.animStep2 ? 1 : 0)
-            .translate({ y: this.animStep2 ? 0 : 20 })
-          }
-          .width('100%')
-          .height('100%')
-          .padding({ top: TITLE_BAR_HEIGHT_MINI + this.getUIContext().px2vp(this.topRectHeight) }) // Push content down
-          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-        }
-        .width('100%')
-        .height('100%')
-        .backgroundColor($r('app.color.page_background'))
-      }
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: {
-            mainTitle: '关于应用'
-          }
-        },
-      })
-      .backgroundColor($r('app.color.page_background'))
-    }
   }
 }
 

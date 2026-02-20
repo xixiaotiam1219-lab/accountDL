@@ -415,7 +415,6 @@ export struct OpenSourceLicenseView {
     .backgroundColor($r('app.color.page_background'))
   }
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100&&this.isHdsTabsEnabled) {
       HdsNavDestination() {
         this.OpenSourceLicenseBuilder()
       }
@@ -426,7 +425,7 @@ export struct OpenSourceLicenseView {
             mainTitle: '开源许可'
           }
         },
-        style: {
+        style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ?{
           systemMaterialEffect: {
             materialType: hdsMaterial.MaterialType.IMMERSIVE,
             materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
@@ -437,23 +436,11 @@ export struct OpenSourceLicenseView {
             blurEffectiveStartOffset: LengthMetrics.vp(0),
             blurEffectiveEndOffset: LengthMetrics.vp(20)
           }
-        }
+        }:undefined
       })
       .backgroundColor($r('app.color.page_background'))
-    } else {
-      HdsNavDestination() {
-        this.OpenSourceLicenseBuilder()
-      }
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: {
-            mainTitle: '开源许可'
-          }
-        },
-      })
-      .backgroundColor($r('app.color.page_background'))
-    }
+
+
   }
 }
 

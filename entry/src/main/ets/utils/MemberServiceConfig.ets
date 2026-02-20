@@ -336,6 +336,7 @@ export const MEMBER_SERVICES: MemberServiceConfig[] = [
   {
     name: '美团',
     aliases: ['美团外卖', '美团跑腿', '神券', '美团神券', '膨胀', '美团会员'],
+    icon: 'resource:meituan_logo',
     renewKeywords: [],
     discountKeywords: [],
     category: '生活服务'
@@ -419,6 +420,13 @@ export const MEMBER_SERVICES: MemberServiceConfig[] = [
     discountKeywords: [],
     category: '效率办公',
     validSubCategories: ['VIP 会员', 'SVIP 会员', '行测会员']
+  },
+  // ===== 支付/金融类 =====
+  {
+    name: '抖音支付',
+    aliases: ['抖音', '抖支付', '抖音月付'],
+    icon: 'resource:douyin_logo',
+    category: '生活服务'
   }
 ];
 

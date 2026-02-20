@@ -47,7 +47,7 @@ struct MonthlyReportPage {
   }
 }
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100&&this.isHdsTabsEnabled) {
+
       HdsNavDestination() {
         this.MonthlyReportBuilder()
       }
@@ -58,7 +58,7 @@ struct MonthlyReportPage {
             mainTitle: '月度报告'
           }
         },
-        style: {
+        style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ?{
           systemMaterialEffect: {
             materialType: hdsMaterial.MaterialType.IMMERSIVE,
             materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
@@ -69,22 +69,8 @@ struct MonthlyReportPage {
             blurEffectiveStartOffset: LengthMetrics.vp(0),
             blurEffectiveEndOffset: LengthMetrics.vp(20)
           }
-        }
+        }:undefined
       })
       .backgroundColor($r('app.color.page_background'))
-    } else {
-      HdsNavDestination() {
-        this.MonthlyReportBuilder()
-      }
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: {
-            mainTitle: '月度报告'
-          }
-        }
-      })
-      .backgroundColor($r('app.color.page_background'))
-    }
   }
 }

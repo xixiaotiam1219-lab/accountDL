@@ -43,7 +43,6 @@ struct LoginPage {
   }
 
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100&&this.isHdsTabsEnabled) {
       HdsNavDestination() {
           this.LoginBuilder()
       }
@@ -53,7 +52,7 @@ struct LoginPage {
             mainTitle: '登录'
           }
         },
-        style: {
+        style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
           systemMaterialEffect: {
             materialType: hdsMaterial.MaterialType.IMMERSIVE,
             materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
@@ -64,21 +63,10 @@ struct LoginPage {
             blurEffectiveStartOffset: LengthMetrics.vp(0),
             blurEffectiveEndOffset: LengthMetrics.vp(20)
           }
-        }
+        }:undefined
       })
       .backgroundColor($r('app.color.page_background'))
-    } else {
-      HdsNavDestination() {
-        this.LoginBuilder()
-      }
-      .titleBar({
-        content: {
-          title: {
-            mainTitle: '登录'
-          }
-        },
-      })
-      .backgroundColor($r('app.color.page_background'))
-    }
+
+
   }
 }

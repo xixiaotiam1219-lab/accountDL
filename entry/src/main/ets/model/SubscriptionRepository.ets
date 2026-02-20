@@ -82,10 +82,14 @@ export interface MinimalCardItem {
 }
 
 class SnapshotItem {
+  id: string = '';
   title: string = '';
   content: string = '';
   icon: string = '';
   isExpiring: boolean = false;
+  isLifetime: boolean = false;
+  isGroupBuy: boolean = false;
+  isWarranty: boolean = false;
   originalItem: string = '';
 }
 
@@ -768,6 +772,11 @@ export class SubscriptionRepository {
         }
         
         snapshotItem.icon = iconKey;
+        snapshotItem.id = item.uuid || item.id?.toString() || '';
+        snapshotItem.isLifetime = isLifetime;
+        snapshotItem.isGroupBuy = isGroupBuy;
+        snapshotItem.isWarranty = isWarranty;
+
         // 普通订阅和保修在剩余3天内标红；团购券如果是未使用且剩余3天内也标红
         if (isGroupBuy) {
             snapshotItem.isExpiring = item.usageStatus === 'unused' && days <= 3;

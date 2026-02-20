@@ -1,6 +1,5 @@
 import { curves, LengthMetrics } from '@kit.ArkUI';
-import { hdsEffect, hdsMaterial, HdsNavDestination, HdsNavigationMenuItemOptions,
-  ScrollEffectType } from '@kit.UIDesignKit';
+import { hdsEffect, hdsMaterial, HdsNavDestination, HdsNavigationMenuItemOptions, HdsNavigationTitleBarOptions, HdsNavigationTitleBarStyle, ScrollEffectType } from '@kit.UIDesignKit';
 import { SubscriptionIcon } from './SubscriptionIcon';
 import { BackgroundWatermark } from './BackgroundWatermark';
 import { LocalIconManager, AppInfo } from '../utils/LocalIconManager';
@@ -944,86 +943,50 @@ export struct SubscriptionMarketplace {
   .backgroundColor(Color.Transparent)
 }
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100&&this.isHdsTabsEnabled) {
-      HdsNavDestination() {
-        this.markbuilder()
-      }
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: { mainTitle: '推荐服务' },
-          menu: {
-            value: [
-              {
-                content: {
-                  label: '搜索',
-                  icon: $r('sys.symbol.magnifyingglass'),
-
-                  action: (): void => {
-                    animateTo({
-                      duration: this.isAnimationEnabled ? this.animationDuration : 0,
-                      curve: this.isAnimationEnabled ?
-                        curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
-                    }, () => {
-                      this.showSearchOverlay = true;
-                    })
-                  }
-                }
-              } as HdsNavigationMenuItemOptions
-            ]
-          }
-        },
-        style: {
-          systemMaterialEffect: {
-            materialType: hdsMaterial.MaterialType.IMMERSIVE,
-            materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-          },
-          scrollEffectOpts: {
-            enableScrollEffect: true,
-            scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-            blurEffectiveStartOffset: LengthMetrics.vp(0),
-            blurEffectiveEndOffset: LengthMetrics.vp(20)
-          }
-        }
-      })
-      .onBackPressed(() => {
-        this.pageStack.pop();
-        return true;
-      })
-    } else {
-      HdsNavDestination() {
-        this.markbuilder()
-      }
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: { mainTitle: '推荐服务' },
-          menu: {
-            value: [
-              {
-                content: {
-                  label: '搜索',
-                  icon: $r('sys.symbol.magnifyingglass'),
-
-                  action: (): void => {
-                    animateTo({
-                      duration: this.isAnimationEnabled ? this.animationDuration : 0,
-                      curve: this.isAnimationEnabled ?
-                        curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
-                    }, () => {
-                      this.showSearchOverlay = true;
-                    })
-                  }
-                }
-              } as HdsNavigationMenuItemOptions
-            ]
-          }
-        },
-      })
-      .onBackPressed(() => {
-        this.pageStack.pop();
-        return true;
-      })
+    HdsNavDestination() {
+      this.markbuilder()
     }
+    .titleBar({
+      avoidLayoutSafeArea: true,
+      content: {
+        title: { mainTitle: '推荐服务' },
+        menu: {
+          value: [
+            {
+              content: {
+                label: '搜索',
+                icon: $r('sys.symbol.magnifyingglass'),
+
+                action: (): void => {
+                  animateTo({
+                    duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                    curve: this.isAnimationEnabled ?
+                      curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
+                  }, () => {
+                    this.showSearchOverlay = true;
+                  })
+                }
+              }
+            } as HdsNavigationMenuItemOptions
+          ]
+        }
+      },
+      style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.IMMERSIVE,
+          materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+        },
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+          blurEffectiveStartOffset: LengthMetrics.vp(0),
+          blurEffectiveEndOffset: LengthMetrics.vp(20)
+        }
+      }  : undefined
+    } as HdsNavigationTitleBarOptions)
+    .onBackPressed(() => {
+      this.pageStack.pop();
+      return true;
+    })
   }
 }

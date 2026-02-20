@@ -10,7 +10,10 @@ import { EVENT_SYNC_COMPLETED, EVENT_DATA_CHANGED, GlobalBus } from '../utils/Gl
 import { LoginSheet } from './LoginSheet';
 import { SubscriptionIcon } from './SubscriptionIcon';
 import { PreferenceUtil } from '../utils/PreferenceUtil';
-import { hdsEffect, hdsMaterial, HdsNavDestination, HdsNavigationMenuItemOptions,
+import { hdsEffect, hdsMaterial, HdsNavDestination,
+  HdsNavigation,
+  HdsNavigationMenuItemOptions,
+  HdsNavigationTitleMode,
   ScrollEffectType } from '@kit.UIDesignKit';
 import { FunctionComponent, FunctionController } from '@kit.AgentFrameworkKit';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -40,6 +43,7 @@ const TITLE_BAR_HEIGHT_MINI: number = 56;
 @Component
 export struct HomeView {
   @Consume('pageStack') pageStack: NavPathStack;
+  private navStack: NavPathStack = new NavPathStack();
   @StorageLink('isOnline') isOnline: boolean = true;
 
   // Agent Props
@@ -872,58 +876,103 @@ export struct HomeView {
     .padding(32)
   }
 
+  @Builder SyncGuideBuilder() {
+    Scroll() {
+      Column({ space: 24 }) {
+        // 场景1：碰一碰
+        Column({ space: 12 }) {
+          Column() {
+            Text("方式一：碰一碰").fontSize(16).fontWeight(FontWeight.Bold)
+            Text("只需碰一碰，可直接向别的设备或好友分享记得订阅的订阅信息等，还可以连续触碰多个设备，轻松实现多人分享。").fontSize(14).fontColor($r('app.color.text_secondary')).margin({ top: 4 })
+          }.alignItems(HorizontalAlign.Start).width('100%')
+          Video({
+            src: $rawfile('touch.mp4'),
+            controller: new VideoController()
+          })
+            .width('100%')
+            .height(180)
+            .objectFit(ImageFit.Contain)
+            .autoPlay(true)
+            .loop(true)
+            .controls(false)
+            .borderRadius(16)
+            .backgroundColor('#0A000000')
+        }
+
+        // 场景2：一抓一放
+        Column({ space: 12 }) {
+          Column() {
+            Text("方式二：隔空传送").fontSize(16).fontWeight(FontWeight.Bold)
+            Text("在屏幕前做出“抓取”动作，移到另一台设备上方“放开,即可直接向别的设备或好友分享《记得订阅》的订阅信息”。").fontSize(14).fontColor($r('app.color.text_secondary')).margin({ top: 4 })
+          }.alignItems(HorizontalAlign.Start).width('100%')
+          Video({
+            src: $rawfile('Swing_share.mp4'),
+            controller: new VideoController()
+          })
+            .width('100%')
+            .height(180)
+            .objectFit(ImageFit.Contain)
+            .autoPlay(true)
+            .loop(true)
+            .controls(false)
+            .borderRadius(16)
+            .backgroundColor('#0A000000')
+        }
+
+        Text("Tips：该功能需要两台设备均处于亮屏解锁状态，且双方均已安装最新版本的《记得订阅》并开启华为分享。此功能要求双方手机为 HarmonyOS 5 及以上版本，多人分享需发送端设备支持 HarmonyOS 6 及以上版本。")
+          .fontSize(12).fontColor($r('app.color.text_secondary')).textAlign(TextAlign.Start).width('100%').margin({ top: 12 })
+      }.padding({ left: 20, right: 20, bottom: 40, top: 64 }) // Add top padding for immersive title
+    }
+    .edgeEffect(EdgeEffect.Spring)
+    .scrollBar(BarState.Off)
+  }
+
   @Builder SyncGuideSheet() {
     Column() {
+        HdsNavigation(this.navStack) {
+          this.SyncGuideBuilder()
+        }
+        .backgroundColor(Color.Transparent)
+        .titleBar({
+          content: {
+            title: { mainTitle: '多端同步指南' },
+            menu: {
+              value: [
+                {
+                  content: {
+                    icon: $r('sys.symbol.xmark'),
+                    action: () => {
+                      this.showSyncGuide = false;
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ?{
+            systemMaterialEffect: {
+              materialType: hdsMaterial.MaterialType.IMMERSIVE,
+              materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+            },
+            scrollEffectOpts: {
+              enableScrollEffect: true,
+              scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+              blurEffectiveStartOffset: LengthMetrics.vp(0),
+              blurEffectiveEndOffset: LengthMetrics.vp(20)
+            }
+          }:undefined
+        })
+        .titleMode(HdsNavigationTitleMode.MODAL)
+        .mode(NavigationMode.Stack)
+        .hideBackButton(true)
+        .backgroundColor($r('app.color.page_background'))
+        .borderRadius({ topLeft: 24, topRight: 24 })
+        .width('100%')
+        .height('100%')
 
-
-      Scroll() {
-        Column({ space: 24 }) {
-          // 场景1：碰一碰
-          Column({ space: 12 }) {
-            Column() {
-              Text("方式一：碰一碰").fontSize(16).fontWeight(FontWeight.Bold)
-              Text("只需碰一碰，可直接向别的设备或好友分享记得订阅的订阅信息等，还可以连续触碰多个设备，轻松实现多人分享。").fontSize(14).fontColor($r('app.color.text_secondary')).margin({ top: 4 })
-            }.alignItems(HorizontalAlign.Start).width('100%')
-            Video({
-              src: $rawfile('touch.mp4'),
-              controller: new VideoController()
-            })
-              .width('100%')
-              .height(180)
-              .objectFit(ImageFit.Contain)
-              .autoPlay(true)
-              .loop(true)
-              .controls(false)
-              .borderRadius(16)
-              .backgroundColor('#0A000000')
-          }
-
-          // 场景2：一抓一放
-          Column({ space: 12 }) {
-            Column() {
-              Text("方式二：隔空传送").fontSize(16).fontWeight(FontWeight.Bold)
-              Text("在屏幕前做出“抓取”动作，移到另一台设备上方“放开,即可直接向别的设备或好友分享《记得订阅》的订阅信息”。").fontSize(14).fontColor($r('app.color.text_secondary')).margin({ top: 4 })
-            }.alignItems(HorizontalAlign.Start).width('100%')
-            Video({
-              src: $rawfile('Swing_share.mp4'),
-              controller: new VideoController()
-            })
-              .width('100%')
-              .height(180)
-              .objectFit(ImageFit.Contain)
-              .autoPlay(true)
-              .loop(true)
-              .controls(false)
-              .borderRadius(16)
-              .backgroundColor('#0A000000')
-          }
-
-          Text("Tips：该功能需要两台设备均处于亮屏解锁状态，且双方均已安装最新版本的《记得订阅》并开启华为分享。此功能要求双方手机为 HarmonyOS 5 及以上版本，多人分享需发送端设备支持 HarmonyOS 6 及以上版本。")
-            .fontSize(12).fontColor($r('app.color.text_secondary')).textAlign(TextAlign.Start).width('100%').margin({ top: 12 })
-        }.padding({ left: 20, right: 20, bottom: 40 })
-      }
     }
-    .backgroundColor($r('app.color.page_background'))
+    .width('100%')
+    .height('100%')
   }
 
   @Builder UpcomingRenewalsSheet() {
@@ -1703,9 +1752,8 @@ export struct HomeView {
         .bindSheet($$this.showSyncGuide, this.SyncGuideSheet(), {
           detents: [SheetSize.FIT_CONTENT],
           backgroundColor: $r('app.color.page_background'),
-          showClose: true,
+          showClose: false,
           preferType: SheetType.BOTTOM,
-          title: { title: '近场同步/分享订阅数据' }
         })
       Column()
         .bindSheet($$this.showReminderSheet, this.ReminderSheetBuilder(), {
@@ -1720,7 +1768,6 @@ export struct HomeView {
   }
 
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) {
       HdsNavDestination() {
         this.homeBuilder()
       }
@@ -1774,7 +1821,7 @@ export struct HomeView {
             ]
           }
         },
-        style: {
+        style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
           systemMaterialEffect: {
             materialType: hdsMaterial.MaterialType.IMMERSIVE,
             materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
@@ -1785,64 +1832,9 @@ export struct HomeView {
             blurEffectiveStartOffset: LengthMetrics.vp(0),
             blurEffectiveEndOffset: LengthMetrics.vp(20)
           }
-        }
+        }:undefined
       })
-    } else {
-      HdsNavDestination() {
-        this.homeBuilder()
-      }
-      .hideBackButton(true)
-      .hideTitleBar(false)
-      .backgroundColor(Color.Transparent)
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: { mainTitle: '订阅概览' },
-          stackBuilder: (): void => this.AgentStackBuilder(),
-          menu: {
-            value: [
-              {
-                content: {
-                  label: '提醒管理',
-                  icon: $r('sys.symbol.bell'),
-                  action: (): void => {
-                    getContext(this).eventHub.emit('openReminderSheet');
-                  }
-                }
-              } as HdsNavigationMenuItemOptions,
 
-              {
-                content: {
-                  label: '分享',
-                  icon: $r('sys.symbol.share'),
-                  action: (): void => {
-                    if (!this.isLoggedIn) {
-                      if (this.isWide && this.isSplitViewEnabled) {
-                        this.pageStack.removeByName('Login');
-                        this.pageStack.pushPathByName('Login', null);
-                      } else {
-                        if (this.isAnimationEnabled) {
-                          animateTo({
-                            duration: this.animationDuration,
-                            curve: curves.springMotion(this.animationResponse, this.animationDamping)
-                          }, () => {
-                            this.showLoginSheet = true;
-                          });
-                        } else {
-                          this.showLoginSheet = true;
-                        }
-                      }
-                      return;
-                    }
-                    HarmonyShareManager.getInstance().activeShare();
-                  }
-                }
-              } as HdsNavigationMenuItemOptions
-            ]
-          }
-        }
-      })
-    }
   }
 
   @State showReminderSheet: boolean = false;
