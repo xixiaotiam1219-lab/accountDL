@@ -25,6 +25,16 @@ class AddSubscriptionNavParams {
   initialType: string = 'subscription';
 }
 
+class TabCategory {
+  name: string = '';
+  id: string = '';
+}
+
+class TabArea {
+  x: number = 0;
+  width: number = 0;
+}
+
 const TITLE_BAR_HEIGHT_MINI: number = 56;
 
 @Component
@@ -34,8 +44,9 @@ export struct HomeView {
 
   // Agent Props
   private controller: FunctionController = new FunctionController();
+  @State dualEdgeLightController: hdsEffect.ShaderEffectController = new hdsEffect.ShaderEffectController();
   // TODO: Replace with real Agent ID from platform
-  private agentId: string = 'agent8e0a95d14e744348995f208388a951c2';
+  private agentId: string = 'agent0244e963799347bdb18995e6416726ea';
 
   @StorageLink('isSyncing') isSyncing: boolean = false;
   @StorageLink('isLoggedIn') @Watch('onLoggedInChange') isLoggedIn: boolean = false;
@@ -71,6 +82,7 @@ export struct HomeView {
   }
   @State subscriptions: SubscriptionModel[] = [];
   @StorageProp('isWide') isWide: boolean = false;
+  @StorageProp('windowWidthVp') windowWidthVp: number = 0;
   @StorageLink('isSplitViewEnabled') isSplitViewEnabled: boolean = true;
   @State rotateAngle: number = 0;
   @State isRotating: boolean = false;
@@ -83,9 +95,21 @@ export struct HomeView {
   @State sortOrder: string = 'date_asc'; // date_asc, date_desc, price_desc, price_asc, name_asc
   @State pendingNavigationItem: SubscriptionModel | null = null;
   @State showSyncGuide: boolean = false; // 控制同步指南显示
-  @StorageLink('homeCurrentTab') currentTab: 'subscription' | 'groupBuy' | 'warranty' = 'subscription'; // 订阅/团购/保修切换
+  @StorageLink('homeCurrentTab') currentTab: 'all' | 'subscription' | 'groupBuy' | 'warranty' = 'all'; // 全部/订阅/团购/保修切换
   @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
   @StorageLink('smartHandMode') smartHandMode: 'left' | 'right' | 'center' = 'center';
+  
+  // Tab 交互增强相关
+  @State indicatorWidth: number = 0;
+  @State indicatorX: number = 0;
+  private tabAreaMap: Map<string, TabArea> = new Map();
+  private tabScroller: Scroller = new Scroller();
+  @State categories: TabCategory[] = [
+    { name: '全部', id: 'all' } as TabCategory,
+    { name: '服务', id: 'subscription' } as TabCategory,
+    { name: '团购', id: 'groupBuy' } as TabCategory,
+    { name: '保修', id: 'warranty' } as TabCategory
+  ];
 
 
 
@@ -477,6 +501,9 @@ export struct HomeView {
 
   // 根据当前 Tab 过滤列表
   getFilteredSubscriptions(): SubscriptionModel[] {
+    if (this.currentTab === 'all') {
+      return this.subscriptions;
+    }
     if (this.currentTab === 'groupBuy') {
       return this.subscriptions.filter(item => item.recordType === 'groupBuy');
     }
@@ -795,19 +822,27 @@ export struct HomeView {
 
   @Builder EmptyState() {
     Column() {
-      SymbolGlyph(this.currentTab === 'groupBuy' ? $r('sys.symbol.bag') : $r('sys.symbol.plus')).fontSize(56).fontColor([$r('app.color.text_secondary')]).margin({ bottom: 16 })
-      Text(this.currentTab === 'groupBuy' ? "暂无团购" : "暂无服务").fontSize(18).fontWeight(FontWeight.Bold).fontColor($r('app.color.text_primary')).margin({ bottom: 8 })
-      Text(this.isLoggedIn ? (this.currentTab === 'groupBuy' ? "点击下方+按钮添加团购券" : "点击下方+按钮添加服务") : "请先登录后添加").fontSize(14).fontColor($r('app.color.text_secondary'))
+      SymbolGlyph(this.currentTab === 'groupBuy' ? $r('sys.symbol.bag') : 
+        (this.currentTab === 'warranty' ? $r('sys.symbol.shield_checkered') : $r('sys.symbol.plus')))
+        .fontSize(56)
+        .fontColor([$r('app.color.text_secondary')])
+        .margin({ bottom: 16 })
+      
+      Text(this.currentTab === 'groupBuy' ? "暂无团购" : 
+        (this.currentTab === 'warranty' ? "暂无保修" : "暂无服务"))
+        .fontSize(18)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ bottom: 8 })
+      
+      Text(this.isLoggedIn ? "点击下方 + 按钮开始添加" : "请先登录后添加")
+        .fontSize(14)
+        .fontColor($r('app.color.text_secondary'))
     }
     .width('100%').padding({ top: 40, bottom: 40 }).justifyContent(FlexAlign.Center)
     .onClick(() => {
       if (!this.isLoggedIn) {
-        if (this.isWide && this.isSplitViewEnabled) {
-          this.pageStack.removeByName('Login');
-          this.pageStack.pushPathByName('Login', null);
-        } else {
-          this.showLoginSheet = true;
-        }
+        this.triggerLoginFlow();
         return;
       }
       AppStorage.setOrCreate('showAddSheet', true);
@@ -1170,9 +1205,56 @@ export struct HomeView {
     }
   }
 
+  private triggerLoginFlow() {
+    if (this.isWide && this.isSplitViewEnabled) {
+      this.pageStack.removeByName('Login');
+      this.pageStack.pushPathByName('Login', null);
+    } else {
+      if (this.isAnimationEnabled) {
+        animateTo({
+          duration: this.animationDuration,
+          curve: curves.springMotion(this.animationResponse, this.animationDamping)
+        }, () => {
+          this.showLoginSheet = true;
+        });
+      } else {
+        this.showLoginSheet = true;
+      }
+    }
+  }
+
+  // 更新滑动指示器的位置和宽度
+  private updateIndicator(id: string) {
+    const area = this.tabAreaMap.get(id);
+    if (area) {
+      if (this.isAnimationEnabled) {
+        animateTo({ duration: 300, curve: Curve.FastOutSlowIn }, () => {
+          this.indicatorX = area.x;
+          this.indicatorWidth = area.width;
+        });
+      } else {
+        this.indicatorX = area.x;
+        this.indicatorWidth = area.width;
+      }
+    }
+  }
+
+  // 确保选中的 Tab 自动滚动到居中位置
+  private centerSelectedTab(id: string) {
+    const area = this.tabAreaMap.get(id);
+    if (!area) return;
+
+    this.tabScroller.scrollTo({
+      xOffset: Math.max(0, area.x - 100), // 简单偏移，确保大致可见且不为负
+      yOffset: 0,
+      animation: { duration: 300, curve: Curve.EaseInOut }
+    });
+  }
+
   @Builder AgentStackBuilder() {
-    Row() {
-      if (deviceInfo.distributionOSApiVersion >= 60100) {
+    Row({ space: 10 }) {
+      
+      Stack() {
         FunctionComponent({
           agentId: this.agentId,
           onError: (err: BusinessError) => {
@@ -1180,18 +1262,90 @@ export struct HomeView {
           },
           options: {
             title: '', // Icon only
-            queryText: '使用显示查询本月订阅工具，直接返回的数据包'
+            queryText: '介绍一下你自己'
           },
           controller: this.controller
         })
+          .visualEffect(new hdsEffect.HdsEffectBuilder()
+            .shaderEffect({
+              effectType: hdsEffect.EffectType.DUAL_EDGE_FLOW_LIGHT,
+              animation: {
+                duration: 4000,
+                iterations: -1,
+                autoPlay: true,
+                onFinish: () => {
+                  console.info('Succeeded in finishing');
+                }
+              },
+              controller: this.dualEdgeLightController,
+              params: {
+                firstEdgeFlowLight: {
+                  startPos: 0,
+                  endPos: 1.0,
+                  color: '#1AD0F1',
+                },
+                secondEdgeFlowLight: {
+                  startPos: 0.5,
+                  endPos: 1.5,
+                  color: '#FFA4E5',
+                }
+              }
+            })
+            .buildEffect())
           .width(40)
           .height(40)
+          .borderRadius('50%')
+          .clip(true)
+
+        // 登录拦截层：仅在未登录时覆盖，确保点击事件被拦截
+        if (!this.isLoggedIn) {
+          Column()
+            .width(40)
+            .height(40)
+            .backgroundColor(Color.Transparent)
+            .borderRadius('50%')
+            .onClick(() => {
+              this.triggerLoginFlow();
+            })
+        }
       }
+
+      Row({ space: 12 }) {
+        // 提醒按钮 (占位)
+        this.MenuIcon($r('sys.symbol.bell'), () => {
+          getContext(this).eventHub.emit('openReminderSheet');
+        })
+
+        // 分享按钮 (占位)
+        this.MenuIcon($r('sys.symbol.share'), () => {
+          if (!this.isLoggedIn) {
+            this.triggerLoginFlow();
+            return;
+          }
+          HarmonyShareManager.getInstance().activeShare();
+        })
+      }
+      .visibility(Visibility.Hidden)
+
     }
     .width('100%')
-    .height('100%')
+    .height(56)
+    .alignItems(VerticalAlign.Center)
     .justifyContent(FlexAlign.End)
-    .padding({ right: 114 }) // 增加间距：提醒 + 分享约 104vp，加 12vp 间隙
+    .padding({ right: this.windowWidthVp >= 840 ? 32 : (this.windowWidthVp >= 600 ? 24 : 12) }) // 三档适配：手机12，折叠屏24，平板/三折32
+  }
+
+  @Builder MenuIcon(icon: Resource, action: () => void) {
+    Button({ type: ButtonType.Circle }) {
+      SymbolGlyph(icon)
+        .fontSize(24)
+        .fontColor([$r('sys.color.icon_primary')])
+    }
+    .width(40)
+    .height(40)
+    .borderRadius('50%')
+    .backgroundColor($r('sys.color.comp_background_tertiary'))
+    .onClick(action)
   }
 
   @Builder homeBuilder(){
@@ -1267,7 +1421,7 @@ export struct HomeView {
             }.columnStart(0).columnEnd(1)
 
             // New Year Countdown Card (Grid)
-            if (this.currentTab === 'subscription') {
+            if (this.currentTab === 'subscription' || this.currentTab === 'all') {
               GridItem() {
                 NewYearSubscriptionCard()
               }
@@ -1334,112 +1488,77 @@ export struct HomeView {
                 Row() {
                   // 订阅/团购切换按钮
                   // 订阅/团购切换按钮
-                  Row() {
-                    Button() {
-                      Text("服务")
-                        .fontSize(14)
-                        .fontWeight(this.currentTab === 'subscription' ? FontWeight.Bold : FontWeight.Normal)
-                        .fontColor(this.currentTab === 'subscription' ?
-                          (this.isNewYearTheme ? '#FFD700' :
-                            (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
-                          $r('app.color.text_secondary'))
-                    }
-                    .linearGradient(this.currentTab === 'subscription' ?
-                      (this.isNewYearTheme ? {
-                        angle: 135,
-                        colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
-                      } :
-                        (this.showVipTheme ? {
-                          angle: 135,
-                          colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
-                        } : undefined)) : undefined)
-                    .backgroundColor(this.currentTab === 'subscription' ?
-                      (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
-                      Color.Transparent)
-                    .borderRadius(14)
-                    .padding({
-                      left: 20,
-                      right: 20,
-                      top: 6,
-                      bottom: 6
-                    })
-                    .onClick(() => {
-                      animateTo({ duration: this.isAnimationEnabled ? 300 : 0, curve: Curve.EaseInOut }, () => {
-                        this.currentTab = 'subscription';
-                      });
-                    })
+                  // 订阅/团购/保修分类切换 (高阶滑动拦截器)
+                  Scroll(this.tabScroller) {
+                    Stack({ alignContent: Alignment.TopStart }) {
+                      // 1. 滑动胶囊指示器 (底层)
+                      if (this.indicatorWidth > 0) {
+                        Column()
+                          .width(this.indicatorWidth)
+                          .height(28)
+                          .borderRadius(14)
+                          .linearGradient(this.isNewYearTheme ? {
+                            angle: 135,
+                            colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
+                          } : (this.showVipTheme ? {
+                            angle: 135,
+                            colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
+                          } : {
+                            angle: 0,
+                            colors: [[$r('app.color.brand_color'), 0.0], [$r('app.color.brand_color'), 1.0]]
+                          }))
+                          .position({ x: this.indicatorX, y: 0 })
+                          .shadow(this.showVipTheme || this.isNewYearTheme ? {
+                            radius: 10,
+                            color: 'rgba(0,0,0,0.1)',
+                            offsetX: 0,
+                            offsetY: 2
+                          } : undefined)
+                      }
 
-                    Button() {
-                      Text("团购")
-                        .fontSize(14)
-                        .fontWeight(this.currentTab === 'groupBuy' ? FontWeight.Bold : FontWeight.Normal)
-                        .fontColor(this.currentTab === 'groupBuy' ?
-                          (this.isNewYearTheme ? '#FFD700' :
-                            (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
-                          $r('app.color.text_secondary'))
+                      // 2. 文字选项层 (顶层)
+                      Row({ space: 8 }) {
+                        ForEach(this.categories, (item: TabCategory) => {
+                          Text(item.name)
+                            .fontSize(14)
+                            .fontWeight(this.currentTab === item.id ? FontWeight.Bold : FontWeight.Normal)
+                            .fontColor(this.currentTab === item.id ?
+                              (this.isNewYearTheme ? '#FFD700' :
+                                (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
+                              $r('app.color.text_secondary'))
+                            .padding({ left: 16, right: 16, top: 4, bottom: 4 })
+                            .onAreaChange((oldValue: Area, newValue: Area) => {
+                              // 精确记录该分类项的 x 坐标和宽度
+                              const x = newValue.position.x as number;
+                              const w = newValue.width as number;
+                              this.tabAreaMap.set(item.id, { x: x, width: w });
+                              
+                              // 初始化时设置默认指示器位置
+                              if (this.currentTab === item.id && this.indicatorWidth === 0) {
+                                this.indicatorX = x;
+                                this.indicatorWidth = w;
+                              }
+                            })
+                            .onClick(() => {
+                              if (this.currentTab !== item.id) {
+                                animateTo({ duration: 300, curve: Curve.EaseInOut }, () => {
+                                  this.currentTab = item.id as 'all' | 'subscription' | 'groupBuy' | 'warranty';
+                                });
+                                this.updateIndicator(item.id);
+                                this.centerSelectedTab(item.id);
+                              }
+                            })
+                        }, (item: TabCategory) => item.id)
+                      }
+                      .height(28)
                     }
-                    .linearGradient(this.currentTab === 'groupBuy' ?
-                      (this.isNewYearTheme ? {
-                        angle: 135,
-                        colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
-                      } :
-                        (this.showVipTheme ? {
-                          angle: 135,
-                          colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
-                        } : undefined)) : undefined)
-                    .backgroundColor(this.currentTab === 'groupBuy' ?
-                      (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
-                      Color.Transparent)
-                    .borderRadius(14)
-                    .padding({
-                      left: 20,
-                      right: 20,
-                      top: 6,
-                      bottom: 6
-                    })
-                    .onClick(() => {
-                      animateTo({ duration: this.isAnimationEnabled ? 300 : 0, curve: Curve.EaseInOut }, () => {
-                        this.currentTab = 'groupBuy';
-                      });
-                    })
-
-                    Button() {
-                      Text("保修")
-                        .fontSize(14)
-                        .fontWeight(this.currentTab === 'warranty' ? FontWeight.Bold : FontWeight.Normal)
-                        .fontColor(this.currentTab === 'warranty' ?
-                          (this.isNewYearTheme ? '#FFD700' :
-                            (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
-                          $r('app.color.text_secondary'))
-                    }
-                    .linearGradient(this.currentTab === 'warranty' ?
-                      (this.isNewYearTheme ? {
-                        angle: 135,
-                        colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
-                      } :
-                        (this.showVipTheme ? {
-                          angle: 135,
-                          colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
-                        } : undefined)) : undefined)
-                    .backgroundColor(this.currentTab === 'warranty' ?
-                      (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
-                      Color.Transparent)
-                    .borderRadius(14)
-                    .padding({
-                      left: 20,
-                      right: 20,
-                      top: 6,
-                      bottom: 6
-                    })
-                    .onClick(() => {
-                      animateTo({ duration: this.isAnimationEnabled ? 300 : 0, curve: Curve.EaseInOut }, () => {
-                        this.currentTab = 'warranty';
-                      });
-                    })
+                    .padding(4)
                   }
-                  .backgroundColor($r('app.color.page_background'))
-                  .borderRadius(16)
-                  .padding(4)
+                  .scrollable(ScrollDirection.Horizontal)
+                  .scrollBar(BarState.Off)
+                  .edgeEffect(EdgeEffect.Spring) // 弹性滑动手感更好
+                  .layoutWeight(1)
+                  .margin({ right: 12 })
 
                   Blank()
 
@@ -1491,7 +1610,7 @@ export struct HomeView {
               .padding({ left: 16, right: 16 }).width('100%')
             }
 
-            if (this.currentTab === 'subscription') {
+            if (this.currentTab === 'subscription' || this.currentTab === 'all') {
               ListItem() {
                 NewYearSubscriptionCard()
                   .margin({ bottom: 16, left: 16, right: 16 })
@@ -1601,6 +1720,7 @@ export struct HomeView {
   }
 
   build() {
+    if (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) {
       HdsNavDestination() {
         this.homeBuilder()
       }
@@ -1654,8 +1774,64 @@ export struct HomeView {
             ]
           }
         },
-      })
 
+      })
+    } else {
+      HdsNavDestination() {
+        this.homeBuilder()
+      }
+      .hideBackButton(true)
+      .hideTitleBar(false)
+      .backgroundColor(Color.Transparent)
+      .titleBar({
+        avoidLayoutSafeArea: true,
+        content: {
+          title: { mainTitle: '订阅概览' },
+          stackBuilder: (): void => this.AgentStackBuilder(),
+          menu: {
+            value: [
+              {
+                content: {
+                  label: '提醒管理',
+                  icon: $r('sys.symbol.bell'),
+                  action: (): void => {
+                    getContext(this).eventHub.emit('openReminderSheet');
+                  }
+                }
+              } as HdsNavigationMenuItemOptions,
+
+              {
+                content: {
+                  label: '分享',
+                  icon: $r('sys.symbol.share'),
+                  action: (): void => {
+                    if (!this.isLoggedIn) {
+                      if (this.isWide && this.isSplitViewEnabled) {
+                        this.pageStack.removeByName('Login');
+                        this.pageStack.pushPathByName('Login', null);
+                      } else {
+                        if (this.isAnimationEnabled) {
+                          animateTo({
+                            duration: this.animationDuration,
+                            curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                          }, () => {
+                            this.showLoginSheet = true;
+                          });
+                        } else {
+                          this.showLoginSheet = true;
+                        }
+                      }
+                      return;
+                    }
+                    HarmonyShareManager.getInstance().activeShare();
+                  }
+                }
+              } as HdsNavigationMenuItemOptions
+            ]
+          }
+        }
+      })
+    }
   }
 
   @State showReminderSheet: boolean = false;

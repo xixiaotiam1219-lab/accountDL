@@ -71,7 +71,7 @@ export class PreferenceUtil {
     if (this.initPromise) {
       return this.initPromise;
     }
-
+    
     this.initPromise = new Promise(async (resolve) => {
       try {
         this.context = context;
@@ -85,14 +85,14 @@ export class PreferenceUtil {
         resolve();
       }
     });
-
+    
     return this.initPromise;
   }
 
   private async ensureInitialized() {
-    if (!this.pref && this.initPromise) {
-      await this.initPromise;
-    }
+      if (!this.pref && this.initPromise) {
+          await this.initPromise;
+      }
   }
 
   public async get(key: string, defaultValue: preferences.ValueType): Promise<preferences.ValueType> {
@@ -158,7 +158,7 @@ export class PreferenceUtil {
       const password = await this.pref.get(PreferenceUtil.KEY_APP_LOCK_PASSWORD, '') as string;
       // Sync with AppStorage when reading
       AppStorage.setOrCreate('hasAppLock', !!password);
-
+      
       // 同时同步加载生物识别配置，防止异步竞争导致的逻辑错误
       const face = await this.getAppLockFace();
       const fingerprint = await this.getAppLockFingerprint();
@@ -166,7 +166,7 @@ export class PreferenceUtil {
       AppStorage.setOrCreate('appLockFace', face);
       AppStorage.setOrCreate('appLockFingerprint', fingerprint);
       AppStorage.setOrCreate('appLockPasswordLength', length);
-
+      
       return password;
     } catch (err) {
       return '';
@@ -234,7 +234,7 @@ export class PreferenceUtil {
   }
 
   public async getAppLockFingerprint(): Promise<boolean> {
-    await this.ensureInitialized();
+     await this.ensureInitialized();
     if (!this.pref) return false;
     try {
       return await this.pref.get(PreferenceUtil.KEY_APP_LOCK_FINGERPRINT, false) as boolean;
@@ -255,9 +255,9 @@ export class PreferenceUtil {
       const unionId = await this.pref.get('unionId', '');
       const userName = await this.pref.get('userName', '');
       const avatar = await this.pref.get('userAvatar', '');
-
+      
       hilog.info(DOMAIN, TAG, `Session loaded: LoggedIn=${isLoggedIn}, User=${userName}`);
-
+      
       return {
         'isLoggedIn': isLoggedIn,
         'unionId': unionId,
@@ -344,7 +344,7 @@ export class PreferenceUtil {
         await this.pref.flush();
       }
     } catch (err) {
-      hilog.error(DOMAIN, TAG, `Failed to save formId: ${err}`);
+       hilog.error(DOMAIN, TAG, `Failed to save formId: ${err}`);
     }
   }
 
@@ -359,7 +359,7 @@ export class PreferenceUtil {
         await this.pref.flush();
       }
     } catch (err) {
-      hilog.error(DOMAIN, TAG, `Failed to remove formId: ${err}`);
+       hilog.error(DOMAIN, TAG, `Failed to remove formId: ${err}`);
     }
   }
 
@@ -599,7 +599,7 @@ export class PreferenceUtil {
     await this.ensureInitialized();
     const isApiSupported = deviceInfo.distributionOSApiVersion >= 60100;
     AppStorage.setOrCreate('isHdsTabsSupported', isApiSupported);
-
+    
     if (!isApiSupported) {
       AppStorage.setOrCreate('isHdsTabsEnabled', false);
       return false;
@@ -609,7 +609,7 @@ export class PreferenceUtil {
       AppStorage.setOrCreate('isHdsTabsEnabled', false);
       return false;
     }
-
+    
     try {
       const enabled = await this.pref.get(PreferenceUtil.KEY_HDS_TABS_ENABLED, false);
       AppStorage.setOrCreate('isHdsTabsEnabled', enabled);
@@ -651,14 +651,14 @@ export class PreferenceUtil {
    */
   loadSmartGestureEnabledSync(context: common.Context): boolean {
     try {
-      const pref = preferences.getPreferencesSync(context, { name: PREFERENCES_NAME });
-      const enabled = pref.getSync(PreferenceUtil.KEY_SMART_GESTURE_ENABLED, false) as boolean; // Default false
-      AppStorage.setOrCreate('isSmartGestureEnabled', enabled);
-      hilog.info(DOMAIN, TAG, `loadSmartGestureEnabledSync: ${enabled}`);
-      return enabled;
+        const pref = preferences.getPreferencesSync(context, { name: PREFERENCES_NAME });
+        const enabled = pref.getSync(PreferenceUtil.KEY_SMART_GESTURE_ENABLED, false) as boolean; // Default false
+        AppStorage.setOrCreate('isSmartGestureEnabled', enabled);
+        hilog.info(DOMAIN, TAG, `loadSmartGestureEnabledSync: ${enabled}`);
+        return enabled;
     } catch (e) {
-      hilog.error(DOMAIN, TAG, `loadSmartGestureEnabledSync failed: ${JSON.stringify(e)}`);
-      return false;
+        hilog.error(DOMAIN, TAG, `loadSmartGestureEnabledSync failed: ${JSON.stringify(e)}`);
+        return false;
     }
   }
 
@@ -667,14 +667,14 @@ export class PreferenceUtil {
    */
   loadSplitViewEnabledSync(context: common.Context): boolean {
     try {
-      const pref = preferences.getPreferencesSync(context, { name: PREFERENCES_NAME });
-      const enabled = pref.getSync(PreferenceUtil.KEY_SPLIT_VIEW_ENABLED, false) as boolean; // Default false
-      AppStorage.setOrCreate('isSplitViewEnabled', enabled);
-      hilog.info(DOMAIN, TAG, `loadSplitViewEnabledSync: ${enabled}`);
-      return enabled;
+        const pref = preferences.getPreferencesSync(context, { name: PREFERENCES_NAME });
+        const enabled = pref.getSync(PreferenceUtil.KEY_SPLIT_VIEW_ENABLED, false) as boolean; // Default false
+        AppStorage.setOrCreate('isSplitViewEnabled', enabled);
+        hilog.info(DOMAIN, TAG, `loadSplitViewEnabledSync: ${enabled}`);
+        return enabled;
     } catch (e) {
-      hilog.error(DOMAIN, TAG, `loadSplitViewEnabledSync failed: ${JSON.stringify(e)}`);
-      return false;
+        hilog.error(DOMAIN, TAG, `loadSplitViewEnabledSync failed: ${JSON.stringify(e)}`);
+        return false;
     }
   }
 
@@ -707,27 +707,27 @@ export class PreferenceUtil {
    */
   loadAppLockSettingsSync(context: common.Context): void {
     try {
-      const pref = preferences.getPreferencesSync(context, { name: PREFERENCES_NAME });
+        const pref = preferences.getPreferencesSync(context, { name: PREFERENCES_NAME });
+        
+        // 1. Password Status
+        const password = pref.getSync(PreferenceUtil.KEY_APP_LOCK_PASSWORD, '') as string;
+        AppStorage.setOrCreate('hasAppLock', !!password);
+        
+        // 2. Face Status
+        const face = pref.getSync(PreferenceUtil.KEY_APP_LOCK_FACE, false) as boolean;
+        AppStorage.setOrCreate('appLockFace', face);
+        
+        // 3. Fingerprint Status
+        const fingerprint = pref.getSync(PreferenceUtil.KEY_APP_LOCK_FINGERPRINT, false) as boolean;
+        AppStorage.setOrCreate('appLockFingerprint', fingerprint);
 
-      // 1. Password Status
-      const password = pref.getSync(PreferenceUtil.KEY_APP_LOCK_PASSWORD, '') as string;
-      AppStorage.setOrCreate('hasAppLock', !!password);
-
-      // 2. Face Status
-      const face = pref.getSync(PreferenceUtil.KEY_APP_LOCK_FACE, false) as boolean;
-      AppStorage.setOrCreate('appLockFace', face);
-
-      // 3. Fingerprint Status
-      const fingerprint = pref.getSync(PreferenceUtil.KEY_APP_LOCK_FINGERPRINT, false) as boolean;
-      AppStorage.setOrCreate('appLockFingerprint', fingerprint);
-
-      // 4. Password Length
-      const length = pref.getSync(PreferenceUtil.KEY_APP_LOCK_PASSWORD_LENGTH, 4) as number;
-      AppStorage.setOrCreate('appLockPasswordLength', length);
-
-      hilog.info(DOMAIN, TAG, `loadAppLockSettingsSync: hasAppLock=${!!password}, face=${face}, fingerprint=${fingerprint}, length=${length}`);
+        // 4. Password Length
+        const length = pref.getSync(PreferenceUtil.KEY_APP_LOCK_PASSWORD_LENGTH, 4) as number;
+        AppStorage.setOrCreate('appLockPasswordLength', length);
+        
+        hilog.info(DOMAIN, TAG, `loadAppLockSettingsSync: hasAppLock=${!!password}, face=${face}, fingerprint=${fingerprint}, length=${length}`);
     } catch (e) {
-      hilog.error(DOMAIN, TAG, `loadAppLockSettingsSync failed: ${JSON.stringify(e)}`);
+        hilog.error(DOMAIN, TAG, `loadAppLockSettingsSync failed: ${JSON.stringify(e)}`);
     }
   }
 
@@ -736,35 +736,35 @@ export class PreferenceUtil {
    */
   loadAnimationSettingsSync(context: common.Context): void {
     try {
-      const pref = preferences.getPreferencesSync(context, { name: PREFERENCES_NAME });
+        const pref = preferences.getPreferencesSync(context, { name: PREFERENCES_NAME });
+        
+        // 1. Animation Toggle
+        const enabled = pref.getSync(PreferenceUtil.KEY_ANIMATION_ENABLED, true) as boolean;
+        AppStorage.setOrCreate('isAnimationEnabled', enabled);
+        
+        // 2. Duration
+        const duration = pref.getSync(PreferenceUtil.KEY_ANIMATION_DURATION, 400) as number;
+        AppStorage.setOrCreate('animationDuration', duration);
+        
+        // 3. Damping
+        const damping = pref.getSync(PreferenceUtil.KEY_ANIMATION_DAMPING, 0.5) as number;
+        AppStorage.setOrCreate('animationDamping', damping);
+        
+        // 4. Response
+        const response = pref.getSync(PreferenceUtil.KEY_ANIMATION_RESPONSE, 0.6) as number;
+        AppStorage.setOrCreate('animationResponse', response);
+        
+        // 5. Preset Mode
+        const mode = pref.getSync(PreferenceUtil.KEY_ANIMATION_PRESET_MODE, 0) as number;
+        AppStorage.setOrCreate('animationPresetMode', mode);
 
-      // 1. Animation Toggle
-      const enabled = pref.getSync(PreferenceUtil.KEY_ANIMATION_ENABLED, true) as boolean;
-      AppStorage.setOrCreate('isAnimationEnabled', enabled);
-
-      // 2. Duration
-      const duration = pref.getSync(PreferenceUtil.KEY_ANIMATION_DURATION, 400) as number;
-      AppStorage.setOrCreate('animationDuration', duration);
-
-      // 3. Damping
-      const damping = pref.getSync(PreferenceUtil.KEY_ANIMATION_DAMPING, 0.5) as number;
-      AppStorage.setOrCreate('animationDamping', damping);
-
-      // 4. Response
-      const response = pref.getSync(PreferenceUtil.KEY_ANIMATION_RESPONSE, 0.6) as number;
-      AppStorage.setOrCreate('animationResponse', response);
-
-      // 5. Preset Mode
-      const mode = pref.getSync(PreferenceUtil.KEY_ANIMATION_PRESET_MODE, 0) as number;
-      AppStorage.setOrCreate('animationPresetMode', mode);
-
-      // 6. Point Light
-      const light = pref.getSync(PreferenceUtil.KEY_POINT_LIGHT_ENABLED, true) as boolean;
-      AppStorage.setOrCreate('isPointLightEnabled', light);
-
-      hilog.info(DOMAIN, TAG, `loadAnimationSettingsSync: enabled=${enabled}, duration=${duration}, damping=${damping}, response=${response}, mode=${mode}`);
+        // 6. Point Light
+        const light = pref.getSync(PreferenceUtil.KEY_POINT_LIGHT_ENABLED, true) as boolean;
+        AppStorage.setOrCreate('isPointLightEnabled', light);
+        
+        hilog.info(DOMAIN, TAG, `loadAnimationSettingsSync: enabled=${enabled}, duration=${duration}, damping=${damping}, response=${response}, mode=${mode}`);
     } catch (e) {
-      hilog.error(DOMAIN, TAG, `loadAnimationSettingsSync failed: ${JSON.stringify(e)}`);
+        hilog.error(DOMAIN, TAG, `loadAnimationSettingsSync failed: ${JSON.stringify(e)}`);
     }
   }
 
@@ -786,7 +786,7 @@ export class PreferenceUtil {
       await this.pref.put(PreferenceUtil.KEY_AI_ENABLED, enabled);
       await this.pref.flush();
     } catch (err) {
-      hilog.error(DOMAIN, TAG, `Failed to save AI enabled: ${err}`);
+       hilog.error(DOMAIN, TAG, `Failed to save AI enabled: ${err}`);
     }
   }
 
@@ -813,7 +813,7 @@ export class PreferenceUtil {
       await this.pref.flush();
       AppStorage.setOrCreate('isNewYearWatermarkEnabled', enabled);
     } catch (err) {
-      hilog.error(DOMAIN, TAG, `Failed to save new year watermark enabled: ${err}`);
+       hilog.error(DOMAIN, TAG, `Failed to save new year watermark enabled: ${err}`);
     }
   }
 
@@ -824,7 +824,7 @@ export class PreferenceUtil {
       await this.pref.put('search_debounce_enabled', enabled);
       await this.pref.flush();
     } catch (err) {
-      hilog.error(DOMAIN, TAG, `Failed to save search debounce enabled: ${err}`);
+       hilog.error(DOMAIN, TAG, `Failed to save search debounce enabled: ${err}`);
     }
   }
 
@@ -852,7 +852,7 @@ export class PreferenceUtil {
       await this.pref.flush();
       AppStorage.setOrCreate('watermarkImage', uri);
     } catch (err) {
-      hilog.error(DOMAIN, TAG, `Failed to save watermark image: ${err}`);
+       hilog.error(DOMAIN, TAG, `Failed to save watermark image: ${err}`);
     }
   }
 
@@ -876,7 +876,7 @@ export class PreferenceUtil {
       await this.pref.flush();
       AppStorage.setOrCreate('watermarkOpacity', opacity);
     } catch (err) {
-      hilog.error(DOMAIN, TAG, `Failed to save watermark opacity: ${err}`);
+       hilog.error(DOMAIN, TAG, `Failed to save watermark opacity: ${err}`);
     }
   }
 
@@ -913,7 +913,7 @@ export class PreferenceUtil {
       AppStorage.setOrCreate('watermarkOffsetX', x);
       AppStorage.setOrCreate('watermarkOffsetY', y);
     } catch (err) {
-      hilog.error(DOMAIN, TAG, `Failed to save watermark offset: ${err}`);
+       hilog.error(DOMAIN, TAG, `Failed to save watermark offset: ${err}`);
     }
   }
 
@@ -936,35 +936,35 @@ export class PreferenceUtil {
       await this.pref.flush();
       hilog.info(DOMAIN, TAG, `New year reminder disabled status saved: ${disabled}`);
     } catch (err) {
-      hilog.error(DOMAIN, TAG, `Failed to save new year reminder disabled status: ${err}`);
+       hilog.error(DOMAIN, TAG, `Failed to save new year reminder disabled status: ${err}`);
     }
   }
 
   public async loadTextWatermarkEnabled(): Promise<boolean> {
-    await this.ensureInitialized();
-    if (!this.pref) return true;
-    try {
-      const val = await this.pref.get(PreferenceUtil.KEY_TEXT_WATERMARK_ENABLED, true);
-      AppStorage.setOrCreate('isTextWatermarkEnabled', val);
-      return val as boolean;
-    } catch (err) {
-      return true;
-    }
+     await this.ensureInitialized();
+     if (!this.pref) return true;
+     try {
+       const val = await this.pref.get(PreferenceUtil.KEY_TEXT_WATERMARK_ENABLED, true);
+       AppStorage.setOrCreate('isTextWatermarkEnabled', val);
+       return val as boolean;
+     } catch (err) {
+       return true;
+     }
   }
-
-  public async saveTextWatermarkEnabled(enabled: boolean) {
-    await this.ensureInitialized();
-    if (!this.pref) return;
-    try {
-      await this.pref.put(PreferenceUtil.KEY_TEXT_WATERMARK_ENABLED, enabled);
-      await this.pref.flush();
-      AppStorage.setOrCreate('isTextWatermarkEnabled', enabled);
-    } catch (err) {
-      hilog.error(DOMAIN, TAG, `Failed to save text watermark enabled: ${err}`);
-    }
+ 
+   public async saveTextWatermarkEnabled(enabled: boolean) {
+     await this.ensureInitialized();
+     if (!this.pref) return;
+     try {
+       await this.pref.put(PreferenceUtil.KEY_TEXT_WATERMARK_ENABLED, enabled);
+       await this.pref.flush();
+       AppStorage.setOrCreate('isTextWatermarkEnabled', enabled);
+     } catch (err) {
+        hilog.error(DOMAIN, TAG, `Failed to save text watermark enabled: ${err}`);
+     }
   }
-
-  public async loadWatermarkTextContent(): Promise<string> {
+ 
+   public async loadWatermarkTextContent(): Promise<string> {
     await this.ensureInitialized();
     if (!this.pref) return '记得订阅';
     try {
@@ -975,39 +975,39 @@ export class PreferenceUtil {
       return '记得订阅';
     }
   }
-
-  public async saveWatermarkTextContent(text: string) {
-    await this.ensureInitialized();
-    if (!this.pref) return;
-    try {
-      await this.pref.put(PreferenceUtil.KEY_WATERMARK_TEXT, text);
-      await this.pref.flush();
-      AppStorage.setOrCreate('watermarkText', text);
-    } catch (err) {
-      hilog.error(DOMAIN, TAG, `Failed to save watermark text content: ${err}`);
-    }
-  }
-
-  async saveThemeId(id: string) {
+ 
+   public async saveWatermarkTextContent(text: string) {
+     await this.ensureInitialized();
+     if (!this.pref) return;
+     try {
+       await this.pref.put(PreferenceUtil.KEY_WATERMARK_TEXT, text);
+       await this.pref.flush();
+       AppStorage.setOrCreate('watermarkText', text);
+     } catch (err) {
+        hilog.error(DOMAIN, TAG, `Failed to save watermark text content: ${err}`);
+     }
+   }
+ 
+   async saveThemeId(id: string) {
     await this.ensureInitialized();
     if (!this.pref) return;
     try {
       await this.pref.put(PreferenceUtil.KEY_THEME_ID, id);
       await this.pref.flush();
       hilog.info(DOMAIN, TAG, `saveThemeId: Successfully saved themeId=${id}`);
-
+      
       // Update global state
       AppStorage.setOrCreate('activeThemeId', id);
       AppStorage.setOrCreate('showVipTheme', id === 'vip');
       AppStorage.setOrCreate('isNewYearTheme', id === 'new_year');
-
+      
       // Notify widgets
       this.updateAllWidgets();
-
+      
       // Notify repository to update snapshot
       const GlobalBus = await import('./GlobalBus');
       GlobalBus.GlobalBus.publish(GlobalBus.EVENT_THEME_CHANGED);
-
+      
     } catch (err) {
       hilog.error(DOMAIN, TAG, `Failed to save theme id: ${err}`);
     }
@@ -1018,19 +1018,19 @@ export class PreferenceUtil {
     if (!this.pref) return 'default';
     try {
       let id = await this.pref.get(PreferenceUtil.KEY_THEME_ID, '') as string;
-
+      
       // Migration from legacy boolean
       if (!id) {
-        const isVip = await this.pref.get(PreferenceUtil.KEY_SHOW_VIP_THEME, false) as boolean;
-        id = isVip ? 'vip' : 'default';
-        // Save migration
-        await this.saveThemeId(id);
+          const isVip = await this.pref.get(PreferenceUtil.KEY_SHOW_VIP_THEME, false) as boolean;
+          id = isVip ? 'vip' : 'default';
+          // Save migration
+          await this.saveThemeId(id);
       }
 
       AppStorage.setOrCreate('activeThemeId', id);
       AppStorage.setOrCreate('showVipTheme', id === 'vip');
       AppStorage.setOrCreate('isNewYearTheme', id === 'new_year');
-
+      
       return id;
     } catch (err) {
       hilog.error(DOMAIN, TAG, `Failed to load theme id: ${err}`);
@@ -1043,24 +1043,24 @@ export class PreferenceUtil {
    */
   loadThemeIdSync(context: common.Context): string {
     try {
-      const pref = preferences.getPreferencesSync(context, { name: PREFERENCES_NAME });
-      let id = pref.getSync(PreferenceUtil.KEY_THEME_ID, '') as string;
+        const pref = preferences.getPreferencesSync(context, { name: PREFERENCES_NAME });
+        let id = pref.getSync(PreferenceUtil.KEY_THEME_ID, '') as string;
+        
+        // Migration logic - sync version
+        if (!id) {
+             const isVip = pref.getSync(PreferenceUtil.KEY_SHOW_VIP_THEME, false) as boolean;
+             id = isVip ? 'vip' : 'default';
+        }
 
-      // Migration logic - sync version
-      if (!id) {
-        const isVip = pref.getSync(PreferenceUtil.KEY_SHOW_VIP_THEME, false) as boolean;
-        id = isVip ? 'vip' : 'default';
-      }
-
-      AppStorage.setOrCreate('activeThemeId', id);
-      AppStorage.setOrCreate('showVipTheme', id === 'vip');
-      AppStorage.setOrCreate('isNewYearTheme', id === 'new_year');
-
-      hilog.info(DOMAIN, TAG, `loadThemeIdSync: ${id}`);
-      return id;
+        AppStorage.setOrCreate('activeThemeId', id);
+        AppStorage.setOrCreate('showVipTheme', id === 'vip');
+        AppStorage.setOrCreate('isNewYearTheme', id === 'new_year');
+        
+        hilog.info(DOMAIN, TAG, `loadThemeIdSync: ${id}`);
+        return id;
     } catch (e) {
-      hilog.error(DOMAIN, TAG, `loadThemeIdSync failed: ${JSON.stringify(e)}`);
-      return 'default';
+        hilog.error(DOMAIN, TAG, `loadThemeIdSync failed: ${JSON.stringify(e)}`);
+        return 'default';
     }
   }
 
@@ -1069,86 +1069,86 @@ export class PreferenceUtil {
    */
   getThemeIdSync(context: common.Context): string {
     try {
-      const pref = preferences.getPreferencesSync(context, { name: PREFERENCES_NAME });
-      return pref.getSync(PreferenceUtil.KEY_THEME_ID, 'default') as string;
+        const pref = preferences.getPreferencesSync(context, { name: PREFERENCES_NAME });
+        return pref.getSync(PreferenceUtil.KEY_THEME_ID, 'default') as string;
     } catch (e) {
-      return 'default';
+        return 'default';
     }
   }
 
   // Deprecated: Use saveThemeId
   async saveShowVipTheme(enabled: boolean) {
-    const id = enabled ? 'vip' : 'default';
-    await this.saveThemeId(id);
+     const id = enabled ? 'vip' : 'default';
+     await this.saveThemeId(id);
   }
 
   public getThemeId(): string {
     // Try AppStorage first (UI process optimization)
     const id = AppStorage.get<string>('activeThemeId');
     if (id) return id;
-
+    
     // Fallback to synchronous pref read if available (for Form/Ability context)
     if (this.context) {
-      return this.getThemeIdSync(this.context);
+        return this.getThemeIdSync(this.context);
     }
-
+    
     return 'default';
   }
 
   private async updateAllWidgets() {
     hilog.info(DOMAIN, TAG, 'updateAllWidgets: Triggering manual widget updates...');
     try {
-      // Use the official way to get running forms if possible, or fallback to saved IDs
-      let formIds: string[] = [];
-      try {
-        const runningForms = await formProvider.getPublishedRunningFormInfos();
-        formIds = runningForms.map((info: formInfo.RunningFormInfo) => info.formId);
-        hilog.info(DOMAIN, TAG, `updateAllWidgets: Found ${formIds.length} running forms`);
-      } catch (e) {
-        hilog.warn(DOMAIN, TAG, 'updateAllWidgets: Failed to get running forms, falling back to preference list');
-        formIds = await this.getFormIds();
-      }
-
-      const themeId = this.getThemeId();
-
-      if (formIds.length > 0) {
-        // Encode data as a valid binding object
-        const bindingData = formBindingData.createFormBindingData({
-          'activeThemeId': themeId
-        });
-
-        for (const id of formIds) {
-          if (id && id.trim() !== '') {
-            try {
-              await formProvider.updateForm(id, bindingData);
-              hilog.info(DOMAIN, TAG, `updateAllWidgets: Successfully pushed theme update to form ${id}`);
-            } catch (err) {
-              const error = err as BusinessError;
-              hilog.error(DOMAIN, TAG, `updateAllWidgets: Failed to update form ${id}. error: ${error.code} ${error.message}`);
-              // If ID does not exist, prune it from our list if we are using the fallback list
-              if (error.code === 16501001 || (error.message && error.message.includes('not exist'))) {
-                this.removeFormId(id);
-              }
-            }
-          }
+        // Use the official way to get running forms if possible, or fallback to saved IDs
+        let formIds: string[] = [];
+        try {
+            const runningForms = await formProvider.getPublishedRunningFormInfos();
+            formIds = runningForms.map((info: formInfo.RunningFormInfo) => info.formId);
+            hilog.info(DOMAIN, TAG, `updateAllWidgets: Found ${formIds.length} running forms`);
+        } catch (e) {
+            hilog.warn(DOMAIN, TAG, 'updateAllWidgets: Failed to get running forms, falling back to preference list');
+            formIds = await this.getFormIds();
         }
-      }
+
+        const themeId = this.getThemeId();
+        
+        if (formIds.length > 0) {
+            // Encode data as a valid binding object
+            const bindingData = formBindingData.createFormBindingData({ 
+                'activeThemeId': themeId 
+            });
+            
+            for (const id of formIds) {
+                if (id && id.trim() !== '') {
+                    try {
+                        await formProvider.updateForm(id, bindingData); 
+                        hilog.info(DOMAIN, TAG, `updateAllWidgets: Successfully pushed theme update to form ${id}`);
+                    } catch (err) {
+                        const error = err as BusinessError;
+                        hilog.error(DOMAIN, TAG, `updateAllWidgets: Failed to update form ${id}. error: ${error.code} ${error.message}`);
+                        // If ID does not exist, prune it from our list if we are using the fallback list
+                        if (error.code === 16501001 || (error.message && error.message.includes('not exist'))) {
+                            this.removeFormId(id);
+                        }
+                    }
+                }
+            }
+        }
     } catch (e) {
-      const error = e as BusinessError;
-      hilog.error(DOMAIN, TAG, `updateAllWidgets failed. code: ${error.code}, message: ${error.message}`);
+        const error = e as BusinessError;
+        hilog.error(DOMAIN, TAG, `updateAllWidgets failed. code: ${error.code}, message: ${error.message}`);
     }
   }
 
   // Deprecated: Use loadThemeId
   async loadShowVipTheme(): Promise<boolean> {
-    const id = await this.loadThemeId();
-    return id === 'vip';
+     const id = await this.loadThemeId();
+     return id === 'vip';
   }
 
   // =========================================
   // 会员系统相关方法
   // =========================================
-
+  
   /**
    * 保存黑金主题状态 (原会员信息保存)
    * 简化为只保存 isVip 状态，忽略过期时间
@@ -1162,12 +1162,12 @@ export class PreferenceUtil {
       await this.pref.put('membership_expiry', expiry);
       await this.pref.put('is_vip', isVip);
       await this.pref.flush();
-
+      
       // 同步到 AppStorage
       AppStorage.setOrCreate('membershipLevel', level);
       AppStorage.setOrCreate('membershipExpiry', expiry);
       AppStorage.setOrCreate('isVip', isVip);
-
+      
       hilog.info(DOMAIN, TAG, `Theme setting saved: isBlackGold=${isVip}`);
     } catch (err) {
       hilog.error(DOMAIN, TAG, `Failed to save theme setting: ${err}`);
@@ -1181,17 +1181,17 @@ export class PreferenceUtil {
     await this.ensureInitialized();
     const defaultResult: MembershipData = { level: 'free', expiry: 0, isVip: false };
     if (!this.pref) return defaultResult;
-
+    
     try {
       const level = await this.pref.get('membership_level', 'free') as string;
       const expiry = await this.pref.get('membership_expiry', 0) as number;
       const isVip = await this.pref.get('is_vip', false) as boolean;
-
+      
       // 同步到 AppStorage
       AppStorage.setOrCreate('membershipLevel', level);
       AppStorage.setOrCreate('membershipExpiry', expiry);
       AppStorage.setOrCreate('isVip', isVip);
-
+      
       hilog.info(DOMAIN, TAG, `Theme setting loaded: isBlackGold=${isVip}`);
       const result: MembershipData = { level: level, expiry: expiry, isVip: isVip };
       return result;
@@ -1211,10 +1211,10 @@ export class PreferenceUtil {
       await this.pref.put('membership_level', 'free');
       await this.pref.put('membership_expiry', 0);
       await this.pref.flush();
-
+      
       AppStorage.setOrCreate('membershipLevel', 'free');
       AppStorage.setOrCreate('membershipExpiry', 0);
-
+      
       hilog.info(DOMAIN, TAG, 'Membership cleared');
     } catch (err) {
       hilog.error(DOMAIN, TAG, `Failed to clear membership: ${err}`);

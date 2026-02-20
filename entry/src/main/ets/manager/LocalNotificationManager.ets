@@ -28,7 +28,8 @@ export class LocalNotificationManager {
    * @param sub 订阅对象
    */
   public async scheduleReminder(sub: SubscriptionModel): Promise<void> {
-    if (!sub.id || sub.billingCycle === 'Lifetime' || sub.isDeleted || sub.reminderDaysBefore === undefined || sub.reminderDaysBefore === null) {
+    // 允许 warranty 类型的 Lifetime 周期设置提醒
+    if (!sub.id || (sub.billingCycle === 'Lifetime' && sub.recordType !== 'warranty') || sub.isDeleted || sub.reminderDaysBefore === undefined || sub.reminderDaysBefore === null) {
       if (sub.id) {
         await this.cancelReminder(sub.id);
       }
@@ -65,8 +66,8 @@ export class LocalNotificationManager {
     const reminder: reminderAgentManager.ReminderRequestCalendar = {
       reminderType: reminderAgentManager.ReminderType.REMINDER_TYPE_CALENDAR,
       dateTime: dateTime,
-      title: sub.recordType === 'groupBuy' ? '团购券过期提醒' : '订阅到期提醒',
-      content: sub.recordType === 'groupBuy' ? `您的团购券 ${sub.name} 即将过期` : `您的订阅 ${sub.name} 即将到期 (${sub.currency} ${sub.price})`,
+      title: sub.recordType === 'groupBuy' ? '团购券过期提醒' : (sub.recordType === 'warranty' ? '保修到期提醒' : '订阅到期提醒'),
+      content: sub.recordType === 'groupBuy' ? `您的团购券 ${sub.name} 即将过期` : (sub.recordType === 'warranty' ? `您的 ${sub.name} 保修即将到期` : `您的订阅 ${sub.name} 即将到期 (${sub.currency} ${sub.price})`),
       slotType: notificationManager.SlotType.SERVICE_INFORMATION,
       wantAgent: {
         pkgName: 'com.xxtstudio.accountDL',
@@ -238,5 +239,33 @@ export class LocalNotificationManager {
   public async isNewYearReminderSet(): Promise<boolean> {
     const rId: number = await PreferenceUtil.getInstance().get(LocalNotificationManager.KEY_NEW_YEAR_REMINDER_ID, -1) as number;
     return rId !== -1;
+  }
+
+  /**
+   * 取消所有订阅相关的系统提醒（通常在登出时调用）
+   * @param subs 需要取消提醒的订阅列表
+   */
+  public async cancelAllReminders(subs: SubscriptionModel[]): Promise<void> {
+    hilog.info(DOMAIN, TAG, `Cancelling all reminders for ${subs.length} subscriptions`);
+    
+    // 1. 取消常规订阅提醒
+    for (const sub of subs) {
+      if (sub.id !== undefined) {
+        const rId = await PreferenceUtil.getInstance().getReminderId(sub.id);
+        if (rId !== -1) {
+          try {
+            await reminderAgentManager.cancelReminder(rId);
+            await PreferenceUtil.getInstance().removeReminderId(sub.id);
+            hilog.info(DOMAIN, TAG, `Cancelled reminder ${rId} for sub ${sub.id}`);
+          } catch (e) {
+            hilog.error(DOMAIN, TAG, `Failed to cancel reminder ${rId} for sub ${sub.id}: ${(e as BusinessError).message}`);
+          }
+        }
+      }
+    }
+
+    // 2. 取消新年提醒
+    await this.cancelNewYearReminder();
+    hilog.info(DOMAIN, TAG, 'All system reminders cleared during logout');
   }
 }

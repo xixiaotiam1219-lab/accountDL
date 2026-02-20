@@ -13,6 +13,7 @@ import { UpdateManager } from '../utils/UpdateManager';
 import { hdsEffect, HdsNavigation, HdsNavigationTitleBarOptions, HdsNavigationMenuItemOptions, HdsNavigationTitleMode, HdsNavigationAttribute,
   HdsTabs } from '@kit.UIDesignKit';
 import { SubscriptionDetailOverlay } from '../view/SubscriptionDetailOverlay';
+import { QueryResultsOverlay } from '../view/QueryResultsOverlay';
 import { SubscriptionModel } from '../model/SubscriptionModel';
 import { preferences } from '@kit.ArkData';
 import { PreferenceUtil, MembershipInfo } from '../utils/PreferenceUtil';
@@ -61,6 +62,7 @@ struct Index {
 
   // 全局详情页状态
   @StorageLink('isDetailVisible') isDetailVisible: boolean = false;
+  @StorageLink('isQueryResultsVisible') isQueryResultsVisible: boolean = false;
   @StorageLink('detailSubscriptionData') detailData: SubscriptionModel | undefined = undefined;
   @StorageLink('isSplitViewEnabled') @Watch('onSplitViewChange') isSplitViewEnabled: boolean = false;
   @State placeholderOpacity: number = 0;
@@ -184,10 +186,8 @@ struct Index {
   }
 
   onPageShow() {
-    // 强制检查宽度。使用延时确保环境数据已稳定
-    setTimeout(() => {
-      this.refreshWideStatus();
-    }, 200);
+    // 强制检查宽度。启动时已在 aboutToAppear 同步检查过，此处仅作为生命周期兜底
+    this.refreshWideStatus();
 
     // Notify components that app is in foreground
     const context = getContext(this) as common.UIAbilityContext;
@@ -203,31 +203,31 @@ struct Index {
 
       const newIsWide = widthVp >= 600;
       hilog.info(0x0000, 'Index', `refreshWideStatus: widthVp=${widthVp}, newIsWide=${newIsWide}`);
+      AppStorage.setOrCreate('windowWidthVp', widthVp);
 
       if (this.isWide !== newIsWide) {
         this.isWide = newIsWide;
         AppStorage.setOrCreate('isWide', this.isWide);
       }
 
-      // 恢复状态逻辑：只有物理上是宽屏时，才考虑恢复用户的平行视界偏好
-      PreferenceUtil.getInstance().loadSplitViewEnabled().then((prefEnabled: boolean) => {
-        if (this.isWide) {
-          // 如果偏好是开启，则确保 AppStorage 也是开启
-          if (prefEnabled && !this.isSplitViewEnabled) {
-            AppStorage.setOrCreate('isSplitViewEnabled', true);
-          } else if (!prefEnabled && this.isSplitViewEnabled) {
-            // 如果偏好是关闭，则确保 AppStorage 也是关闭
-            AppStorage.setOrCreate('isSplitViewEnabled', false);
-          }
-        } else {
-          // 窄屏下必须关闭平行视界（强制单栏）
-          if (this.isSplitViewEnabled) {
-            AppStorage.setOrCreate('isSplitViewEnabled', false);
-          }
+      // 优化：不再使用异步 load，直接从 AppStorage 获取或同步判定
+      // EntryAbility 已经同步 load 过 preference 到 AppStorage 了
+      const prefEnabled = AppStorage.get<boolean>('isSplitViewEnabled') ?? false;
+
+      if (this.isWide) {
+        if (prefEnabled && !this.isSplitViewEnabled) {
+          this.isSplitViewEnabled = true;
+        } else if (!prefEnabled && this.isSplitViewEnabled) {
+          this.isSplitViewEnabled = false;
         }
-        // 状态同步后，立即刷新占位图可见性
-        this.updatePlaceholderVisibility();
-      });
+      } else {
+        if (this.isSplitViewEnabled) {
+          this.isSplitViewEnabled = false;
+        }
+      }
+
+      // 状态同步后，立即刷新占位图可见性
+      this.updatePlaceholderVisibility();
     } catch (e) {
       hilog.error(0x0000, 'Index', `refreshWideStatus failed: ${JSON.stringify(e)}`);
     }
@@ -273,10 +273,6 @@ struct Index {
     } catch (e) {}
 
     // 0. 会员状态已在 EntryAbility 中预加载，此处只需检查过期并移除遮罩
-    PreferenceUtil.getInstance().loadMembership().then((_: MembershipInfo) => {
-      // 检查本地缓存过期情况（即使离线）
-      this.checkMembershipExpiry();
-    });
 
     // Load Split Navigation preference
     PreferenceUtil.getInstance().get('isWide', false).then((val: preferences.ValueType) => {
@@ -318,8 +314,7 @@ struct Index {
       });
       HuaweiAuthManager.getInstance().login(true).then(() => {
         SubscriptionRepository.getInstance().syncWithCloud();
-        // 检查会员状态并提醒即将到期
-        this.checkMembershipExpiry();
+
       }).catch((err: BusinessError) => {
         // 仅记录日志，不打扰用户，也不退出登录（此时 AccountMonitor 已经处理过是否退出的逻辑了）
       });
@@ -470,70 +465,6 @@ struct Index {
    * 检查会员状态，即将到期时提醒用户续费
    * 每日只提醒一次，避免频繁打扰
    */
-  async checkMembershipExpiry() {
-    const membership: MembershipInfo = await PreferenceUtil.getInstance().loadMembership();
-
-    // 永久会员无需检查
-    if (membership.level === 'lifetime') {
-      return;
-    }
-
-    // 检查是否为 Pro 会员
-    if (membership.level === 'pro' && membership.expiry > 0) {
-      const now = Date.now();
-      const daysLeft = Math.ceil((membership.expiry - now) / (1000 * 60 * 60 * 24));
-
-      // 检查今天是否已经提醒过（避免每次启动都弹窗）
-      const today = new Date().toDateString();
-      const lastCheckDate = AppStorage.get<string>('lastExpiryCheckDate') || '';
-
-      if (lastCheckDate === today) {
-        // 今天已经提醒过（无论是即将到期还是已过期），跳过
-        return;
-      }
-
-      // 已过期
-      if (daysLeft <= 0) {
-        // 更新本地状态为非 VIP
-        AppStorage.setOrCreate('isVip', false);
-        AppStorage.setOrCreate('lastExpiryCheckDate', today);
-
-        // 弹窗提醒
-        promptAction.showDialog({
-          title: '会员已过期',
-          message: '您的 Pro 会员已到期，云同步和云推送功能已暂停。\n\n您的本地数据不会丢失，云端数据也将保留 30 天，续费后可恢复同步。',
-          buttons: [
-            { text: '稍后再说', color: $r('app.color.text_secondary') },
-            { text: '立即续费', color: $r('app.color.brand_color') }
-          ]
-        }).then(result => {
-          if (result.index === 1) {
-            this.pageStack.pushPathByName('Membership', null);
-          }
-        });
-        return;
-      }
-
-      // 即将到期（3天内）
-      if (daysLeft <= 3 && daysLeft > 0) {
-        AppStorage.setOrCreate('lastExpiryCheckDate', today);
-
-        promptAction.showDialog({
-          title: '会员即将到期',
-          message: `您的 Pro 会员将在 ${daysLeft} 天后到期，到期后云同步和云推送功能将暂停。\n\n立即续费可继续享受 VIP 权益。`,
-          buttons: [
-            { text: '稍后再说', color: $r('app.color.text_secondary') },
-            { text: '立即续费', color: $r('app.color.brand_color') }
-          ]
-        }).then(result => {
-          if (result.index === 1) {
-            this.pageStack.pushPathByName('Membership', null);
-          }
-        });
-      }
-    }
-  }
-
   onLoginStatusChange() {
     if (!this.isLoggedIn) {
       // Delay clear to avoid render conflict if triggered during build
@@ -1086,12 +1017,7 @@ struct Index {
             .barHeight(0)
             .scrollable(false)
             .onAppear(() => {
-              // 增强：首次加载时从偏好加载一次
-              PreferenceUtil.getInstance().loadSplitViewEnabled().then((enabled: boolean) => {
-                if (this.isWide && enabled && !this.isSplitViewEnabled) {
-                  AppStorage.setOrCreate('isSplitViewEnabled', true);
-                }
-              });
+              // 状态同步已经在 refreshWideStatus 中处理，无需在此重复异步读取
             })
             .animationDuration(this.animationDuration)
             .onChange((index: number) => {
@@ -1130,8 +1056,16 @@ struct Index {
 
         // Global Detail Overlay
         // 移除 currentIndex === 0 的限制，让它能在 Index 层面统一展示（反正跳转后已经在首页了）
-        if (this.isDetailVisible && this.detailData && this.pageStack.size() === 0) {
+        // 详情页浮层 (全局)
+        if (this.isDetailVisible && this.detailData) {
           SubscriptionDetailOverlay({ data: this.detailData })
+            .zIndex(1000)
+        }
+
+        // 查询结果浮层 (全局)
+        if (this.isQueryResultsVisible) {
+          QueryResultsOverlay()
+            .zIndex(1001)
         }
       }
       .width('100%')

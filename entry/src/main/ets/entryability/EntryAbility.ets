@@ -560,6 +560,9 @@ export default class EntryAbility extends UIAbility {
     // 关键修正：同步加载动画配置，防止启动动画参数缺失
     PreferenceUtil.getInstance().loadAnimationSettingsSync(this.context);
 
+    // 关键修正：同步加载 HDS Tabs 状态 (API 23 Features)
+    PreferenceUtil.getInstance().loadHdsTabsEnabledSync(this.context);
+
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {
         hilog.error(DOMAIN, 'testTag', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
@@ -591,7 +594,7 @@ export default class EntryAbility extends UIAbility {
         try {
           const displayClass = display.getDefaultDisplaySync();
           const widthVp = windowClass.getWindowProperties().windowRect.width / displayClass.densityPixels;
-          const isWide = widthVp >= 520;
+          const isWide = widthVp >= 600;
           AppStorage.setOrCreate('isWide', isWide);
           hilog.info(DOMAIN, 'testTag', `Pre-calculated isWide: ${isWide} (widthVp: ${widthVp})`);
         } catch (e) {

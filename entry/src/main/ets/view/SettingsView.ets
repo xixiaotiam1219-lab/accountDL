@@ -1,8 +1,8 @@
 import { formProvider } from '@kit.FormKit';
-import { display, promptAction, curves } from '@kit.ArkUI'; // Added import
+import { display, promptAction, curves, LengthMetrics } from '@kit.ArkUI'; // Added import
 import { ImageCropSheet } from './ImageCropPage';
 
-import { BusinessError, pasteboard } from '@kit.BasicServicesKit';
+import { BusinessError, deviceInfo, pasteboard } from '@kit.BasicServicesKit';
 import { ConfigurationConstant, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { util, buffer } from '@kit.ArkTS';
@@ -21,13 +21,12 @@ import { LoginSheet } from './LoginSheet';
 import { WebViewParam } from './WebViewPage';
 import { UpdateManager } from '../utils/UpdateManager';
 import { AccountMonitor } from '../utils/AccountMonitor';
-import { hdsEffect, HdsNavDestination } from '@kit.UIDesignKit';
+import { hdsEffect, HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
 import { ImportSheet } from './ImportSheet';
 import { SubscriptionModel } from '../model/SubscriptionModel';
 import { LocalNotificationManager } from '../manager/LocalNotificationManager';
 import { HarmonyShareManager } from '../utils/HarmonyShareManager';
 import { userAuth } from '@kit.UserAuthenticationKit';
-import { privacyManager } from '@kit.StoreKit';
 
 
 const DOMAIN = 0x0000;
@@ -79,11 +78,11 @@ export struct SettingsView {
   @StorageLink('animationPresetMode') @Watch('onAnimationPresetModeChange') animationPresetMode: number = 0; // 0: 自定义, 1: 慢, 2: 默认, 3: 快
   @StorageLink('isPointLightEnabled') @Watch('onPointLightEnabledChange') isPointLightEnabled: boolean = true;
   @State @Watch('onAnimationSheetChange') showAnimationSheet: boolean = false;
-  
+
   @State showImportSheet: boolean = false;
   @State importData: SubscriptionModel[] = [];
 
-  
+
   // 主题状态 (原 VIP 主题 -> 黑金主题)
   @StorageLink('isVip') isVip: boolean = false;  // 复用此字段控制黑金主题开关权限
   @StorageLink('showVipTheme') showVipTheme: boolean = true;
@@ -91,6 +90,8 @@ export struct SettingsView {
   @StorageLink('isNewYearTheme') isNewYearTheme: boolean = false;
   @StorageLink('isNewYearWatermarkEnabled') isNewYearWatermarkEnabled: boolean = true;
   @StorageLink('isSmartGestureEnabled') isSmartGestureEnabled: boolean = false;
+  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
+  @StorageLink('isHdsTabsSupported') isHdsTabsSupported: boolean = false;
   @StorageLink('watermarkImage') watermarkImage: string = '';
   @StorageLink('watermarkOpacity') watermarkOpacity: number = 0.2;
   @StorageLink('watermarkOffsetX') watermarkOffsetX: number = 0; // Keeping for compatibility, though unused
@@ -120,7 +121,7 @@ export struct SettingsView {
     // Only close the sheet if the user is logged out (auto-cleared)
     // If the user manually turns it off, keep the sheet open
     if (!this.hasPasswordLock && !this.isLoggedIn) {
-        this.showAppLockSettingsSheet = false;
+      this.showAppLockSettingsSheet = false;
     }
   }
 
@@ -128,7 +129,7 @@ export struct SettingsView {
   @State supportFingerprint: boolean = false;
   @StorageLink('appLockFace') isFaceEnabled: boolean = false;
   @StorageLink('appLockFingerprint') isFingerprintEnabled: boolean = false;
-  
+
 
   async initBiometricSettings() {
     this.isFaceEnabled = await PreferenceUtil.getInstance().getAppLockFace();
@@ -137,26 +138,26 @@ export struct SettingsView {
 
   async checkBiometricSupport() {
     try {
-       // Check Face
-       try {
-           userAuth.getAvailableStatus(userAuth.UserAuthType.FACE, userAuth.AuthTrustLevel.ATL3);
-           this.supportFace = true;
-       } catch (e) {
-           this.supportFace = false;
-       }
-       
-       // Check Fingerprint
-       try {
-           userAuth.getAvailableStatus(userAuth.UserAuthType.FINGERPRINT, userAuth.AuthTrustLevel.ATL3);
-           this.supportFingerprint = true;
-       } catch (e) {
-           this.supportFingerprint = false;
-       }
+      // Check Face
+      try {
+        userAuth.getAvailableStatus(userAuth.UserAuthType.FACE, userAuth.AuthTrustLevel.ATL3);
+        this.supportFace = true;
+      } catch (e) {
+        this.supportFace = false;
+      }
+
+      // Check Fingerprint
+      try {
+        userAuth.getAvailableStatus(userAuth.UserAuthType.FINGERPRINT, userAuth.AuthTrustLevel.ATL3);
+        this.supportFingerprint = true;
+      } catch (e) {
+        this.supportFingerprint = false;
+      }
     } catch (err) {
-       hilog.error(DOMAIN, 'SettingsView', `Biometric check failed: ${JSON.stringify(err)}`);
+      hilog.error(DOMAIN, 'SettingsView', `Biometric check failed: ${JSON.stringify(err)}`);
     }
   }
-  
+
 
 
 
@@ -188,35 +189,35 @@ export struct SettingsView {
         const targetPath = `${fileDir}/${fileName}`;
 
         try {
-            const file = fs.openSync(uri, fs.OpenMode.READ_ONLY);
-            // Read and Write to internal storage
-            // Simplified copy for URI sharing issues
+          const file = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+          // Read and Write to internal storage
+          // Simplified copy for URI sharing issues
 
-            // Note: Direct fs.copy might fail across providers, read/write is safer
-            let buf = new ArrayBuffer(1024 * 1024 * 2); // 2MB chunk buffer
-            // Since we can't easily stream copy with limited fs API in snippet,
-            // we will just use the URI if it's accessible, or try a simple copy.
-            // For Safety in HarmonyOS, URIs from picker usually need permission.
-            // Best practice: Read content and save.
+          // Note: Direct fs.copy might fail across providers, read/write is safer
+          let buf = new ArrayBuffer(1024 * 1024 * 2); // 2MB chunk buffer
+          // Since we can't easily stream copy with limited fs API in snippet,
+          // we will just use the URI if it's accessible, or try a simple copy.
+          // For Safety in HarmonyOS, URIs from picker usually need permission.
+          // Best practice: Read content and save.
 
-            // For now, let's try direct URI usage first.
-            // If we want persistence, we should implement detailed copy.
-            // Let's implement a simple copy strategy using available fs APIs.
+          // For now, let's try direct URI usage first.
+          // If we want persistence, we should implement detailed copy.
+          // Let's implement a simple copy strategy using available fs APIs.
 
-            fs.copyFileSync(file.fd, targetPath);
-            fs.closeSync(file);
+          fs.copyFileSync(file.fd, targetPath);
+          fs.closeSync(file);
 
-            // Instead of saving immediately, open edit sheet
-            this.tempWatermarkImage = `file://${targetPath}`;
-            this.tempWatermarkOpacity = this.watermarkOpacity; // Load current or default
-            this.showWatermarkEditSheet = true;
+          // Instead of saving immediately, open edit sheet
+          this.tempWatermarkImage = `file://${targetPath}`;
+          this.tempWatermarkOpacity = this.watermarkOpacity; // Load current or default
+          this.showWatermarkEditSheet = true;
 
         } catch (e) {
-            hilog.error(DOMAIN, 'SettingsView', `Failed to copy watermark: ${e}`);
-             // Fallback
-            this.tempWatermarkImage = uri;
-            this.tempWatermarkOpacity = this.watermarkOpacity;
-            this.showWatermarkEditSheet = true;
+          hilog.error(DOMAIN, 'SettingsView', `Failed to copy watermark: ${e}`);
+          // Fallback
+          this.tempWatermarkImage = uri;
+          this.tempWatermarkOpacity = this.watermarkOpacity;
+          this.showWatermarkEditSheet = true;
         }
       }
     } catch (err) {
@@ -226,19 +227,19 @@ export struct SettingsView {
   }
 
   handleSaveWatermark(uri: string) {
-      if (uri) {
-          PreferenceUtil.getInstance().saveWatermarkImage(uri);
-          PreferenceUtil.getInstance().saveWatermarkOpacity(this.tempWatermarkOpacity);
-          // Reset offsets since we are using cropped image now (image covers intended area)
-          PreferenceUtil.getInstance().saveWatermarkOffset(0, 0);
-          this.promptAction.showToast({ message: '背景水印设置成功' });
-          this.showWatermarkEditSheet = false;
-      }
+    if (uri) {
+      PreferenceUtil.getInstance().saveWatermarkImage(uri);
+      PreferenceUtil.getInstance().saveWatermarkOpacity(this.tempWatermarkOpacity);
+      // Reset offsets since we are using cropped image now (image covers intended area)
+      PreferenceUtil.getInstance().saveWatermarkOffset(0, 0);
+      this.promptAction.showToast({ message: '背景水印设置成功' });
+      this.showWatermarkEditSheet = false;
+    }
   }
 
   handleClearWatermarkImage() {
-     PreferenceUtil.getInstance().saveWatermarkImage('');
-     this.promptAction.showToast({ message: '背景水印已清除' });
+    PreferenceUtil.getInstance().saveWatermarkImage('');
+    this.promptAction.showToast({ message: '背景水印已清除' });
   }
 
 
@@ -261,8 +262,8 @@ export struct SettingsView {
       // Trigger preview
       this.resetPreviewPosition();
     } else {
-        // Stop loop when sheet closes
-        this.stopAutoPlayLoop();
+      // Stop loop when sheet closes
+      this.stopAutoPlayLoop();
     }
   }
 
@@ -279,14 +280,14 @@ export struct SettingsView {
   @State isDragging: boolean = false;
   private autoPlayTimer: number = -1;
 
-  
+
   onAnimationPresetModeChange() {
     this.applyAnimationPreset(this.animationPresetMode);
   }
 
   applyAnimationPreset(mode: number) {
     if (mode === 0) return; // Custom, do nothing
-    
+
     let duration = 400;
     let damping = 0.75;
     let response = 0.35;
@@ -308,14 +309,14 @@ export struct SettingsView {
     this.animationDuration = duration;
     this.animationDamping = damping;
     this.animationResponse = response;
-    
+
     PreferenceUtil.getInstance().saveAnimationDuration(duration);
     PreferenceUtil.getInstance().saveAnimationDamping(damping);
     PreferenceUtil.getInstance().saveAnimationResponse(response);
 
     // Restart preview to show effect immediately
     if (this.isAnimationEnabled && this.showAnimationSheet) {
-        this.resetPreviewPosition();
+      this.resetPreviewPosition();
     }
   }
 
@@ -324,11 +325,11 @@ export struct SettingsView {
     this.stopAutoPlayLoop();
 
     if (this.isAnimationEnabled) {
-        // Return to center
+      // Return to center
       const dampedCurve = curves.springMotion(this.animationResponse, this.animationDamping);
       animateTo({ curve: dampedCurve, onFinish: () => {
-          // Restart loop after return
-          this.startAutoPlayLoop();
+        // Restart loop after return
+        this.startAutoPlayLoop();
       }}, () => {
         this.previewOffsetX = 0;
         this.previewOffsetY = 0;
@@ -337,43 +338,43 @@ export struct SettingsView {
   }
 
   startAutoPlayLoop(): void {
-      if (this.isDragging || !this.showAnimationSheet || !this.isAnimationEnabled) return;
-      
-      // Stop existing
-      this.stopAutoPlayLoop();
+    if (this.isDragging || !this.showAnimationSheet || !this.isAnimationEnabled) return;
 
-      // Simple Left-Right loop
-      const duration = this.animationDuration;
-      const dampedCurve = curves.springMotion(this.animationResponse, this.animationDamping);
-      
-      const targetX = 60;
+    // Stop existing
+    this.stopAutoPlayLoop();
 
-      // 1. Move Right
+    // Simple Left-Right loop
+    const duration = this.animationDuration;
+    const dampedCurve = curves.springMotion(this.animationResponse, this.animationDamping);
+
+    const targetX = 60;
+
+    // 1. Move Right
+    animateTo({ duration: duration, curve: dampedCurve }, () => {
+      if (!this.isDragging) this.previewOffsetX = targetX;
+    })
+
+    // 2. Move Left (after duration + pause)
+    this.autoPlayTimer = setTimeout(() => {
+      if (this.isDragging || !this.showAnimationSheet) return;
+
       animateTo({ duration: duration, curve: dampedCurve }, () => {
-          if (!this.isDragging) this.previewOffsetX = targetX;
+        if (!this.isDragging) this.previewOffsetX = -targetX;
       })
 
-      // 2. Move Left (after duration + pause)
+      // 3. Loop (after duration + pause)
       this.autoPlayTimer = setTimeout(() => {
-          if (this.isDragging || !this.showAnimationSheet) return;
-
-          animateTo({ duration: duration, curve: dampedCurve }, () => {
-              if (!this.isDragging) this.previewOffsetX = -targetX;
-          })
-
-          // 3. Loop (after duration + pause)
-          this.autoPlayTimer = setTimeout(() => {
-              this.startAutoPlayLoop();
-          }, duration + 800);
-
+        this.startAutoPlayLoop();
       }, duration + 800);
+
+    }, duration + 800);
   }
 
   stopAutoPlayLoop(): void {
-      if (this.autoPlayTimer !== -1) {
-          clearTimeout(this.autoPlayTimer);
-          this.autoPlayTimer = -1;
-      }
+    if (this.autoPlayTimer !== -1) {
+      clearTimeout(this.autoPlayTimer);
+      this.autoPlayTimer = -1;
+    }
   }
 
 
@@ -391,14 +392,12 @@ export struct SettingsView {
   @State pressCard1: boolean = false;
   @State pressCard2: boolean = false;
   @State pressCard3: boolean = false;
-  @State pressCard4: boolean = false;
   @State pressCard5: boolean = false;
 
   // Point light source types for press effect
   @State lightSource1: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
   @State lightSource2: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
   @State lightSource3: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
-  @State lightSource4: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
   @State lightSource5: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
 
   // Button Interaction States
@@ -411,9 +410,9 @@ export struct SettingsView {
     if (this.isVisible) {
       // 增强：每次可见时从偏好加载一次，防止状态不一致
       PreferenceUtil.getInstance().loadSplitViewEnabled().then(enabled => {
-          if (this.isWide && enabled && !this.isSplitViewEnabled) {
-              AppStorage.setOrCreate('isSplitViewEnabled', true);
-          }
+        if (this.isWide && enabled && !this.isSplitViewEnabled) {
+          AppStorage.setOrCreate('isSplitViewEnabled', true);
+        }
       });
 
       this.triggerEntranceAnimation();
@@ -471,13 +470,13 @@ export struct SettingsView {
           .fontSize(20)
           .fontWeight(FontWeight.Bold)
           .fontColor($r('app.color.text_primary'))
-        
+
         Blank()
 
         Toggle({ type: ToggleType.Switch, isOn: this.isAnimationEnabled })
           .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
           .onChange((value: boolean) => {
-             PreferenceUtil.getInstance().saveAnimationEnabled(value);
+            PreferenceUtil.getInstance().saveAnimationEnabled(value);
           })
       }
       .width('100%')
@@ -486,70 +485,70 @@ export struct SettingsView {
       if (this.isAnimationEnabled) {
         // Draggable Spring Preview
         Column() {
-            Row() {
-                Text("效果预览")
-                    .fontSize(14)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor($r('app.color.text_secondary'))
-                Blank()
-                Text("可拖拽小球体验回弹")
-                    .fontSize(12)
-                    .fontColor($r('app.color.text_tertiary'))
-            }
-            .width('100%')
-            .margin({ bottom: 12 })
+          Row() {
+            Text("效果预览")
+              .fontSize(14)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_secondary'))
+            Blank()
+            Text("可拖拽小球体验回弹")
+              .fontSize(12)
+              .fontColor($r('app.color.text_tertiary'))
+          }
+          .width('100%')
+          .margin({ bottom: 12 })
 
-            // Playground Area
-            Stack({ alignContent: Alignment.Center }) {
-                // Initial Center Marker (Optional)
-                Circle({ width: 8, height: 8 })
-                    .fill($r('app.color.divider_color'))
+          // Playground Area
+          Stack({ alignContent: Alignment.Center }) {
+            // Initial Center Marker (Optional)
+            Circle({ width: 8, height: 8 })
+              .fill($r('app.color.divider_color'))
 
-                // Draggable Box
-                Column()
-                    .width(64)
-                    .height(64)
-                    .backgroundColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                    .borderRadius(16)
-                    .shadow({ radius: 24, color: '#40000000', offsetY: 8 })
-                    .translate({ x: this.previewOffsetX, y: this.previewOffsetY })
-                    .scale({ x: this.previewScale, y: this.previewScale })
-                    .gesture(
-                        PanGesture()
-                            .onActionStart(() => {
-                                this.isDragging = true;
-                                this.stopAutoPlayLoop(); // Stop auto-play immediately
-                                animateTo({ duration: 150, curve: Curve.EaseOut }, () => {
-                                    this.previewScale = 0.9; // Press feedback
-                                })
-                            })
-                            .onActionUpdate((event: GestureEvent) => {
-                                // Direct follow, no animation for immediate response
-                                animateTo({ duration: 0 }, () => {
-                                    this.previewOffsetX = event.offsetX;
-                                    this.previewOffsetY = event.offsetY;
-                                })
-                            })
-                            .onActionEnd(() => {
-                                this.isDragging = false;
-                                // Snap back with configured spring physics
-                                const dampedCurve = curves.springMotion(this.animationResponse, this.animationDamping);
-                                animateTo({ curve: dampedCurve, onFinish: () => {
-                                    // Resume auto-play after snap back
-                                    setTimeout(() => { this.startAutoPlayLoop(); }, 100);
-                                }}, () => {
-                                    this.previewOffsetX = 0;
-                                    this.previewOffsetY = 0;
-                                    this.previewScale = 1; // Release scale
-                                })
-                            })
-                    )
-            }
-            .height(180)
-            .width('100%')
-            .backgroundColor($r('app.color.main_background')) // Contrast background
-            .borderRadius(16)
-            .clip(true)
+            // Draggable Box
+            Column()
+              .width(64)
+              .height(64)
+              .backgroundColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+              .borderRadius(16)
+              .shadow({ radius: 24, color: '#40000000', offsetY: 8 })
+              .translate({ x: this.previewOffsetX, y: this.previewOffsetY })
+              .scale({ x: this.previewScale, y: this.previewScale })
+              .gesture(
+                PanGesture()
+                  .onActionStart(() => {
+                    this.isDragging = true;
+                    this.stopAutoPlayLoop(); // Stop auto-play immediately
+                    animateTo({ duration: 150, curve: Curve.EaseOut }, () => {
+                      this.previewScale = 0.9; // Press feedback
+                    })
+                  })
+                  .onActionUpdate((event: GestureEvent) => {
+                    // Direct follow, no animation for immediate response
+                    animateTo({ duration: 0 }, () => {
+                      this.previewOffsetX = event.offsetX;
+                      this.previewOffsetY = event.offsetY;
+                    })
+                  })
+                  .onActionEnd(() => {
+                    this.isDragging = false;
+                    // Snap back with configured spring physics
+                    const dampedCurve = curves.springMotion(this.animationResponse, this.animationDamping);
+                    animateTo({ curve: dampedCurve, onFinish: () => {
+                      // Resume auto-play after snap back
+                      setTimeout(() => { this.startAutoPlayLoop(); }, 100);
+                    }}, () => {
+                      this.previewOffsetX = 0;
+                      this.previewOffsetY = 0;
+                      this.previewScale = 1; // Release scale
+                    })
+                  })
+              )
+          }
+          .height(180)
+          .width('100%')
+          .backgroundColor($r('app.color.main_background')) // Contrast background
+          .borderRadius(16)
+          .clip(true)
         }
         .padding(16)
         .backgroundColor($r('app.color.divider_color'))
@@ -560,149 +559,149 @@ export struct SettingsView {
 
       // Controls
       Column() {
-          // Compact Presets
-          Row({ space: 8 }) {
-            ForEach([1, 2, 3], (mode: number) => {
-              Button(mode === 1 ? "慢速" : (mode === 2 ? "系统默认" : "极致快"))
-                .layoutWeight(1)
-                .height(32)
-                .fontSize(12)
-                .fontWeight(this.animationPresetMode === mode ? FontWeight.Bold : FontWeight.Normal)
-                .fontColor(this.animationPresetMode === mode ? Color.White : $r('app.color.text_primary'))
-                .backgroundColor(this.animationPresetMode === mode ? 
-                  (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))) : 
-                  $r('app.color.card_background'))
-                .onClick(() => {
-                  PreferenceUtil.getInstance().saveAnimationPresetMode(mode);
-                })
-            }, (mode: number) => mode.toString())
-          }
-          .width('100%')
-          .padding(4)
-          .backgroundColor($r('app.color.divider_color'))
-          .borderRadius(10)
-          .margin({ bottom: 24 })
+        // Compact Presets
+        Row({ space: 8 }) {
+          ForEach([1, 2, 3], (mode: number) => {
+            Button(mode === 1 ? "慢速" : (mode === 2 ? "系统默认" : "极致快"))
+              .layoutWeight(1)
+              .height(32)
+              .fontSize(12)
+              .fontWeight(this.animationPresetMode === mode ? FontWeight.Bold : FontWeight.Normal)
+              .fontColor(this.animationPresetMode === mode ? Color.White : $r('app.color.text_primary'))
+              .backgroundColor(this.animationPresetMode === mode ?
+                (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))) :
+                $r('app.color.card_background'))
+              .onClick(() => {
+                PreferenceUtil.getInstance().saveAnimationPresetMode(mode);
+              })
+          }, (mode: number) => mode.toString())
+        }
+        .width('100%')
+        .padding(4)
+        .backgroundColor($r('app.color.divider_color'))
+        .borderRadius(10)
+        .margin({ bottom: 24 })
 
-          // Compact Sliders
-          Column({ space: 16 }) {
-              // Duration
-              Row({ space: 12 }) {
-                  Text("动画时长")
-                    .fontSize(14)
-                    .fontColor($r('app.color.text_primary'))
-                    .width(60)
-
-                  Slider({
-                      value: this.animationDuration,
-                      min: 50, max: 1000, step: 50,
-                      style: SliderStyle.OutSet
-                  })
-                  .layoutWeight(1)
-                  .blockColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                  .trackColor($r('app.color.divider_color'))
-                  .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                  .onChange((value: number, mode: SliderChangeMode) => {
-                      this.animationDuration = value;
-                      if (mode === SliderChangeMode.End) {
-                          PreferenceUtil.getInstance().saveAnimationDuration(value);
-                          if (this.animationPresetMode !== 0) PreferenceUtil.getInstance().saveAnimationPresetMode(0);
-                      }
-                  })
-
-                  Text(`${this.animationDuration/1000}s`)
-                    .fontSize(14)
-                    .fontColor($r('app.color.text_secondary'))
-                    .width(48)
-                    .textAlign(TextAlign.End)
-                    .maxLines(1)
-              }
-
-              // Damping
-              Row({ space: 12 }) {
-                  Text("回弹阻尼")
-                    .fontSize(14)
-                    .fontColor($r('app.color.text_primary'))
-                    .width(60)
-
-                  Slider({
-                      value: this.animationDamping * 100,
-                      min: 5, max: 100, step: 5,
-                      style: SliderStyle.OutSet
-                  })
-                  .layoutWeight(1)
-                  .blockColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                  .trackColor($r('app.color.divider_color'))
-                  .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                  .onChange((value: number, mode: SliderChangeMode) => {
-                      this.animationDamping = value / 100;
-                      if (mode === SliderChangeMode.End) {
-                          PreferenceUtil.getInstance().saveAnimationDamping(this.animationDamping);
-                          if (this.animationPresetMode !== 0) PreferenceUtil.getInstance().saveAnimationPresetMode(0);
-                          // Restart loop immediately
-                          if (this.isAnimationEnabled && this.showAnimationSheet) {
-                              this.resetPreviewPosition();
-                          }
-                      }
-                  })
-
-                  Text(`${this.animationDamping.toFixed(2)}`)
-                    .fontSize(14)
-                    .fontColor($r('app.color.text_secondary'))
-                    .width(48)
-                    .textAlign(TextAlign.End)
-              }
-
-              // Response
-              Row({ space: 12 }) {
-                  Text("响应速度")
-                    .fontSize(14)
-                    .fontColor($r('app.color.text_primary'))
-                    .width(60)
-
-                  Slider({
-                      value: this.animationResponse * 100,
-                      min: 5, max: 100, step: 5,
-                      style: SliderStyle.OutSet
-                  })
-                  .layoutWeight(1)
-                  .blockColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                  .trackColor($r('app.color.divider_color'))
-                  .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                  .onChange((value: number, mode: SliderChangeMode) => {
-                      this.animationResponse = value / 100;
-                      if (mode === SliderChangeMode.End) {
-                          PreferenceUtil.getInstance().saveAnimationResponse(this.animationResponse);
-                          if (this.animationPresetMode !== 0) PreferenceUtil.getInstance().saveAnimationPresetMode(0);
-                          // Restart loop immediately
-                          if (this.isAnimationEnabled && this.showAnimationSheet) {
-                              this.resetPreviewPosition();
-                          }
-                      }
-                  })
-
-                   Text(`${this.animationResponse.toFixed(2)}`)
-                    .fontSize(14)
-                    .fontColor($r('app.color.text_secondary'))
-                    .width(48)
-                    .textAlign(TextAlign.End)
-              }
-          }
-
-          Divider().color($r('app.color.divider_color')).margin({ top: 24, bottom: 24 })
-
-          // Interactive Feedback
-           Row() {
-            Text("交互反馈 (光效/按压)")
+        // Compact Sliders
+        Column({ space: 16 }) {
+          // Duration
+          Row({ space: 12 }) {
+            Text("动画时长")
               .fontSize(14)
               .fontColor($r('app.color.text_primary'))
-            Blank()
-            Toggle({ type: ToggleType.Switch, isOn: this.isPointLightEnabled })
+              .width(60)
+
+            Slider({
+              value: this.animationDuration,
+              min: 50, max: 1000, step: 50,
+              style: SliderStyle.OutSet
+            })
+              .layoutWeight(1)
+              .blockColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+              .trackColor($r('app.color.divider_color'))
               .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-              .onChange((value: boolean) => {
-                 PreferenceUtil.getInstance().savePointLightEnabled(value);
+              .onChange((value: number, mode: SliderChangeMode) => {
+                this.animationDuration = value;
+                if (mode === SliderChangeMode.End) {
+                  PreferenceUtil.getInstance().saveAnimationDuration(value);
+                  if (this.animationPresetMode !== 0) PreferenceUtil.getInstance().saveAnimationPresetMode(0);
+                }
               })
+
+            Text(`${this.animationDuration/1000}s`)
+              .fontSize(14)
+              .fontColor($r('app.color.text_secondary'))
+              .width(48)
+              .textAlign(TextAlign.End)
+              .maxLines(1)
           }
-          .width('100%')
+
+          // Damping
+          Row({ space: 12 }) {
+            Text("回弹阻尼")
+              .fontSize(14)
+              .fontColor($r('app.color.text_primary'))
+              .width(60)
+
+            Slider({
+              value: this.animationDamping * 100,
+              min: 5, max: 100, step: 5,
+              style: SliderStyle.OutSet
+            })
+              .layoutWeight(1)
+              .blockColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+              .trackColor($r('app.color.divider_color'))
+              .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+              .onChange((value: number, mode: SliderChangeMode) => {
+                this.animationDamping = value / 100;
+                if (mode === SliderChangeMode.End) {
+                  PreferenceUtil.getInstance().saveAnimationDamping(this.animationDamping);
+                  if (this.animationPresetMode !== 0) PreferenceUtil.getInstance().saveAnimationPresetMode(0);
+                  // Restart loop immediately
+                  if (this.isAnimationEnabled && this.showAnimationSheet) {
+                    this.resetPreviewPosition();
+                  }
+                }
+              })
+
+            Text(`${this.animationDamping.toFixed(2)}`)
+              .fontSize(14)
+              .fontColor($r('app.color.text_secondary'))
+              .width(48)
+              .textAlign(TextAlign.End)
+          }
+
+          // Response
+          Row({ space: 12 }) {
+            Text("响应速度")
+              .fontSize(14)
+              .fontColor($r('app.color.text_primary'))
+              .width(60)
+
+            Slider({
+              value: this.animationResponse * 100,
+              min: 5, max: 100, step: 5,
+              style: SliderStyle.OutSet
+            })
+              .layoutWeight(1)
+              .blockColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+              .trackColor($r('app.color.divider_color'))
+              .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+              .onChange((value: number, mode: SliderChangeMode) => {
+                this.animationResponse = value / 100;
+                if (mode === SliderChangeMode.End) {
+                  PreferenceUtil.getInstance().saveAnimationResponse(this.animationResponse);
+                  if (this.animationPresetMode !== 0) PreferenceUtil.getInstance().saveAnimationPresetMode(0);
+                  // Restart loop immediately
+                  if (this.isAnimationEnabled && this.showAnimationSheet) {
+                    this.resetPreviewPosition();
+                  }
+                }
+              })
+
+            Text(`${this.animationResponse.toFixed(2)}`)
+              .fontSize(14)
+              .fontColor($r('app.color.text_secondary'))
+              .width(48)
+              .textAlign(TextAlign.End)
+          }
+        }
+
+        Divider().color($r('app.color.divider_color')).margin({ top: 24, bottom: 24 })
+
+        // Interactive Feedback
+        Row() {
+          Text("交互反馈 (光效/按压)")
+            .fontSize(14)
+            .fontColor($r('app.color.text_primary'))
+          Blank()
+          Toggle({ type: ToggleType.Switch, isOn: this.isPointLightEnabled })
+            .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+            .onChange((value: boolean) => {
+              PreferenceUtil.getInstance().savePointLightEnabled(value);
+            })
+        }
+        .width('100%')
       }
       .opacity(this.isAnimationEnabled ? 1 : 0.5)
       .enabled(this.isAnimationEnabled)
@@ -718,38 +717,39 @@ export struct SettingsView {
     this.checkPasswordLockStatus();
     this.checkBiometricSupport();
     this.initBiometricSettings();
-      let bundleFlags = bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT;
-      bundleManager.getBundleInfoForSelf(bundleFlags).then((data) => {
-          this.versionName = `v${data.versionName} (${data.versionCode})`;
-      }).catch((err: BusinessError) => {
-          hilog.error(DOMAIN, 'SettingsView', 'Failed to get bundle info: %{public}s', JSON.stringify(err));
-      });
+    let bundleFlags = bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT;
+    bundleManager.getBundleInfoForSelf(bundleFlags).then((data) => {
+      this.versionName = `v${data.versionName} (${data.versionCode})`;
+    }).catch((err: BusinessError) => {
+      hilog.error(DOMAIN, 'SettingsView', 'Failed to get bundle info: %{public}s', JSON.stringify(err));
+    });
 
-      PreferenceUtil.getInstance().loadTheme().then(mode => {
-          this.themeMode = mode;
-      });
-      PreferenceUtil.getInstance().loadSplitViewEnabled().then(enabled => {
-          // Sync Link
-          AppStorage.setOrCreate('isSplitViewEnabled', enabled);
-      });
-      PreferenceUtil.getInstance().loadAnimationEnabled();
-      PreferenceUtil.getInstance().loadAnimationDamping();
-      PreferenceUtil.getInstance().loadAnimationResponse();
-      PreferenceUtil.getInstance().loadAnimationPresetMode();
-      PreferenceUtil.getInstance().loadPointLightEnabled();
-      PreferenceUtil.getInstance().loadShowVipTheme();
-      PreferenceUtil.getInstance().loadNewYearWatermarkEnabled();
-      PreferenceUtil.getInstance().loadNewYearWatermarkEnabled().then(enabled => {
-        AppStorage.setOrCreate('isNewYearWatermarkEnabled', enabled);
-      });
-      PreferenceUtil.getInstance().loadSmartGestureEnabled();
-      // Initialize Local Icon Manager
-      LocalIconManager.getInstance().init(getContext(this));
+    PreferenceUtil.getInstance().loadTheme().then(mode => {
+      this.themeMode = mode;
+    });
+    PreferenceUtil.getInstance().loadSplitViewEnabled().then(enabled => {
+      // Sync Link
+      AppStorage.setOrCreate('isSplitViewEnabled', enabled);
+    });
+    PreferenceUtil.getInstance().loadAnimationEnabled();
+    PreferenceUtil.getInstance().loadAnimationDamping();
+    PreferenceUtil.getInstance().loadAnimationResponse();
+    PreferenceUtil.getInstance().loadAnimationPresetMode();
+    PreferenceUtil.getInstance().loadPointLightEnabled();
+    PreferenceUtil.getInstance().loadShowVipTheme();
+    PreferenceUtil.getInstance().loadNewYearWatermarkEnabled();
+    PreferenceUtil.getInstance().loadNewYearWatermarkEnabled().then(enabled => {
+      AppStorage.setOrCreate('isNewYearWatermarkEnabled', enabled);
+    });
+    PreferenceUtil.getInstance().loadSmartGestureEnabled();
+    PreferenceUtil.getInstance().loadHdsTabsEnabled();
+    // Initialize Local Icon Manager
+    LocalIconManager.getInstance().init(getContext(this));
 
-      // Sync local theme state - Delegated to PreferenceUtil
-      // Legacy logic removed to allow theme switching for all users
+    // Sync local theme state - Delegated to PreferenceUtil
+    // Legacy logic removed to allow theme switching for all users
 
-      this.onVisibleChange();
+    this.onVisibleChange();
   }
 
 
@@ -761,9 +761,9 @@ export struct SettingsView {
 
     // 登录完成后，初始化数据库 (本地模式)
     if (this.isLoggedIn) {
-        setTimeout(() => {
-           SubscriptionRepository.getInstance().init(getContext(this));
-        }, 1000);
+      setTimeout(() => {
+        SubscriptionRepository.getInstance().init(getContext(this));
+      }, 1000);
     }
   }
 
@@ -772,7 +772,7 @@ export struct SettingsView {
 
   // 移除本地授权逻辑，改用后端统一处理
   private handleProfileError(error: BusinessError): void {
-     // Placeholder
+    // Placeholder
   }
 
   dealAllError(error: BusinessError): void {
@@ -821,10 +821,10 @@ export struct SettingsView {
         }
 
         const autoRenewal = sub.isAutoRenewal !== false ? '是' : '否';
-        
+
         // 记录类型
         const recordType = sub.recordType === 'groupBuy' ? '团购券' : '订阅';
-        
+
         // 团购券专用字段
         const merchantName = sub.merchantName ? `"${sub.merchantName.replace(/"/g, '""')}"` : '""';
         const platform = sub.platform || '';
@@ -834,7 +834,7 @@ export struct SettingsView {
           const d = new Date(sub.realUsageTime);
           return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
         })() : '';
-        
+
         csvContent += `${recordType},${name},${sub.price},${sub.currency},${cycle},${category},${dateStr},${autoRenewal},${merchantName},${platform},${couponCode},${usageStatus},${realUsageTime},\n`;
       });
 
@@ -884,16 +884,16 @@ export struct SettingsView {
       // 导出完整 SubscriptionModel 对象，保留所有字段
       const exportSubs = await Promise.all(subs.map(async (sub) => {
         const item: SubscriptionModel = JSON.parse(JSON.stringify(sub));
-        
+
         // 1. 自动填充团购券图标
         if (item.recordType === 'groupBuy' && (!item.icon || item.icon === '')) {
-             if (item.platform === 'meituan') {
-                 item.icon = 'resource:meituan_logo';
-             } else if (item.platform === 'douyin') {
-                 item.icon = 'resource:douyin_logo';
-             } else if (item.platform === 'dianping') {
-                 item.icon = 'resource:dianping_logo';
-             }
+          if (item.platform === 'meituan') {
+            item.icon = 'resource:meituan_logo';
+          } else if (item.platform === 'douyin') {
+            item.icon = 'resource:douyin_logo';
+          } else if (item.platform === 'dianping') {
+            item.icon = 'resource:dianping_logo';
+          }
         }
 
         // 2. 处理 couponImage (团购券截图)
@@ -902,76 +902,76 @@ export struct SettingsView {
             const originalPath = item.couponImage;
             const filename = (originalPath.split('/').pop() || '').split('?')[0]; // 去掉可能存在的 query
             const ctx = getContext(this);
-            
+
             // --- 诊断日志：列出文件目录内容 ---
             try {
-                const list = fs.listFileSync(ctx.filesDir);
-                hilog.info(0x0000, 'SettingsView', `Files in filesDir: ${list.join(', ')}`);
+              const list = fs.listFileSync(ctx.filesDir);
+              hilog.info(0x0000, 'SettingsView', `Files in filesDir: ${list.join(', ')}`);
             } catch (e) {}
-            
+
             let base64Result: string | undefined = undefined;
-            
+
             // 构造极其进取的搜寻路径
             let searchPaths: string[] = [];
-            
+
             // (1) 原始路径 (处理 fileUri 转换)
             try {
-                searchPaths.push(new fileUri.FileUri(originalPath).path);
+              searchPaths.push(new fileUri.FileUri(originalPath).path);
             } catch (e) {
-                let p = originalPath;
-                if (p.startsWith('file://')) p = p.substring(7);
-                searchPaths.push(decodeURIComponent(p));
+              let p = originalPath;
+              if (p.startsWith('file://')) p = p.substring(7);
+              searchPaths.push(decodeURIComponent(p));
             }
-            
+
             // (2) 基于文件名的全目录扫描 (处理沙箱迁移)
             if (filename && filename.length > 5) {
-               const roots = [
-                 ctx.filesDir,
-                 ctx.cacheDir,
-                 ctx.tempDir,
-                 ctx.distributedFilesDir,
-                 '/data/storage/el2/base/haps/entry/files',
-                 '/data/storage/el2/base/files',
-                 '/data/storage/el1/base/haps/entry/files'
-               ];
-               roots.forEach(r => {
-                 if (r) {
-                   searchPaths.push(`${r}/${filename}`);
-                   searchPaths.push(`${r}/files/${filename}`); // 兼容某些层级错误
-                 }
-               });
+              const roots = [
+                ctx.filesDir,
+                ctx.cacheDir,
+                ctx.tempDir,
+                ctx.distributedFilesDir,
+                '/data/storage/el2/base/haps/entry/files',
+                '/data/storage/el2/base/files',
+                '/data/storage/el1/base/haps/entry/files'
+              ];
+              roots.forEach(r => {
+                if (r) {
+                  searchPaths.push(`${r}/${filename}`);
+                  searchPaths.push(`${r}/files/${filename}`); // 兼容某些层级错误
+                }
+              });
             }
 
             // 去重并有序执行
             const finalSearchList = Array.from(new Set(searchPaths)).filter(p => !!p);
 
             for (const path of finalSearchList) {
-                try {
-                    const res = await this.fileToBase64(path);
-                    if (res) {
-                        base64Result = res;
-                        hilog.info(0x0000, 'SettingsView', `SUCCEED: Image loaded from ${path}`);
-                        break;
-                    }
-                } catch (e) {
-                    // continue
+              try {
+                const res = await this.fileToBase64(path);
+                if (res) {
+                  base64Result = res;
+                  hilog.info(0x0000, 'SettingsView', `SUCCEED: Image loaded from ${path}`);
+                  break;
                 }
+              } catch (e) {
+                // continue
+              }
             }
 
             if (base64Result) {
-                item.couponImage = base64Result;
+              item.couponImage = base64Result;
             } else {
-                hilog.error(0x0000, 'SettingsView', `FAIL: Could not find/read file ${filename} after searching ${finalSearchList.length} paths`);
-                // 保持原样，不要设置为空
-                item.couponImage = originalPath;
+              hilog.error(0x0000, 'SettingsView', `FAIL: Could not find/read file ${filename} after searching ${finalSearchList.length} paths`);
+              // 保持原样，不要设置为空
+              item.couponImage = originalPath;
             }
           } catch (e) {
-             hilog.error(0x0000, 'SettingsView', `Global image proc error: ${JSON.stringify(e)}`);
+            hilog.error(0x0000, 'SettingsView', `Global image proc error: ${JSON.stringify(e)}`);
           }
         }
         return item;
       }));
-      
+
       const exportData: ExportDataWrapper = {
         version: '2.0',
         exportTime: new Date().toISOString(),
@@ -1005,109 +1005,109 @@ export struct SettingsView {
 
   // 清除自定义图标缓存
   async handleClearCache() {
-      if (!this.isLoggedIn) {
-        if (this.isWide && this.isSplitViewEnabled) {
-          this.pageStack.removeByName('Login');
-          this.pageStack.pushPathByName('Login', null);
-        } else {
-          this.showLoginSheet = true;
-        }
-        return;
+    if (!this.isLoggedIn) {
+      if (this.isWide && this.isSplitViewEnabled) {
+        this.pageStack.removeByName('Login');
+        this.pageStack.pushPathByName('Login', null);
+      } else {
+        this.showLoginSheet = true;
       }
-      this.promptAction.showDialog({
-          title: '清除缓存',
-          message: '确定要清除所有自定义图标缓存吗？这会将相关订阅的图标重置为默认文字头像。',
-          buttons: [
-              { text: '取消', color: $r('app.color.text_secondary') },
-              { text: '清除', color: '#E60012' }
-          ]
-      }).then(async (result) => {
-          if (result.index === 1) {
-              const iconDir = `${getContext(this).filesDir}/icons`;
-              let deletedCount = 0;
+      return;
+    }
+    this.promptAction.showDialog({
+      title: '清除缓存',
+      message: '确定要清除所有自定义图标缓存吗？这会将相关订阅的图标重置为默认文字头像。',
+      buttons: [
+        { text: '取消', color: $r('app.color.text_secondary') },
+        { text: '清除', color: '#E60012' }
+      ]
+    }).then(async (result) => {
+      if (result.index === 1) {
+        const iconDir = `${getContext(this).filesDir}/icons`;
+        let deletedCount = 0;
+        try {
+          if (fs.accessSync(iconDir)) {
+            const files = fs.listFileSync(iconDir);
+            files.forEach(f => {
               try {
-                  if (fs.accessSync(iconDir)) {
-                      const files = fs.listFileSync(iconDir);
-                      files.forEach(f => {
-                          try {
-                              fs.unlinkSync(`${iconDir}/${f}`);
-                              deletedCount++;
-                          } catch (e) {}
-                      });
-                  }
-              } catch (e) {
-                  hilog.error(DOMAIN, 'SettingsView', `Clear cache failed: ${JSON.stringify(e)}`);
-              }
-
-              await SubscriptionRepository.getInstance().clearCustomIcons();
-              this.promptAction.showToast({ message: '自定义图标已清理' });
-
-              // 重置所有激活的提醒
-              const allSubs = await SubscriptionRepository.getInstance().queryAll();
-              for (const sub of allSubs) {
-                  if (sub.reminderDaysBefore !== undefined && sub.reminderDaysBefore !== null && !sub.isDeleted) {
-                      await LocalNotificationManager.getInstance().scheduleReminder(sub);
-                  }
-              }
-              this.promptAction.showToast({ message: '提醒服务已重同步' });
-
-              // 自动执行修复逻辑
-              this.handleRepairIcons();
+                fs.unlinkSync(`${iconDir}/${f}`);
+                deletedCount++;
+              } catch (e) {}
+            });
           }
-      });
+        } catch (e) {
+          hilog.error(DOMAIN, 'SettingsView', `Clear cache failed: ${JSON.stringify(e)}`);
+        }
+
+        await SubscriptionRepository.getInstance().clearCustomIcons();
+        this.promptAction.showToast({ message: '自定义图标已清理' });
+
+        // 重置所有激活的提醒
+        const allSubs = await SubscriptionRepository.getInstance().queryAll();
+        for (const sub of allSubs) {
+          if (sub.reminderDaysBefore !== undefined && sub.reminderDaysBefore !== null && !sub.isDeleted) {
+            await LocalNotificationManager.getInstance().scheduleReminder(sub);
+          }
+        }
+        this.promptAction.showToast({ message: '提醒服务已重同步' });
+
+        // 自动执行修复逻辑
+        this.handleRepairIcons();
+      }
+    });
   }
 
   // 自动修复/恢复图标
   async handleRepairIcons() {
-     if (!this.isLoggedIn) {
-       if (this.isWide && this.isSplitViewEnabled) {
-         this.pageStack.removeByName('Login');
-         this.pageStack.pushPathByName('Login', null);
-       } else {
-         this.showLoginSheet = true;
-       }
-       return;
-     }
-     this.promptAction.showToast({ message: '开始检查并修复图标...' });
-     // 确保本地图标库已加载
-     await LocalIconManager.getInstance().init(getContext(this));
+    if (!this.isLoggedIn) {
+      if (this.isWide && this.isSplitViewEnabled) {
+        this.pageStack.removeByName('Login');
+        this.pageStack.pushPathByName('Login', null);
+      } else {
+        this.showLoginSheet = true;
+      }
+      return;
+    }
+    this.promptAction.showToast({ message: '开始检查并修复图标...' });
+    // 确保本地图标库已加载
+    await LocalIconManager.getInstance().init(getContext(this));
 
-     const subs = await SubscriptionRepository.getInstance().queryAll();
-     // 寻找需要修复的应用
-     const targets = subs.filter(s => !s.icon || (s.icon.length === 1) || (s.icon.startsWith('resource:') && s.icon !== 'resource:petalone'));
+    const subs = await SubscriptionRepository.getInstance().queryAll();
+    // 寻找需要修复的应用
+    const targets = subs.filter(s => !s.icon || (s.icon.length === 1) || (s.icon.startsWith('resource:') && s.icon !== 'resource:petalone'));
 
-     if (targets.length === 0) {
-        this.promptAction.showToast({ message: '未发现需要修复的图标' });
-        return;
-     }
+    if (targets.length === 0) {
+      this.promptAction.showToast({ message: '未发现需要修复的图标' });
+      return;
+    }
 
-     let repairedCount = 0;
-     for (const item of targets) {
-        try {
-           // 使用本地/混合数据源搜索
-           const appInfo = await LocalIconManager.getInstance().searchApp(item.name);
+    let repairedCount = 0;
+    for (const item of targets) {
+      try {
+        // 使用本地/混合数据源搜索
+        const appInfo = await LocalIconManager.getInstance().searchApp(item.name);
 
-           if (appInfo && appInfo.icon) {
-               item.icon = appInfo.icon;
-               // 可选：更新分类
-               if (appInfo.category && (!item.category || item.category === '其他' || item.category === '未分类')) {
-                   item.category = appInfo.category;
-               }
-               await SubscriptionRepository.getInstance().update(item);
-               repairedCount++;
-           }
-        } catch (e) {
-           hilog.error(DOMAIN, 'SettingsView', `Repair icon failed for ${item.name}: ${JSON.stringify(e)}`);
+        if (appInfo && appInfo.icon) {
+          item.icon = appInfo.icon;
+          // 可选：更新分类
+          if (appInfo.category && (!item.category || item.category === '其他' || item.category === '未分类')) {
+            item.category = appInfo.category;
+          }
+          await SubscriptionRepository.getInstance().update(item);
+          repairedCount++;
         }
-     }
+      } catch (e) {
+        hilog.error(DOMAIN, 'SettingsView', `Repair icon failed for ${item.name}: ${JSON.stringify(e)}`);
+      }
+    }
 
-     if (repairedCount > 0) {
-        this.promptAction.showToast({ message: `成功修复 ${repairedCount} 个图标` });
-        // 发送全局事件通知 HomeView 刷新
-        getContext(this).eventHub.emit('dataChange');
-     } else {
-        this.promptAction.showToast({ message: '修复完成，未找到更多匹配图标' });
-     }
+    if (repairedCount > 0) {
+      this.promptAction.showToast({ message: `成功修复 ${repairedCount} 个图标` });
+      // 发送全局事件通知 HomeView 刷新
+      getContext(this).eventHub.emit('dataChange');
+    } else {
+      this.promptAction.showToast({ message: '修复完成，未找到更多匹配图标' });
+    }
   }
 
 
@@ -1120,7 +1120,7 @@ export struct SettingsView {
 
     // 如果没有检测到新版本，给出一个负向反馈（手动点击时需要）
     if (!AppStorage.get<boolean>('hasNewVersion')) {
-       this.promptAction.showToast({ message: '当前已是最新版本' });
+      this.promptAction.showToast({ message: '当前已是最新版本' });
     }
   }
 
@@ -1145,66 +1145,66 @@ export struct SettingsView {
         (error as BusinessError).message);
     }
   }
-  
+
   /**
    * Helper to convert file to Base64 string safely using multiple strategies
    */
   private async fileToBase64(uriOrPath: string): Promise<string | undefined> {
-      if (!uriOrPath) return undefined;
-      
-      // Strategy 1: ImageKit (Handles file:// URIs natively and handles various formats)
-      try {
-          const imageSource = image.createImageSource(uriOrPath);
-          if (imageSource) {
-              const pixelMap = await imageSource.createPixelMap();
-              const imagePacker = image.createImagePacker();
-              const buffer = await imagePacker.packing(pixelMap, { format: 'image/jpeg', quality: 90 });
-              
-              const base64Str = new util.Base64Helper().encodeToStringSync(new Uint8Array(buffer));
-              
-              pixelMap.release();
-              imageSource.release();
-              return `data:image/jpeg;base64,${base64Str}`;
-          }
-      } catch (e) {
-          // Fall through to manual read
-      }
+    if (!uriOrPath) return undefined;
 
-      // Strategy 2: Manual File System Read
-      let file: fs.File | undefined;
-      try {
-          let finalPath = uriOrPath;
-          if (finalPath.startsWith('file://')) {
-              try {
-                  finalPath = new fileUri.FileUri(finalPath).path;
-              } catch (e) {
-                  finalPath = finalPath.substring(7);
-              }
-          }
-          finalPath = decodeURIComponent(finalPath);
+    // Strategy 1: ImageKit (Handles file:// URIs natively and handles various formats)
+    try {
+      const imageSource = image.createImageSource(uriOrPath);
+      if (imageSource) {
+        const pixelMap = await imageSource.createPixelMap();
+        const imagePacker = image.createImagePacker();
+        const buffer = await imagePacker.packing(pixelMap, { format: 'image/jpeg', quality: 90 });
 
-          if (!fs.accessSync(finalPath)) return undefined;
-          
-          file = fs.openSync(finalPath, fs.OpenMode.READ_ONLY);
-          const stat = fs.statSync(file.fd);
-          const buf = new Uint8Array(stat.size);
-          fs.readSync(file.fd, buf);
-          
-          const base64Str = new util.Base64Helper().encodeToStringSync(buf);
-          
-          let mime = 'image/png';
-          if (finalPath.toLowerCase().endsWith('.jpg') || finalPath.toLowerCase().endsWith('.jpeg')) mime = 'image/jpeg';
-          else if (finalPath.toLowerCase().endsWith('.webp')) mime = 'image/webp';
-          
-          return `data:${mime};base64,${base64Str}`;
-      } catch (e) {
-          hilog.error(0x0000, 'SettingsView', `fileToBase64 manual failed for ${uriOrPath}: ${JSON.stringify(e)}`);
-          return undefined;
-      } finally {
-          if (file) {
-              try { fs.closeSync(file); } catch (e) {}
-          }
+        const base64Str = new util.Base64Helper().encodeToStringSync(new Uint8Array(buffer));
+
+        pixelMap.release();
+        imageSource.release();
+        return `data:image/jpeg;base64,${base64Str}`;
       }
+    } catch (e) {
+      // Fall through to manual read
+    }
+
+    // Strategy 2: Manual File System Read
+    let file: fs.File | undefined;
+    try {
+      let finalPath = uriOrPath;
+      if (finalPath.startsWith('file://')) {
+        try {
+          finalPath = new fileUri.FileUri(finalPath).path;
+        } catch (e) {
+          finalPath = finalPath.substring(7);
+        }
+      }
+      finalPath = decodeURIComponent(finalPath);
+
+      if (!fs.accessSync(finalPath)) return undefined;
+
+      file = fs.openSync(finalPath, fs.OpenMode.READ_ONLY);
+      const stat = fs.statSync(file.fd);
+      const buf = new Uint8Array(stat.size);
+      fs.readSync(file.fd, buf);
+
+      const base64Str = new util.Base64Helper().encodeToStringSync(buf);
+
+      let mime = 'image/png';
+      if (finalPath.toLowerCase().endsWith('.jpg') || finalPath.toLowerCase().endsWith('.jpeg')) mime = 'image/jpeg';
+      else if (finalPath.toLowerCase().endsWith('.webp')) mime = 'image/webp';
+
+      return `data:${mime};base64,${base64Str}`;
+    } catch (e) {
+      hilog.error(0x0000, 'SettingsView', `fileToBase64 manual failed for ${uriOrPath}: ${JSON.stringify(e)}`);
+      return undefined;
+    } finally {
+      if (file) {
+        try { fs.closeSync(file); } catch (e) {}
+      }
+    }
   }
 
   @Builder
@@ -1216,10 +1216,7 @@ export struct SettingsView {
       .width('100%')
   }
 
-
-
-  build() {
-    HdsNavDestination() {
+  @Builder SettingBuilder(){
     Stack({ alignContent: Alignment.Top }) {
       // Content List
       Column() {
@@ -1410,38 +1407,38 @@ export struct SettingsView {
 
               // 1.5 Theme Style Selection (Replaces simple toggle)
               Row() {
-                 Column() {
-                   Text("主题风格")
-                     .fontSize(16)
-                     .fontColor($r('app.color.text_primary'))
-                     .fontWeight(FontWeight.Medium)
+                Column() {
+                  Text("主题风格")
+                    .fontSize(16)
+                    .fontColor($r('app.color.text_primary'))
+                    .fontWeight(FontWeight.Medium)
 
-                   // Dynamic Description
-                   Text(this.isNewYearTheme ? "新春限定" : ((this.showVipTheme) ? "黑金主题" : "默认主题"))
-                     .fontSize(12)
-                     .fontColor($r('app.color.text_secondary'))
-                     .margin({ top: 4 })
-                 }
-                 .alignItems(HorizontalAlign.Start)
-                 .layoutWeight(1)
+                  // Dynamic Description
+                  Text(this.isNewYearTheme ? "新春限定" : ((this.showVipTheme) ? "黑金主题" : "默认主题"))
+                    .fontSize(12)
+                    .fontColor($r('app.color.text_secondary'))
+                    .margin({ top: 4 })
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
 
-                 Row() {
-                     // Small Preview Dot
-                     Circle({ width: 16, height: 16 })
-                       .fill(this.isNewYearTheme ? $r('app.color.new_year_red_start') : ((this.showVipTheme) ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                       .margin({ right: 8 })
+                Row() {
+                  // Small Preview Dot
+                  Circle({ width: 16, height: 16 })
+                    .fill(this.isNewYearTheme ? $r('app.color.new_year_red_start') : ((this.showVipTheme) ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                    .margin({ right: 8 })
 
-                     SymbolGlyph($r('sys.symbol.chevron_right'))
-                        .fontSize(16)
-                        .fontColor([$r('app.color.text_secondary')])
-                 }
+                  SymbolGlyph($r('sys.symbol.chevron_right'))
+                    .fontSize(16)
+                    .fontColor([$r('app.color.text_secondary')])
+                }
               }
               .width('100%')
               .height(64)
               .padding({ left: 16, right: 16 })
               .backgroundColor(Color.Transparent)
               .onClick(() => {
-                  this.showThemeSheet = true;
+                this.showThemeSheet = true;
               })
 
 
@@ -1454,65 +1451,65 @@ export struct SettingsView {
               Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
 
               Row() {
-                  Column() {
-                    Text("自定义背景")
-                      .fontSize(16)
-                      .fontWeight(FontWeight.Medium)
-                      .fontColor($r('app.color.text_primary'))
-                    Text(this.watermarkImage ? "已设置自定义背景图" : "点击设置个性化背景")
-                      .fontSize(12)
-                      .fontColor($r('app.color.text_secondary'))
-                      .margin({ top: 4 })
-                  }
-                  .alignItems(HorizontalAlign.Start)
-                  .layoutWeight(1)
-
-                  SymbolGlyph($r('sys.symbol.chevron_right'))
+                Column() {
+                  Text("自定义背景")
                     .fontSize(16)
-                    .fontColor([$r('app.color.text_secondary')])
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor($r('app.color.text_primary'))
+                  Text(this.watermarkImage ? "已设置自定义背景图" : "点击设置个性化背景")
+                    .fontSize(12)
+                    .fontColor($r('app.color.text_secondary'))
+                    .margin({ top: 4 })
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
+
+                SymbolGlyph($r('sys.symbol.chevron_right'))
+                  .fontSize(16)
+                  .fontColor([$r('app.color.text_secondary')])
               }
               .width('100%')
               .padding({ left: 16, right: 16, top: 12, bottom: 12 })
               .backgroundColor(Color.Transparent)
 
               .onClick(() => {
-                  this.showCustomBgSheet = true;
+                this.showCustomBgSheet = true;
               })
               .bindSheet($$this.showCustomBgSheet, this.CustomBgSheetBuilder(), {
-                  detents: [SheetSize.FIT_CONTENT],
-                  backgroundColor: $r('app.color.card_background'),
-                  preferType: SheetType.BOTTOM,
-                  showClose: false
+                detents: [SheetSize.FIT_CONTENT],
+                backgroundColor: $r('app.color.card_background'),
+                preferType: SheetType.BOTTOM,
+                showClose: false
               })
 
               Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
 
               // 1.5.1 New Year Watermark Toggle
               if (this.isNewYearTheme) {
-                 Row() {
-                   Column() {
-                     Text("新春背景图案")
-                       .fontSize(16)
-                       .fontWeight(FontWeight.Medium)
-                       .fontColor($r('app.color.text_primary'))
-                     Text("叠加显示在新春主题背景上")
-                       .fontSize(12)
-                       .fontColor($r('app.color.text_secondary'))
-                       .margin({ top: 4 })
-                   }
-                   .alignItems(HorizontalAlign.Start)
+                Row() {
+                  Column() {
+                    Text("新春背景图案")
+                      .fontSize(16)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor($r('app.color.text_primary'))
+                    Text("叠加显示在新春主题背景上")
+                      .fontSize(12)
+                      .fontColor($r('app.color.text_secondary'))
+                      .margin({ top: 4 })
+                  }
+                  .alignItems(HorizontalAlign.Start)
 
-                   Blank()
+                  Blank()
 
-                   Toggle({ type: ToggleType.Switch, isOn: this.isNewYearWatermarkEnabled })
-                     .selectedColor($r('app.color.new_year_red_start'))
-                     .onChange((value: boolean) => {
-                       PreferenceUtil.getInstance().saveNewYearWatermarkEnabled(value);
-                     })
-                 }
-                 .width('100%')
-                 .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-                 .backgroundColor(Color.Transparent)
+                  Toggle({ type: ToggleType.Switch, isOn: this.isNewYearWatermarkEnabled })
+                    .selectedColor($r('app.color.new_year_red_start'))
+                    .onChange((value: boolean) => {
+                      PreferenceUtil.getInstance().saveNewYearWatermarkEnabled(value);
+                    })
+                }
+                .width('100%')
+                .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+                .backgroundColor(Color.Transparent)
 
               }
 
@@ -1536,7 +1533,7 @@ export struct SettingsView {
                   Blank()
 
                   Toggle({ type: ToggleType.Switch, isOn: this.isSplitViewEnabled })
-        .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                    .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
                     .onChange((value: boolean) => {
                       PreferenceUtil.getInstance().saveSplitViewEnabled(value);
                     })
@@ -1583,6 +1580,36 @@ export struct SettingsView {
                 Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
               }
 
+              if (this.isHdsTabsSupported) {
+                // 1.6.5 HDS Tabs (API 23 Features)
+                Row() {
+                  Column() {
+                    Text("启用HarmonyOS6.1的界面风格")
+                      .fontSize(16)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor($r('app.color.text_primary'))
+                    Text("基于AP23+的风格界面和高级材质（实验功能）")
+                      .fontSize(12)
+                      .fontColor($r('app.color.text_secondary'))
+                      .margin({ top: 4 })
+                  }
+                  .alignItems(HorizontalAlign.Start)
+
+                  Blank()
+
+                  Toggle({ type: ToggleType.Switch, isOn: this.isHdsTabsEnabled })
+                    .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                    .onChange((value: boolean) => {
+                      PreferenceUtil.getInstance().saveHdsTabsEnabled(value);
+                    })
+                }
+                .width('100%')
+                .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+                .backgroundColor(Color.Transparent)
+
+                Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
+              }
+
 
 
               // 1.7 App Lock (Relocated & Rewritten)
@@ -1609,33 +1636,33 @@ export struct SettingsView {
               .padding({ left: 16, right: 16 })
               .backgroundColor(Color.Transparent)
               .onClick(() => {
-                 // Enforce Login check
-                 if (!this.isLoggedIn) {
-                     this.promptAction.showToast({ message: '请先登录' });
-                     if (this.isWide) {
-                         this.pageStack.removeByName('Login');
-                         this.pageStack.pushPathByName('Login', null);
-                     } else {
-                         this.showLoginSheet = true;
-                     }
-                     return;
-                 }
+                // Enforce Login check
+                if (!this.isLoggedIn) {
+                  this.promptAction.showToast({ message: '请先登录' });
+                  if (this.isWide) {
+                    this.pageStack.removeByName('Login');
+                    this.pageStack.pushPathByName('Login', null);
+                  } else {
+                    this.showLoginSheet = true;
+                  }
+                  return;
+                }
 
-                 if (this.hasPasswordLock) {
-                   this.passwordLockMode = 'verify'; // Verify before showing settings
-                 } else {
-                   // If not locked, open settings panel directly instead of password sheet
-                   // User should toggle the switch inside the panel to start setup
-                   this.showAppLockSettingsSheet = true; 
-                   return;
-                 }
-                 this.showPasswordLockSheet = true;
+                if (this.hasPasswordLock) {
+                  this.passwordLockMode = 'verify'; // Verify before showing settings
+                } else {
+                  // If not locked, open settings panel directly instead of password sheet
+                  // User should toggle the switch inside the panel to start setup
+                  this.showAppLockSettingsSheet = true;
+                  return;
+                }
+                this.showPasswordLockSheet = true;
               })
               .bindSheet($$this.showAppLockSettingsSheet, this.AppLockSettingsPanel(), {
-                  detents: [SheetSize.FIT_CONTENT],
-                  backgroundColor: $r('app.color.card_background'),
-                  preferType: SheetType.BOTTOM,
-                  showClose: true // Show close button for settings panel
+                detents: [SheetSize.FIT_CONTENT],
+                backgroundColor: $r('app.color.card_background'),
+                preferType: SheetType.BOTTOM,
+                showClose: true // Show close button for settings panel
               })
 
               Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
@@ -1933,83 +1960,6 @@ export struct SettingsView {
           .opacity(this.animStep4 ? 1 : 0)
           .translate({ y: this.animStep4 ? 0 : 50 })
 
-          // --- Privacy Section ---
-          ListItem() {
-            this.SettingHeader("隐私")
-          }
-          .opacity(this.animStep5 ? 1 : 0)
-          .translate({ y: this.animStep5 ? 0 : 50 })
-
-          ListItem() {
-            Column() {
-              // 隐私政策功能
-              Row() {
-                this.SettingItem("隐私政策", "", false, true)
-              }
-              .onClick(() => {
-                const defaultUrl =
-                  'https://agreement-drcn.hispace.dbankcloud.cn/index.html?lang=zh&agreementId=1866142389635159616';
-                let targetUrl = defaultUrl;
-                try {
-                  const mgmtInfo = privacyManager.getAppPrivacyMgmtInfo();
-                  if (mgmtInfo && mgmtInfo.privacyInfo) {
-                    const privacyLink = mgmtInfo.privacyInfo.find(link => link.type ===
-                    privacyManager.AppPrivacyLinkType.PRIVACY_STATEMENT_LINK);
-                    if (privacyLink && privacyLink.url) {
-                      targetUrl = privacyLink.url;
-                    }
-                  }
-                } catch (e) {
-                  hilog.error(DOMAIN, 'SettingsView', 'Failed to get privacy url: %{public}s', JSON.stringify(e));
-                }
-                this.pageStack.pushPathByName('WebView', new WebViewParam(targetUrl, '隐私政策'));
-              })
-
-              Divider().color($r('app.color.divider_color')).padding({ left: 50 })
-
-              // 改为：本地实现用户协议
-              Row() {
-                this.SettingItem("用户协议", "", false, true)
-              }
-              .onClick(() => {
-                this.pageStack.pushPathByName('WebView', new WebViewParam($rawfile('user_agreement.html'), '用户协议'));
-              })
-
-              Divider().color($r('app.color.divider_color')).padding({ left: 50 })
-
-              // 撤销隐私政策
-              Row() {
-                this.SettingItem("撤销隐私政策", "", true, true)
-              }
-              .onClick(() => {
-                this.handleDisablePrivacyService();
-              })
-            }
-            .backgroundColor($r('app.color.card_background'))
-            .borderRadius(16)
-            .visualEffect(new hdsEffect.HdsEffectBuilder()
-              .pointLight({
-                sourceType: this.lightSource4,
-                illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-              })
-              .buildEffect())
-            .scale({ x: this.pressCard4 ? 0.98 : 1, y: this.pressCard4 ? 0.98 : 1 })
-            .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-            .onTouch((event: TouchEvent) => {
-              if (event.type === TouchType.Down) {
-                if (this.isAnimationEnabled && this.isPointLightEnabled) {
-                  this.pressCard4 = true;
-                  this.lightSource4 = hdsEffect.PointLightSourceType.BRIGHT;
-                }
-              } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                this.pressCard4 = false;
-                this.lightSource4 = hdsEffect.PointLightSourceType.NONE;
-              }
-            })
-          }
-          .padding({ left: 24, right: 24, bottom: 20 })
-          .opacity(this.animStep5 ? 1 : 0)
-          .translate({ y: this.animStep5 ? 0 : 50 })
 
           // --- About ---
           ListItem() {
@@ -2061,10 +2011,10 @@ export struct SettingsView {
               // 新增关于应用功能
               // 赞赏作者 (Donate)
               Row() {
-                 this.SettingItem("赞赏作者", "", false, true)
+                this.SettingItem("赞赏作者", "", false, true)
               }
               .onClick(() => {
-                 this.showDonationSheet = true;
+                this.showDonationSheet = true;
               })
 
               Divider().color($r('app.color.divider_color')).padding({ left: 50 })
@@ -2171,10 +2121,10 @@ export struct SettingsView {
         })
       Column()
         .bindSheet($$this.showWatermarkEditSheet, this.WatermarkEditSheetBuilder(), {
-            detents: [SheetSize.LARGE],
-            backgroundColor: $r('app.color.page_background'),
-            showClose: false,
-            dragBar: false,
+          detents: [SheetSize.LARGE],
+          backgroundColor: $r('app.color.page_background'),
+          showClose: false,
+          dragBar: false,
           preferType: SheetType.BOTTOM,
         })
       Column()
@@ -2185,7 +2135,7 @@ export struct SettingsView {
           backgroundColor: Color.Transparent,
           preferType: SheetType.BOTTOM,
         })
-        Column()
+      Column()
         .bindSheet($$this.showVerifySheet, this.VerifySheetBuilder(), {
           detents: [SheetSize.FIT_CONTENT],
           dragBar: true,
@@ -2197,23 +2147,45 @@ export struct SettingsView {
     .width('100%')
     .height('100%')
     .backgroundColor(Color.Transparent)
-    }
-    .hideBackButton(true)
-    .hideTitleBar(false)
-    .backgroundColor(Color.Transparent)
-    .titleBar({
-      avoidLayoutSafeArea: true,
-      content: {
-        title: { mainTitle: '我的' },
-        menu: { value: [] }
+  }
+
+  build() {
+    if (deviceInfo.distributionOSApiVersion >= 60100 &&this.isHdsTabsEnabled == true) {
+      HdsNavDestination() {
+        this.SettingBuilder()
       }
-    })
+      .hideBackButton(true)
+      .hideTitleBar(false)
+      .backgroundColor(Color.Transparent)
+      .titleBar({
+        avoidLayoutSafeArea: true,
+        content: {
+          title: { mainTitle: '我的' },
+          menu: { value: [] }
+        },
+
+      })
+    } else {
+      HdsNavDestination() {
+        this.SettingBuilder()
+      }
+      .hideBackButton(true)
+      .hideTitleBar(false)
+      .backgroundColor(Color.Transparent)
+      .titleBar({
+        avoidLayoutSafeArea: true,
+        content: {
+          title: { mainTitle: '我的' },
+          menu: { value: [] }
+        },
+      })
+    }
   }
 
   @Builder
   LoginSheetBuilder() {
-    LoginSheet({ 
-      isShow: this.showLoginSheet, 
+    LoginSheet({
+      isShow: this.showLoginSheet,
       onSuccess: () => { this.showLoginSheet = false },
       onClose: () => { this.showLoginSheet = false }
     })
@@ -2227,7 +2199,7 @@ export struct SettingsView {
         .fontColor(isDestructive ? Color.Red : $r('app.color.text_primary'))
         .fontWeight(FontWeight.Medium)
         .layoutWeight(1)
-      
+
       // Red Dot
       if (showRedDot) {
         Circle({ width: 8, height: 8 })
@@ -2239,7 +2211,7 @@ export struct SettingsView {
         .fontSize(14)
         .fontColor($r('app.color.text_secondary'))
         .margin({ right: 8 })
-      
+
       if (showArrow || (value === "" && !isDestructive)) {
         SymbolGlyph($r('sys.symbol.chevron_right'))
           .fontSize(16)
@@ -2259,13 +2231,13 @@ export struct SettingsView {
         .fontColor($r('app.color.text_primary'))
         .fontWeight(FontWeight.Medium)
         .layoutWeight(1)
-      
+
       Toggle({ type: ToggleType.Switch, isOn: isOn })
         .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? '#D4AF37' : $r('app.color.brand_color')))
         .onChange((value: boolean) => {
-           if (title === "显示动画效果") {
-               PreferenceUtil.getInstance().saveAnimationEnabled(value);
-           }
+          if (title === "显示动画效果") {
+            PreferenceUtil.getInstance().saveAnimationEnabled(value);
+          }
         })
     }
     .width('100%')
@@ -2273,59 +2245,28 @@ export struct SettingsView {
     .padding({ left: 16, right: 16 })
   }
   getThemeText(): string {
-     switch (this.themeMode) {
-         case 1: return '浅色模式';
-         case 2: return '深色模式';
-         default: return '跟随系统';
-     }
+    switch (this.themeMode) {
+      case 1: return '浅色模式';
+      case 2: return '深色模式';
+      default: return '跟随系统';
+    }
   }
 
   applyTheme(mode: number) {
-        this.themeMode = mode;
-        PreferenceUtil.getInstance().saveTheme(this.themeMode);
-        
-        let colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
-        if (this.themeMode === 1) {
-            colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT;
-        } else if (this.themeMode === 2) {
-            colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
-        }
-        
-        // Apply immediately
-        getContext(this).getApplicationContext().setColorMode(colorMode);
+    this.themeMode = mode;
+    PreferenceUtil.getInstance().saveTheme(this.themeMode);
+
+    let colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
+    if (this.themeMode === 1) {
+      colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT;
+    } else if (this.themeMode === 2) {
+      colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
+    }
+
+    // Apply immediately
+    getContext(this).getApplicationContext().setColorMode(colorMode);
   }
 
-  handleDisablePrivacyService() {
-    this.promptAction.showDialog({
-        title: '撤销隐私政策',
-        message: '撤销后将停止收集订阅信息等功能。应用将清除本地缓存并自动登出账号，确定要撤销吗？',
-        buttons: [
-            { text: '取消', color: $r('app.color.text_secondary') },
-            { text: '撤销', color: '#E60012' }
-        ]
-    }).then(async result => {
-        if (result.index === 1) {
-             try {
-                privacyManager.disableService();
-                hilog.info(DOMAIN, 'SettingsView', "Succeeded in disabling service.");
-                
-                // 执行退出登录清理逻辑
-                AccountMonitor.getInstance().handleLogout();
-                
-                this.promptAction.showToast({ message: '隐私协议已撤销，应用程序即将退出' });
-                
-                // 立即退出
-                const context = getContext(this) as common.UIAbilityContext;
-                context.terminateSelf();
-
-             } catch (error) {
-                const err = error as BusinessError;
-                hilog.error(DOMAIN, 'SettingsView', "DisableService exception code: " + err.code + ", exception message: " + err.message);
-                this.promptAction.showToast({ message: `撤销失败: ${err.message} (Code: ${err.code})` });
-             }
-        }
-    });
-  }
 
 
 
@@ -2350,35 +2291,35 @@ export struct SettingsView {
       if (documentSelectResult && documentSelectResult.length > 0) {
         const uri = documentSelectResult[0];
         const file = fs.openSync(uri, fs.OpenMode.READ_ONLY);
-        
+
         try {
-            // Read file robustly
-            let buf = new ArrayBuffer(1024 * 1024 * 2); // Max 2MB
-            let readLen = fs.readSync(file.fd, buf);
-            const text = buffer.from(buf.slice(0, readLen)).toString('utf-8');
-            
-            if (text) {
-               const json = JSON.parse(text) as Record<string, Object> | SubscriptionModel[];
-               let subs: SubscriptionModel[] = [];
-               
-               if (Array.isArray(json)) {
-                   subs = json as SubscriptionModel[];
-               } else if (json && (json as Record<string, Object>).subscriptions) {
-                   subs = (json as Record<string, Object>).subscriptions as SubscriptionModel[];
-               } else if (json && (json as Record<string, Object>).data) {
-                   // Support new export format
-                   subs = (json as Record<string, Object>).data as SubscriptionModel[];
-               }
-               
-               if (subs && subs.length > 0) {
-                   this.importData = subs;
-                   this.showImportSheet = true;
-               } else {
-                   this.promptAction.showToast({ message: '未发现有效的订阅数据' });
-               }
+          // Read file robustly
+          let buf = new ArrayBuffer(1024 * 1024 * 2); // Max 2MB
+          let readLen = fs.readSync(file.fd, buf);
+          const text = buffer.from(buf.slice(0, readLen)).toString('utf-8');
+
+          if (text) {
+            const json = JSON.parse(text) as Record<string, Object> | SubscriptionModel[];
+            let subs: SubscriptionModel[] = [];
+
+            if (Array.isArray(json)) {
+              subs = json as SubscriptionModel[];
+            } else if (json && (json as Record<string, Object>).subscriptions) {
+              subs = (json as Record<string, Object>).subscriptions as SubscriptionModel[];
+            } else if (json && (json as Record<string, Object>).data) {
+              // Support new export format
+              subs = (json as Record<string, Object>).data as SubscriptionModel[];
             }
+
+            if (subs && subs.length > 0) {
+              this.importData = subs;
+              this.showImportSheet = true;
+            } else {
+              this.promptAction.showToast({ message: '未发现有效的订阅数据' });
+            }
+          }
         } finally {
-            fs.closeSync(file);
+          fs.closeSync(file);
         }
       }
     } catch (err) {
@@ -2402,45 +2343,45 @@ export struct SettingsView {
 
   @Builder ImportSheetBuilder() {
     ImportSheet({
-        isShow: $showImportSheet,
-        importData: $importData,
-        onCancel: () => {
-            this.showImportSheet = false;
-            this.importData = [];
-        },
-        onImport: async () => {
-            const loading = this.promptAction.showToast({ message: '正在恢复数据...' });
-            let count = 0;
-            // Use Repository import logic or manual update
-            // Using manual update to share logic with HomeView and better control
-            try {
-                // Lazy import to avoid circular dependency issues if any
+      isShow: $showImportSheet,
+      importData: $importData,
+      onCancel: () => {
+        this.showImportSheet = false;
+        this.importData = [];
+      },
+      onImport: async () => {
+        const loading = this.promptAction.showToast({ message: '正在恢复数据...' });
+        let count = 0;
+        // Use Repository import logic or manual update
+        // Using manual update to share logic with HomeView and better control
+        try {
+          // Lazy import to avoid circular dependency issues if any
 
-                
-                for (const item of this.importData) {
-                    const resultId = await SubscriptionRepository.getInstance().upsert(item); // Safe Upsert
-                    
-                    // 自动同步系统提醒
-                    if (resultId > 0 && item.reminderDaysBefore !== undefined && item.id) {
-                         await LocalNotificationManager.getInstance().scheduleReminder(item);
-                    }
-                    count++;
-                }
-                this.promptAction.showToast({ message: `成功恢复 ${count} 条数据` });
-                this.showImportSheet = false;
-                this.importData = [];
-                // Notify changes
-                getContext(this).eventHub.emit('dataChange');
-            } catch (e) {
-                this.promptAction.showToast({ message: '部分数据恢复失败' });
-                hilog.error(DOMAIN, 'SettingsView', `Import Error: ${JSON.stringify(e)}`);
+
+          for (const item of this.importData) {
+            const resultId = await SubscriptionRepository.getInstance().upsert(item); // Safe Upsert
+
+            // 自动同步系统提醒
+            if (resultId > 0 && item.reminderDaysBefore !== undefined && item.id) {
+              await LocalNotificationManager.getInstance().scheduleReminder(item);
             }
+            count++;
+          }
+          this.promptAction.showToast({ message: `成功恢复 ${count} 条数据` });
+          this.showImportSheet = false;
+          this.importData = [];
+          // Notify changes
+          getContext(this).eventHub.emit('dataChange');
+        } catch (e) {
+          this.promptAction.showToast({ message: '部分数据恢复失败' });
+          hilog.error(DOMAIN, 'SettingsView', `Import Error: ${JSON.stringify(e)}`);
         }
+      }
     })
   }
   @State showThemeSheet: boolean = false;
 
-  // ... 
+  // ...
 
   @Builder ThemeSelectSheetBuilder() {
     Column() {
@@ -2448,34 +2389,34 @@ export struct SettingsView {
         Column({ space: 16 }) {
           // Default Theme
           ThemeOptionItem({
-            title: "默认主题", 
-            desc: "经典蓝白配色，清爽简洁", 
+            title: "默认主题",
+            desc: "经典蓝白配色，清爽简洁",
             themeId: 'default',
             currentThemeId: this.activeThemeId,
             onSelect: () => {
-                this.updateTheme('default');
+              this.updateTheme('default');
             }
           })
 
           // Black Gold Theme
           ThemeOptionItem({
-            title: "黑金主题", 
-            desc: "尊贵黑金配色，奢华质感", 
+            title: "黑金主题",
+            desc: "尊贵黑金配色，奢华质感",
             themeId: 'vip',
             currentThemeId: this.activeThemeId,
             onSelect: () => {
-                this.updateTheme('vip');
+              this.updateTheme('vip');
             }
           })
 
           // New Year Theme
           ThemeOptionItem({
-            title: "新春限定", 
-            desc: "红红火火，喜迎新春", 
+            title: "新春限定",
+            desc: "红红火火，喜迎新春",
             themeId: 'new_year',
             currentThemeId: this.activeThemeId,
             onSelect: () => {
-                this.updateTheme('new_year');
+              this.updateTheme('new_year');
             }
           })
         }
@@ -2496,63 +2437,63 @@ export struct SettingsView {
     Column() {
       // Use existing ImageCropSheet but modify it slightly or wrapper it
       // Actually, since ImageCropSheet handles everything including UI, we can just use it.
-      // But we need to add Opacity slider... 
+      // But we need to add Opacity slider...
       // Strategy: Use ImageCropSheet for the "Crop" part, and add Opacity slider below?
-      // Or modify ImageCropSheet to include custom controls? 
+      // Or modify ImageCropSheet to include custom controls?
       // User asked to use the "same component". Let's wrap ImageCropSheet and overlay Opacity slider.
-      
+
       Stack({ alignContent: Alignment.Bottom }) {
-          ImageCropSheet({
-            sourceUri: this.tempWatermarkImage,
-            cropRatio: this.getScreenAspectRatio(), // Use calculated screen ratio
-            imageOpacity: this.tempWatermarkOpacity, 
-            title: '设置背景',
-            onComplete: (uri: string) => {
-                this.handleSaveWatermark(uri);
-            },
-            onCancel: () => {
-                this.showWatermarkEditSheet = false;
-            }
-          })
-          
-          // Overlay Opacity Slider
-          Column() {
-             Row() {
-                Text("水印透明度")
-                  .fontSize(14)
-                  .fontColor(Color.White)
-                  .shadow({ radius: 2, color: 'rgba(0,0,0,0.5)', offsetY: 1 })
-                Blank()
-                Text(`${Math.round(this.tempWatermarkOpacity * 100)}%`)
-                  .fontSize(14)
-                  .fontColor(Color.White)
-                  .fontWeight(FontWeight.Bold)
-                  .shadow({ radius: 2, color: 'rgba(0,0,0,0.5)', offsetY: 1 })
-             }
-             .width('100%')
-             .padding({ left: 32, right: 32, top: 16 })
-             
-             Slider({
-                value: this.tempWatermarkOpacity * 100,
-                min: 0,
-                max: 100,
-                style: SliderStyle.OutSet
-             })
-             .blockColor($r('app.color.brand_color'))
-             .trackColor('rgba(255,255,255,0.3)')
-             .selectedColor($r('app.color.brand_color'))
-             .showSteps(false)
-             .onChange((value: number, mode: SliderChangeMode) => {
-                 this.tempWatermarkOpacity = value / 100;
-             })
-             .width('100%')
-             .padding({ left: 32, right: 32, bottom: 84 }) // Bottom padding to clear crop buttons
+        ImageCropSheet({
+          sourceUri: this.tempWatermarkImage,
+          cropRatio: this.getScreenAspectRatio(), // Use calculated screen ratio
+          imageOpacity: this.tempWatermarkOpacity,
+          title: '设置背景',
+          onComplete: (uri: string) => {
+            this.handleSaveWatermark(uri);
+          },
+          onCancel: () => {
+            this.showWatermarkEditSheet = false;
+          }
+        })
+
+        // Overlay Opacity Slider
+        Column() {
+          Row() {
+            Text("水印透明度")
+              .fontSize(14)
+              .fontColor(Color.White)
+              .shadow({ radius: 2, color: 'rgba(0,0,0,0.5)', offsetY: 1 })
+            Blank()
+            Text(`${Math.round(this.tempWatermarkOpacity * 100)}%`)
+              .fontSize(14)
+              .fontColor(Color.White)
+              .fontWeight(FontWeight.Bold)
+              .shadow({ radius: 2, color: 'rgba(0,0,0,0.5)', offsetY: 1 })
           }
           .width('100%')
-          .hitTestBehavior(HitTestMode.Transparent) // Allow touches to pass through empty areas? No, Slider needs touch.
-          // Problem: If I overlay, I might block crop touches.
-          // Better approach: Put ImageCropSheet in a Column, and put Slider below/above it.
-          // But ImageCropSheet takes full height.
+          .padding({ left: 32, right: 32, top: 16 })
+
+          Slider({
+            value: this.tempWatermarkOpacity * 100,
+            min: 0,
+            max: 100,
+            style: SliderStyle.OutSet
+          })
+            .blockColor($r('app.color.brand_color'))
+            .trackColor('rgba(255,255,255,0.3)')
+            .selectedColor($r('app.color.brand_color'))
+            .showSteps(false)
+            .onChange((value: number, mode: SliderChangeMode) => {
+              this.tempWatermarkOpacity = value / 100;
+            })
+            .width('100%')
+            .padding({ left: 32, right: 32, bottom: 84 }) // Bottom padding to clear crop buttons
+        }
+        .width('100%')
+        .hitTestBehavior(HitTestMode.Transparent) // Allow touches to pass through empty areas? No, Slider needs touch.
+        // Problem: If I overlay, I might block crop touches.
+        // Better approach: Put ImageCropSheet in a Column, and put Slider below/above it.
+        // But ImageCropSheet takes full height.
       }
     }
     .width('100%')
@@ -2560,8 +2501,8 @@ export struct SettingsView {
   }
 
   getScreenAspectRatio(): number {
-      // User requested 16:9 (interpreted as 9:16 for portrait phone background)
-      return 9 / 16; 
+    // User requested 16:9 (interpreted as 9:16 for portrait phone background)
+    return 9 / 16;
   }
 
   @Builder CustomBgSheetBuilder() {
@@ -2606,9 +2547,9 @@ export struct SettingsView {
             .fontSize(16)
             .fontWeight(FontWeight.Medium)
             .fontColor($r('app.color.text_primary'))
-          
+
           Blank()
-          
+
           Text(`${Math.round(this.watermarkOpacity * 100)}%`)
             .fontSize(14)
             .fontColor($r('app.color.text_secondary'))
@@ -2622,15 +2563,15 @@ export struct SettingsView {
           max: 100,
           style: SliderStyle.OutSet
         })
-        .blockColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-        .trackColor($r('app.color.divider_color'))
-        .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-        .onChange((value: number, mode: SliderChangeMode) => {
-          this.watermarkOpacity = value / 100;
-          if (mode === SliderChangeMode.End) {
-             PreferenceUtil.getInstance().saveWatermarkOpacity(this.watermarkOpacity);
-          }
-        })
+          .blockColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+          .trackColor($r('app.color.divider_color'))
+          .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+          .onChange((value: number, mode: SliderChangeMode) => {
+            this.watermarkOpacity = value / 100;
+            if (mode === SliderChangeMode.End) {
+              PreferenceUtil.getInstance().saveWatermarkOpacity(this.watermarkOpacity);
+            }
+          })
       }
       .width('100%')
       .margin({ bottom: 32 })
@@ -2665,7 +2606,7 @@ export struct SettingsView {
               }
             })
             .onClick(() => {
-                this.handleClearWatermarkImage();
+              this.handleClearWatermarkImage();
             })
         }
 
@@ -2696,8 +2637,8 @@ export struct SettingsView {
             }
           })
           .onClick(() => {
-              // this.showCustomBgSheet = false;
-              this.handleSelectWatermarkImage();
+            // this.showCustomBgSheet = false;
+            this.handleSelectWatermarkImage();
           })
       }
       .width('100%')
@@ -2709,9 +2650,9 @@ export struct SettingsView {
   }
 
   updateTheme(id: string) {
-     this.activeThemeId = id;
-     // Single source of truth via PreferenceUtil
-     PreferenceUtil.getInstance().saveThemeId(id);
+    this.activeThemeId = id;
+    // Single source of truth via PreferenceUtil
+    PreferenceUtil.getInstance().saveThemeId(id);
   }
 
 
@@ -2726,14 +2667,14 @@ export struct SettingsView {
         .fontWeight(FontWeight.Bold)
         .fontColor($r('app.color.text_primary'))
         .margin({ top: 24, bottom: 8 })
-      
+
       // Warning Section
       Row() {
         SymbolGlyph($r('sys.symbol.exclamationmark_triangle'))
           .fontSize(24)
           .fontColor(['#E60012'])
           .margin({ right: 12 })
-          
+
         Column() {
           Text('重要提示')
             .fontSize(16)
@@ -2760,7 +2701,7 @@ export struct SettingsView {
           .fontSize(24)
           .fontColor([$r('app.color.brand_color')])
           .margin({ right: 12 })
-          
+
         Column() {
           Text('建议操作')
             .fontSize(16)
@@ -2791,7 +2732,7 @@ export struct SettingsView {
           .onClick(() => {
             this.showLogoutSheet = false;
           })
-        
+
         Button('确认退出')
           .layoutWeight(1)
           .backgroundColor('#E60012')
@@ -2799,7 +2740,7 @@ export struct SettingsView {
           .onClick(() => {
             this.showLogoutSheet = false;
             import('../utils/AccountMonitor').then(m => {
-                m.AccountMonitor.getInstance().handleLogout();
+              m.AccountMonitor.getInstance().handleLogout();
             });
           })
       }
@@ -2820,20 +2761,20 @@ export struct SettingsView {
 
       const photoSaveOptions = new picker.PhotoSaveOptions();
       photoSaveOptions.newFileNames = [`donate_qrcode_${new Date().getTime()}.png`];
-      
+
       const photoViewPicker = new picker.PhotoViewPicker();
       const photoSaveResult = await photoViewPicker.save(photoSaveOptions);
 
       if (photoSaveResult && photoSaveResult.length > 0) {
-         const uri = photoSaveResult[0];
-         const file = fs.openSync(uri, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE);
-         fs.writeSync(file.fd, buffer);
-         fs.closeSync(file);
-         
-         this.promptAction.showToast({ message: '赞赏码已保存' });
+        const uri = photoSaveResult[0];
+        const file = fs.openSync(uri, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE);
+        fs.writeSync(file.fd, buffer);
+        fs.closeSync(file);
+
+        this.promptAction.showToast({ message: '赞赏码已保存' });
       }
     } catch (e) {
-       hilog.error(0x0000, 'Donation', `Failed to save QR code: ${JSON.stringify(e)}`);
+      hilog.error(0x0000, 'Donation', `Failed to save QR code: ${JSON.stringify(e)}`);
     }
   }
 
@@ -2845,82 +2786,82 @@ export struct SettingsView {
         let phAccessHelper = photoAccessHelper.getPhotoAccessHelper(context);
         // Create asset in gallery
         let uri = await phAccessHelper.createAsset(photoAccessHelper.PhotoType.IMAGE, 'png', {
-            title: `reward_qrcode_${Date.now()}`
+          title: `reward_qrcode_${Date.now()}`
         });
-        
+
         const fileData = await context.resourceManager.getRawFileContent('reward_qrcode.png');
         let file = fs.openSync(uri, fs.OpenMode.WRITE_ONLY);
         fs.writeSync(file.fd, fileData.buffer);
         fs.closeSync(file);
-        
+
         this.promptAction.showToast({ message: '赞赏码已保存到相册' });
       } catch (err) {
         hilog.error(0x0000, 'Donation', `SaveButton Error: ${JSON.stringify(err)}`);
         this.promptAction.showToast({ message: '保存失败，请检查设置' });
       }
     } else if (error) {
-       hilog.error(0x0000, 'Donation', `SaveButton Result Error: ${JSON.stringify(error)}`);
+      hilog.error(0x0000, 'Donation', `SaveButton Result Error: ${JSON.stringify(error)}`);
     }
   }
 
   @Builder DonationSheetBuilder() {
     Column() {
-       Image($r('app.media.foreground'))
-         .width(64)
-         .height(64)
-         .borderRadius(16)
-         .margin({ top: 32, bottom: 16 })
-         
-       Text('感谢支持')
-         .fontSize(20)
-         .fontWeight(FontWeight.Bold)
-         .fontColor($r('app.color.text_primary'))
-         .margin({ bottom: 8 })
-         
-       Text('如果您觉得《记得订阅》好用，\n欢迎请作者喝杯咖啡 ☕️')
-         .fontSize(14)
-         .fontColor($r('app.color.text_secondary'))
-         .textAlign(TextAlign.Center)
-         .lineHeight(20)
-         .margin({ bottom: 24 })
-         
-       // 赞赏码区域
-       Column() {
-          Image($rawfile('reward_qrcode.png'))
-            .width('100%')
-            .height('100%')
-            .objectFit(ImageFit.Contain)
-       }
-       .width(200)
-       .height(200)
-       .borderRadius(16)
-       .clip(true)
-       .margin({ bottom: 12 })
+      Image($r('app.media.foreground'))
+        .width(64)
+        .height(64)
+        .borderRadius(16)
+        .margin({ top: 32, bottom: 16 })
 
-       Column() {
-         SaveButton({
-           icon: SaveIconStyle.FULL_FILLED,
-           text: SaveDescription.SAVE_IMAGE,
-           buttonType: ButtonType.Capsule
-         })
-           .width(140)
-           .height(32)
-           .fontSize(13)
-           .backgroundColor(this.isNewYearTheme ? '#1AFFD700' : (this.showVipTheme ? '#1AD4AF37' : '#1A007AFF'))
-           .fontColor(this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? '#D4AF37' : $r('app.color.brand_color')))
-           .onClick((event: ClickEvent, result: SaveButtonOnClickResult) => {
-              this.handleSaveQRCode(result);
-           })
-       }
-       .margin({ bottom: 20 })
+      Text('感谢支持')
+        .fontSize(20)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ bottom: 8 })
 
-       Text('免责声明：赞赏纯属自愿行为，非购买商品或服务。\n由于虚拟产品的特殊性，赞赏后不支持退款。')
-         .fontSize(10)
-         .fontColor($r('app.color.text_secondary'))
-         .textAlign(TextAlign.Center)
-         .opacity(0.6)
-         .lineHeight(14)
-         .margin({ bottom: 32, left: 32, right: 32 })
+      Text('如果您觉得《记得订阅》好用，\n欢迎请作者喝杯咖啡 ☕️')
+        .fontSize(14)
+        .fontColor($r('app.color.text_secondary'))
+        .textAlign(TextAlign.Center)
+        .lineHeight(20)
+        .margin({ bottom: 24 })
+
+      // 赞赏码区域
+      Column() {
+        Image($rawfile('reward_qrcode.png'))
+          .width('100%')
+          .height('100%')
+          .objectFit(ImageFit.Contain)
+      }
+      .width(200)
+      .height(200)
+      .borderRadius(16)
+      .clip(true)
+      .margin({ bottom: 12 })
+
+      Column() {
+        SaveButton({
+          icon: SaveIconStyle.FULL_FILLED,
+          text: SaveDescription.SAVE_IMAGE,
+          buttonType: ButtonType.Capsule
+        })
+          .width(140)
+          .height(32)
+          .fontSize(13)
+          .backgroundColor(this.isNewYearTheme ? '#1AFFD700' : (this.showVipTheme ? '#1AD4AF37' : '#1A007AFF'))
+          .fontColor(this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? '#D4AF37' : $r('app.color.brand_color')))
+          .onClick((event: ClickEvent, result: SaveButtonOnClickResult) => {
+            this.handleSaveQRCode(result);
+          })
+      }
+      .margin({ bottom: 20 })
+
+      Text('免责声明：赞赏纯属自愿行为，非购买商品或服务。\n由于虚拟产品的特殊性，赞赏后不支持退款。')
+        .fontSize(10)
+        .fontColor($r('app.color.text_secondary'))
+        .textAlign(TextAlign.Center)
+        .opacity(0.6)
+        .lineHeight(14)
+        .margin({ bottom: 32, left: 32, right: 32 })
     }
     .width('100%')
     .borderRadius(24)
@@ -2954,44 +2895,44 @@ export struct SettingsView {
       Column() {
         // 1. Master Switch
         Row() {
-             Text("开启应用锁")
-               .fontSize(16)
-               .fontWeight(FontWeight.Medium)
-               .fontColor($r('app.color.text_primary'))
-               .layoutWeight(1)
+          Text("开启应用锁")
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.text_primary'))
+            .layoutWeight(1)
 
-             Toggle({ type: ToggleType.Switch, isOn: this.hasPasswordLock })
-               .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-               .onChange((isOn: boolean) => {
-                 if (!isOn) {
-                   // Turn OFF
-                   this.hasPasswordLock = false;
-                   AppStorage.setOrCreate('hasAppLock', false);
-                   PreferenceUtil.getInstance().saveAppLockPassword('');
-                   // Also disable biometrics
-                   this.isFaceEnabled = false;
-                   this.isFingerprintEnabled = false;
-                   PreferenceUtil.getInstance().saveAppLockFace(false);
-                   PreferenceUtil.getInstance().saveAppLockFingerprint(false);
-                 } else {
-                   // Require Login to Enable
-                   if (!this.isLoggedIn) {
-                       this.hasPasswordLock = false; // Revert toggle
-                       this.promptAction.showToast({ message: '请先登录' });
-                       if (this.isWide) {
-                           this.pageStack.removeByName('Login');
-                           this.pageStack.pushPathByName('Login', null);
-                       } else {
-                           this.showLoginSheet = true;
-                       }
-                       return;
-                   }
+          Toggle({ type: ToggleType.Switch, isOn: this.hasPasswordLock })
+            .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+            .onChange((isOn: boolean) => {
+              if (!isOn) {
+                // Turn OFF
+                this.hasPasswordLock = false;
+                AppStorage.setOrCreate('hasAppLock', false);
+                PreferenceUtil.getInstance().saveAppLockPassword('');
+                // Also disable biometrics
+                this.isFaceEnabled = false;
+                this.isFingerprintEnabled = false;
+                PreferenceUtil.getInstance().saveAppLockFace(false);
+                PreferenceUtil.getInstance().saveAppLockFingerprint(false);
+              } else {
+                // Require Login to Enable
+                if (!this.isLoggedIn) {
+                  this.hasPasswordLock = false; // Revert toggle
+                  this.promptAction.showToast({ message: '请先登录' });
+                  if (this.isWide) {
+                    this.pageStack.removeByName('Login');
+                    this.pageStack.pushPathByName('Login', null);
+                  } else {
+                    this.showLoginSheet = true;
+                  }
+                  return;
+                }
 
-                   this.passwordLockMode = 'set';
-                   this.showPasswordLockSheet = true;
-                    this.showAppLockSettingsSheet = false; // Close settings to show lock sheet
-                 }
-               })
+                this.passwordLockMode = 'set';
+                this.showPasswordLockSheet = true;
+                this.showAppLockSettingsSheet = false; // Close settings to show lock sheet
+              }
+            })
         }
         .width('100%')
         .padding({ left: 16, right: 16, top: 12, bottom: 12 })
@@ -2999,86 +2940,86 @@ export struct SettingsView {
 
         // 2. Biometric Options
         if (this.hasPasswordLock) {
-           if (this.supportFace) {
-               Row() {
-                  Text("使用人脸解锁")
-                    .fontSize(16)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor($r('app.color.text_primary'))
-                    .layoutWeight(1)
-                  
-                  Toggle({ type: ToggleType.Switch, isOn: this.isFaceEnabled })
-                    .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                    .onChange((isOn: boolean) => {
-                        this.isFaceEnabled = isOn; // Optimistic update
-                        if (isOn) {
-                            // Verify to Enable
-                            this.biometricCheckTypes = [userAuth.UserAuthType.FACE];
-                            this.verifyTarget = 'face';
-                            this.showVerifySheet = true;
-                        } else {
-                            // Turn OFF immediately
-                            this.isFaceEnabled = false;
-                            PreferenceUtil.getInstance().saveAppLockFace(false);
-                            this.promptAction.showToast({ message: '已关闭人脸解锁' });
-                        }
-                    })
-               }
-               .width('100%')
-               .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-           }
+          if (this.supportFace) {
+            Row() {
+              Text("使用人脸解锁")
+                .fontSize(16)
+                .fontWeight(FontWeight.Medium)
+                .fontColor($r('app.color.text_primary'))
+                .layoutWeight(1)
 
-           if (this.supportFingerprint) {
-               Row() {
-                  Text("使用指纹解锁")
-                    .fontSize(16)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor($r('app.color.text_primary'))
-                    .layoutWeight(1)
-                  
-                  Toggle({ type: ToggleType.Switch, isOn: this.isFingerprintEnabled })
-                    .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                    .onChange((isOn: boolean) => {
-                        this.isFingerprintEnabled = isOn; // Optimistic update
-                        if (isOn) {
-                             // Verify to Enable
-                            this.biometricCheckTypes = [userAuth.UserAuthType.FINGERPRINT];
-                            this.verifyTarget = 'fingerprint';
-                            this.showVerifySheet = true;
-                        } else {
-                            // Turn OFF immediately
-                            this.isFingerprintEnabled = false;
-                            PreferenceUtil.getInstance().saveAppLockFingerprint(false);
-                            this.promptAction.showToast({ message: '已关闭指纹解锁' });
-                        }
-                    })
-               }
-               .width('100%')
-               .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-           }
-           
-           // Divider
-           Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
-           
-           // 3. Change Password
-           Row() {
-               Text("修改密码")
-                 .fontSize(16)
-                 .fontWeight(FontWeight.Medium)
-                 .fontColor($r('app.color.text_primary'))
-                 .layoutWeight(1)
-               
-               SymbolGlyph($r('sys.symbol.chevron_right'))
-                 .fontSize(16)
-                 .fontColor([$r('app.color.text_secondary')])
-           }
-           .width('100%')
-           .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-           .onClick(() => {
-               this.passwordLockMode = 'change';
-               this.showPasswordLockSheet = true;
-               // Keep settings sheet open
-           })
+              Toggle({ type: ToggleType.Switch, isOn: this.isFaceEnabled })
+                .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                .onChange((isOn: boolean) => {
+                  this.isFaceEnabled = isOn; // Optimistic update
+                  if (isOn) {
+                    // Verify to Enable
+                    this.biometricCheckTypes = [userAuth.UserAuthType.FACE];
+                    this.verifyTarget = 'face';
+                    this.showVerifySheet = true;
+                  } else {
+                    // Turn OFF immediately
+                    this.isFaceEnabled = false;
+                    PreferenceUtil.getInstance().saveAppLockFace(false);
+                    this.promptAction.showToast({ message: '已关闭人脸解锁' });
+                  }
+                })
+            }
+            .width('100%')
+            .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+          }
+
+          if (this.supportFingerprint) {
+            Row() {
+              Text("使用指纹解锁")
+                .fontSize(16)
+                .fontWeight(FontWeight.Medium)
+                .fontColor($r('app.color.text_primary'))
+                .layoutWeight(1)
+
+              Toggle({ type: ToggleType.Switch, isOn: this.isFingerprintEnabled })
+                .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                .onChange((isOn: boolean) => {
+                  this.isFingerprintEnabled = isOn; // Optimistic update
+                  if (isOn) {
+                    // Verify to Enable
+                    this.biometricCheckTypes = [userAuth.UserAuthType.FINGERPRINT];
+                    this.verifyTarget = 'fingerprint';
+                    this.showVerifySheet = true;
+                  } else {
+                    // Turn OFF immediately
+                    this.isFingerprintEnabled = false;
+                    PreferenceUtil.getInstance().saveAppLockFingerprint(false);
+                    this.promptAction.showToast({ message: '已关闭指纹解锁' });
+                  }
+                })
+            }
+            .width('100%')
+            .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+          }
+
+          // Divider
+          Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
+
+          // 3. Change Password
+          Row() {
+            Text("修改密码")
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_primary'))
+              .layoutWeight(1)
+
+            SymbolGlyph($r('sys.symbol.chevron_right'))
+              .fontSize(16)
+              .fontColor([$r('app.color.text_secondary')])
+          }
+          .width('100%')
+          .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+          .onClick(() => {
+            this.passwordLockMode = 'change';
+            this.showPasswordLockSheet = true;
+            // Keep settings sheet open
+          })
         }
       }
       .width('100%')
@@ -3093,7 +3034,7 @@ export struct SettingsView {
   PasswordLockBuilder() {
     PasswordLockPage({
       mode: this.passwordLockMode,
-      checkBiometric: false, 
+      checkBiometric: false,
       checkTypes: [],
       onSuccess: () => {
         animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
@@ -3101,32 +3042,32 @@ export struct SettingsView {
         });
 
         if (this.passwordLockMode === 'set') {
-            this.hasPasswordLock = true;
-            AppStorage.setOrCreate('hasAppLock', true);
-            this.showAppLockSettingsSheet = true;
+          this.hasPasswordLock = true;
+          AppStorage.setOrCreate('hasAppLock', true);
+          this.showAppLockSettingsSheet = true;
         } else if (this.passwordLockMode === 'verify') {
-            this.showAppLockSettingsSheet = true; 
+          this.showAppLockSettingsSheet = true;
         } else if (this.passwordLockMode === 'disable') {
-             PreferenceUtil.getInstance().saveAppLockPassword('');
-             this.hasPasswordLock = false;
-             AppStorage.setOrCreate('hasAppLock', false);
-             this.promptAction.showToast({ message: '应用锁已关闭' });
-             this.isFaceEnabled = false;
-             this.isFingerprintEnabled = false;
-             PreferenceUtil.getInstance().saveAppLockFace(false);
-             PreferenceUtil.getInstance().saveAppLockFingerprint(false);
+          PreferenceUtil.getInstance().saveAppLockPassword('');
+          this.hasPasswordLock = false;
+          AppStorage.setOrCreate('hasAppLock', false);
+          this.promptAction.showToast({ message: '应用锁已关闭' });
+          this.isFaceEnabled = false;
+          this.isFingerprintEnabled = false;
+          PreferenceUtil.getInstance().saveAppLockFace(false);
+          PreferenceUtil.getInstance().saveAppLockFingerprint(false);
         }
-        
+
         setTimeout(() => {
-            this.checkPasswordLockStatus();
+          this.checkPasswordLockStatus();
         }, 300);
       },
       onCancel: () => {
         animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
-            this.showPasswordLockSheet = false;
+          this.showPasswordLockSheet = false;
         });
         if (this.passwordLockMode === 'set' && !this.hasPasswordLock) {
-            this.hasPasswordLock = false;
+          this.hasPasswordLock = false;
         }
       }
     })
@@ -3134,51 +3075,51 @@ export struct SettingsView {
 
   @Builder
   VerifySheetBuilder() {
-      PasswordLockPage({
-          mode: 'verify',
-          checkBiometric: this.biometricCheckTypes.length > 0,
-          checkTypes: this.biometricCheckTypes,
-          onSuccess: () => {
-               animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
-                   this.showVerifySheet = false;
-               });
-               
-               setTimeout(() => {
-                   if (this.verifyTarget === 'face') {
-                       this.isFaceEnabled = true;
-                       PreferenceUtil.getInstance().saveAppLockFace(true);
-                       if (this.isFingerprintEnabled) {
-                           this.isFingerprintEnabled = false;
-                           PreferenceUtil.getInstance().saveAppLockFingerprint(false);
-                       }
-                       this.promptAction.showToast({ message: '开启成功' });
-                   } else if (this.verifyTarget === 'fingerprint') {
-                       this.isFingerprintEnabled = true;
-                       PreferenceUtil.getInstance().saveAppLockFingerprint(true);
-                       if (this.isFaceEnabled) {
-                           this.isFaceEnabled = false;
-                           PreferenceUtil.getInstance().saveAppLockFace(false);
-                       }
-                       this.promptAction.showToast({ message: '开启成功' });
-                   }
+    PasswordLockPage({
+      mode: 'verify',
+      checkBiometric: this.biometricCheckTypes.length > 0,
+      checkTypes: this.biometricCheckTypes,
+      onSuccess: () => {
+        animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
+          this.showVerifySheet = false;
+        });
 
-                   this.verifyTarget = '';
-                   this.biometricCheckTypes = [];
-               }, 600);
-          },
-          onCancel: () => {
-               animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
-                   this.showVerifySheet = false;
-               });
-               
-               setTimeout(() => {
-                   if (this.verifyTarget === 'face') this.isFaceEnabled = false;
-                   if (this.verifyTarget === 'fingerprint') this.isFingerprintEnabled = false;
-                   this.verifyTarget = '';
-                   this.biometricCheckTypes = [];
-               }, 600);
+        setTimeout(() => {
+          if (this.verifyTarget === 'face') {
+            this.isFaceEnabled = true;
+            PreferenceUtil.getInstance().saveAppLockFace(true);
+            if (this.isFingerprintEnabled) {
+              this.isFingerprintEnabled = false;
+              PreferenceUtil.getInstance().saveAppLockFingerprint(false);
+            }
+            this.promptAction.showToast({ message: '开启成功' });
+          } else if (this.verifyTarget === 'fingerprint') {
+            this.isFingerprintEnabled = true;
+            PreferenceUtil.getInstance().saveAppLockFingerprint(true);
+            if (this.isFaceEnabled) {
+              this.isFaceEnabled = false;
+              PreferenceUtil.getInstance().saveAppLockFace(false);
+            }
+            this.promptAction.showToast({ message: '开启成功' });
           }
-      })
+
+          this.verifyTarget = '';
+          this.biometricCheckTypes = [];
+        }, 600);
+      },
+      onCancel: () => {
+        animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
+          this.showVerifySheet = false;
+        });
+
+        setTimeout(() => {
+          if (this.verifyTarget === 'face') this.isFaceEnabled = false;
+          if (this.verifyTarget === 'fingerprint') this.isFingerprintEnabled = false;
+          this.verifyTarget = '';
+          this.biometricCheckTypes = [];
+        }, 600);
+      }
+    })
   }
 }
 
@@ -3193,69 +3134,69 @@ struct ThemeOptionItem {
 
   build() {
     Stack({ alignContent: Alignment.BottomEnd }) {
-       Column() {
-          // Preview Card (Pass themeId to preview)
-          ThemePreviewCard({ themeId: this.themeId })
-            .margin({ bottom: 12 })
+      Column() {
+        // Preview Card (Pass themeId to preview)
+        ThemePreviewCard({ themeId: this.themeId })
+          .margin({ bottom: 12 })
 
-          Column() {
-             Text(this.title)
-               .fontSize(16)
-               .fontWeight(FontWeight.Medium)
-               .fontColor(this.themeId === this.currentThemeId ? this.getThemeColor() : $r('app.color.text_primary'))
-             
-             Text(this.desc)
-               .fontSize(12)
-               .fontColor($r('app.color.text_secondary'))
-               .margin({ top: 4 })
-          }
-          .width('100%')
-          .alignItems(HorizontalAlign.Start)
-       }
-       .width('100%')
-       .padding(16)
-       // Card Style
-       .backgroundColor(this.themeId === this.currentThemeId ? this.getThemeBgColor() : $r('app.color.card_background')) // Contrast BG for unselected
-       .borderRadius(16.0)
-       .borderWidth(2.0)
-       .borderColor(this.themeId === this.currentThemeId ? this.getThemeColor() : Color.Transparent)
-       .animation({ duration: 200 })
+        Column() {
+          Text(this.title)
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.themeId === this.currentThemeId ? this.getThemeColor() : $r('app.color.text_primary'))
 
-       // Checkmark Overlay
-       if (this.themeId === this.currentThemeId) {
-         Row() {
-            SymbolGlyph($r('sys.symbol.checkmark'))
-              .fontSize(14)
-              .fontColor([Color.White])
-              .fontWeight(FontWeight.Bold)
-         }
-         .width(24)
-         .height(24)
-         .borderRadius({ topLeft: 12, bottomRight: 12 }) // Rounded corner to match card
-         .backgroundColor(this.getThemeColor())
-         .justifyContent(FlexAlign.Center)
-         .alignItems(VerticalAlign.Center)
-         .transition(TransitionEffect.OPACITY.animation({ duration: 200 }))
-       }
+          Text(this.desc)
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+            .margin({ top: 4 })
+        }
+        .width('100%')
+        .alignItems(HorizontalAlign.Start)
+      }
+      .width('100%')
+      .padding(16)
+      // Card Style
+      .backgroundColor(this.themeId === this.currentThemeId ? this.getThemeBgColor() : $r('app.color.card_background')) // Contrast BG for unselected
+      .borderRadius(16.0)
+      .borderWidth(2.0)
+      .borderColor(this.themeId === this.currentThemeId ? this.getThemeColor() : Color.Transparent)
+      .animation({ duration: 200 })
+
+      // Checkmark Overlay
+      if (this.themeId === this.currentThemeId) {
+        Row() {
+          SymbolGlyph($r('sys.symbol.checkmark'))
+            .fontSize(14)
+            .fontColor([Color.White])
+            .fontWeight(FontWeight.Bold)
+        }
+        .width(24)
+        .height(24)
+        .borderRadius({ topLeft: 12, bottomRight: 12 }) // Rounded corner to match card
+        .backgroundColor(this.getThemeColor())
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .transition(TransitionEffect.OPACITY.animation({ duration: 200 }))
+      }
     }
     .width('100%')
     .onClick(() => {
-        if (this.themeId !== this.currentThemeId) {
-             this.onSelect();
-        }
+      if (this.themeId !== this.currentThemeId) {
+        this.onSelect();
+      }
     })
   }
 
   getThemeColor(): ResourceColor {
-      if (this.themeId === 'new_year') return $r('app.color.new_year_red_start');
-      if (this.themeId === 'vip') return $r('app.color.vip_gold');
-      return $r('app.color.brand_color');
+    if (this.themeId === 'new_year') return $r('app.color.new_year_red_start');
+    if (this.themeId === 'vip') return $r('app.color.vip_gold');
+    return $r('app.color.brand_color');
   }
 
   getThemeBgColor(): ResourceColor {
-      if (this.themeId === 'new_year') return '#0AD93025';
-      if (this.themeId === 'vip') return '#1A302008';
-      return '#0A007AFF';
+    if (this.themeId === 'new_year') return '#0AD93025';
+    if (this.themeId === 'vip') return '#1A302008';
+    return '#0A007AFF';
   }
 }
 
@@ -3264,68 +3205,68 @@ struct ThemePreviewCard {
   @Prop themeId: string = 'default';
 
   getShadowColor(): ResourceColor {
-      if (this.themeId === 'vip') return '#40E6C07B';
-      if (this.themeId === 'new_year') return '#40D93025';
-      return '#40007AFF';
+    if (this.themeId === 'vip') return '#40E6C07B';
+    if (this.themeId === 'new_year') return '#40D93025';
+    return '#40007AFF';
   }
 
   build() {
     Column() {
-        Row() {
-          Text("本月预估支出")
-             .fontColor(this.themeId === 'default' ? Color.White : (this.themeId === 'new_year' ? $r('app.color.new_year_text_on_red') : $r('app.color.vip_text_on_gold')))
-            .fontSize(12)
-          Blank()
-          Text("12 个订阅")
-             .fontColor(this.themeId === 'default' ? Color.White : (this.themeId === 'new_year' ? $r('app.color.new_year_text_on_red') : $r('app.color.vip_text_on_gold')))
-             .fontSize(10)
-             .backgroundColor(this.themeId === 'default' ? '#33FFFFFF' : (this.themeId === 'new_year' ? '#33FFFFFF' : '#1A302008'))
-             .padding({ left: 8, right: 8, top: 2, bottom: 2 })
-             .borderRadius(10.0)
-        }
-        .width('100%').margin({ bottom: 8 })
-        
-        Row({ space: 2 }) {
-          Text('¥')
-             .fontColor(this.themeId === 'default' ? Color.White : (this.themeId === 'new_year' ? '#FFD700' : $r('app.color.vip_text_on_gold')))
-            .fontSize(16)
-            .fontWeight(FontWeight.Bold)
-            .margin({ top: 4 })
-          Text("1,280.00")
-             .fontColor(this.themeId === 'default' ? Color.White : (this.themeId === 'new_year' ? '#FFD700' : $r('app.color.vip_text_on_gold')))
-            .fontSize(28)
-            .fontWeight(FontWeight.Bold)
-        }
-
-        // Sync Status Mock
-        Row() {
-          SymbolGlyph($r('sys.symbol.share'))
-             .fontSize(10)
-             .fontColor([this.themeId === 'default' ? Color.White : (this.themeId === 'new_year' ? $r('app.color.new_year_text_on_red') : $r('app.color.vip_text_on_gold'))])
-          Text(" 碰一碰/隔空传送 已就绪")
-            .fontSize(9)
-             .fontColor(this.themeId === 'default' ? Color.White : (this.themeId === 'new_year' ? $r('app.color.new_year_text_on_red') : $r('app.color.vip_text_on_gold')))
-            .opacity(0.8)
-        }
-        .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-         .backgroundColor(this.themeId === 'default' ? '#22FFFFFF' : (this.themeId === 'new_year' ? '#22FFFFFF' : '#40302008'))
-        .borderRadius(8.0)
-        .margin({ top: 8 })
+      Row() {
+        Text("本月预估支出")
+          .fontColor(this.themeId === 'default' ? Color.White : (this.themeId === 'new_year' ? $r('app.color.new_year_text_on_red') : $r('app.color.vip_text_on_gold')))
+          .fontSize(12)
+        Blank()
+        Text("12 个订阅")
+          .fontColor(this.themeId === 'default' ? Color.White : (this.themeId === 'new_year' ? $r('app.color.new_year_text_on_red') : $r('app.color.vip_text_on_gold')))
+          .fontSize(10)
+          .backgroundColor(this.themeId === 'default' ? '#33FFFFFF' : (this.themeId === 'new_year' ? '#33FFFFFF' : '#1A302008'))
+          .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+          .borderRadius(10.0)
       }
-      .width('100%')
-      .alignItems(HorizontalAlign.Start)
-      .padding(16)
-      .borderRadius(20.0)
-      .linearGradient(this.themeId === 'vip' ? {
-        angle: 135,
-        colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]] as [ResourceColor, number][]
-      } : (this.themeId === 'new_year' ? {
-        angle: 135,
-        colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]] as [ResourceColor, number][]
-      } : {
-        angle: 135,
-        colors: [[$r('app.color.brand_gradient_start'), 0.0], [$r('app.color.brand_gradient_end'), 1.0]] as [ResourceColor, number][]
-      }))
-      .shadow({ radius: 10.0, color: this.getShadowColor(), offsetY: 4.0 })
+      .width('100%').margin({ bottom: 8 })
+
+      Row({ space: 2 }) {
+        Text('¥')
+          .fontColor(this.themeId === 'default' ? Color.White : (this.themeId === 'new_year' ? '#FFD700' : $r('app.color.vip_text_on_gold')))
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .margin({ top: 4 })
+        Text("1,280.00")
+          .fontColor(this.themeId === 'default' ? Color.White : (this.themeId === 'new_year' ? '#FFD700' : $r('app.color.vip_text_on_gold')))
+          .fontSize(28)
+          .fontWeight(FontWeight.Bold)
+      }
+
+      // Sync Status Mock
+      Row() {
+        SymbolGlyph($r('sys.symbol.share'))
+          .fontSize(10)
+          .fontColor([this.themeId === 'default' ? Color.White : (this.themeId === 'new_year' ? $r('app.color.new_year_text_on_red') : $r('app.color.vip_text_on_gold'))])
+        Text(" 碰一碰/隔空传送 已就绪")
+          .fontSize(9)
+          .fontColor(this.themeId === 'default' ? Color.White : (this.themeId === 'new_year' ? $r('app.color.new_year_text_on_red') : $r('app.color.vip_text_on_gold')))
+          .opacity(0.8)
+      }
+      .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+      .backgroundColor(this.themeId === 'default' ? '#22FFFFFF' : (this.themeId === 'new_year' ? '#22FFFFFF' : '#40302008'))
+      .borderRadius(8.0)
+      .margin({ top: 8 })
     }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+    .padding(16)
+    .borderRadius(20.0)
+    .linearGradient(this.themeId === 'vip' ? {
+      angle: 135,
+      colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]] as [ResourceColor, number][]
+    } : (this.themeId === 'new_year' ? {
+      angle: 135,
+      colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]] as [ResourceColor, number][]
+    } : {
+      angle: 135,
+      colors: [[$r('app.color.brand_gradient_start'), 0.0], [$r('app.color.brand_gradient_end'), 1.0]] as [ResourceColor, number][]
+    }))
+    .shadow({ radius: 10.0, color: this.getShadowColor(), offsetY: 4.0 })
+  }
 }

@@ -1,13 +1,14 @@
 import { LocalIconManager, AppInfo } from '../utils/LocalIconManager';
 import { picker } from '@kit.CoreFileKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
-import { promptAction, curves } from '@kit.ArkUI';
-import { BusinessError } from '@kit.BasicServicesKit';
+import { promptAction, curves, LengthMetrics } from '@kit.ArkUI';
+import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { common, Want } from '@kit.AbilityKit';
 import { image } from '@kit.ImageKit';
 import { ImageCropSheet } from './ImageCropPage';
 import { WebViewParam } from './WebViewPage';
-import { hdsEffect, HdsNavDestination, HdsNavigationTitleBarOptions, HdsNavigationMenuItemOptions } from '@kit.UIDesignKit';
+import { hdsEffect, HdsNavDestination, HdsNavigationTitleBarOptions, HdsNavigationMenuItemOptions,
+  ScrollEffectType} from '@kit.UIDesignKit';
 import { BackgroundWatermark } from './BackgroundWatermark';
 
 // Basic implementation of IDataSource to handle data listener
@@ -134,12 +135,12 @@ export struct IconLibraryPage {
   @State cropSourceUri: string = '';
 
   // Animation System
-   isAnimationEnabled: boolean = false;
+  isAnimationEnabled: boolean = false;
   @StorageLink('isPointLightEnabled') isPointLightEnabled: boolean = true;
   @StorageLink('animationDuration') animationDuration: number = 400;
   @StorageLink('animationResponse') animationResponse: number = 0.35;
   @StorageLink('animationDamping') animationDamping: number = 0.75;
-  
+
   @State pressedIcon: string = ''; // Track pressed icon name for animation
 
   async aboutToAppear() {
@@ -151,7 +152,7 @@ export struct IconLibraryPage {
     try {
       LocalIconManager.getInstance().init(getContext(this)).then(async () => {
         this.icons = await LocalIconManager.getInstance().getAllApps();
-        const cats = LocalIconManager.getInstance().getAllCategories();
+        const cats = await LocalIconManager.getInstance().getAllCategories();
         this.categories = ['全部', ...cats];
         this.filterIcons();
         this.isLoading = false;
@@ -260,6 +261,61 @@ export struct IconLibraryPage {
       console.error('Failed to pick single icon:', err);
       promptAction.showToast({ message: '选择图片失败' });
     }
+  }
+
+  @Builder
+  BottomBuilder() {
+    Column() {
+      // Search Bar
+      Search({ value: this.searchText, placeholder: '搜索图标名称...' })
+        .width('92%')
+        .height(40)
+        .backgroundColor('#33FFFFFF')
+        .placeholderColor($r('app.color.text_secondary'))
+        .margin({ top: 8, bottom: 12 })
+        .border({ width: 0.5, color: 'rgba(255,255,255,0.2)' })
+        .onChange((value: string) => {
+          this.searchText = value;
+          this.filterIcons();
+        })
+
+      // Categories List
+      List({ space: 8 }) {
+        ForEach(this.categories, (cat: string) => {
+          ListItem() {
+            Text(cat)
+              .fontSize(14)
+              .fontColor(this.selectedCategory === cat ?
+                (this.isNewYearTheme ? '#FFD700' :
+                  (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
+                $r('app.color.text_secondary'))
+              .fontWeight(this.selectedCategory === cat ? FontWeight.Medium : FontWeight.Normal)
+              .padding({
+                left: 16,
+                right: 16,
+                top: 6,
+                bottom: 6
+              })
+              .backgroundColor(this.selectedCategory === cat ?
+                (this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                  (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))) :
+                $r('app.color.card_background'))
+              .borderRadius(16)
+          }
+          .onClick(() => {
+            this.selectedCategory = cat;
+            this.filterIcons();
+          })
+        })
+      }
+      .listDirection(Axis.Horizontal)
+      .width('100%')
+      .height(40)
+      .scrollBar(BarState.Off)
+      .padding({ left: 16, right: 16 })
+      .margin({ bottom: 12 })
+    }
+    .width('100%')
   }
 
   @Builder
@@ -554,18 +610,18 @@ export struct IconLibraryPage {
     .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) })
     .visualEffect(new hdsEffect.HdsEffectBuilder()
       .pointLight({
-          sourceType: this.pressedIcon === item.name ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
-          illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+        sourceType: this.pressedIcon === item.name ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+        illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
       })
       .buildEffect())
     .onTouch((event: TouchEvent) => {
-        if (event.type === TouchType.Down) {
-          if (this.isAnimationEnabled && this.isPointLightEnabled) {
-              this.pressedIcon = item.name;
-          }
-        } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-          this.pressedIcon = '';
+      if (event.type === TouchType.Down) {
+        if (this.isAnimationEnabled && this.isPointLightEnabled) {
+          this.pressedIcon = item.name;
         }
+      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+        this.pressedIcon = '';
+      }
     })
     .onClick(() => {
       if (this.isSelectionMode) {
@@ -592,220 +648,269 @@ export struct IconLibraryPage {
         })
     )
   }
+  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
+  @Builder IconBuilder(){
+    Stack({ alignContent: Alignment.Top }) {
+      // Universal Background Watermark
+      BackgroundWatermark()
+        .zIndex(0)
 
-  build() {
-    HdsNavDestination() {
-      Stack({ alignContent: Alignment.Top }) {
-        // Universal Background Watermark
-        BackgroundWatermark()
-          .zIndex(0)
+      // 1. Icon Grid (Background Layer)
+      Grid(this.scroller) {
+        GridItem() {
+          Column()
+            .height(56 + this.getUIContext().px2vp(this.statusBarHeight) + 96)
+        }
+        .columnStart(0).columnEnd(3)
 
-        // 1. Icon Grid (Background Layer)
-        Grid(this.scroller) {
-          // Spacer for System Title Bar + Fixed Header
+        // Icons List
+        if (this.isLoading) {
           GridItem() {
-            Column()
-              .height(TITLE_BAR_HEIGHT_MINI + this.getUIContext().px2vp(this.statusBarHeight) + 112)
-          }
-          .columnStart(0).columnEnd(3)
+            Column() {
+              LoadingProgress().width(40).height(40)
+                .color($r('app.color.brand_color'))
+              Text('快速加载图标中...').fontSize(14).fontColor($r('app.color.text_secondary'))
+                .margin({ top: 12 })
+            }.width('100%').height(200).justifyContent(FlexAlign.Center)
+          }.columnStart(0).columnEnd(3)
+        } else if (this.filteredIcons.length === 0) {
+          GridItem() {
+            Column() {
+              SymbolGlyph($r('sys.symbol.magnifyingglass_circle'))
+                .fontSize(48)
+                .fontColor([$r('app.color.text_secondary')])
+              Text('未找到相关图标').fontSize(14).fontColor($r('app.color.text_secondary')).margin({ top: 10 })
+            }.width('100%').height(300).justifyContent(FlexAlign.Center)
+          }.columnStart(0).columnEnd(3)
+        } else {
+          LazyForEach(this.iconDataSource, (icon: AppInfo) => {
+            GridItem() {
+              this.IconItemBuilder(icon)
+            }
+            .transition(TransitionEffect.asymmetric(
+              TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })),
+              TransitionEffect.OPACITY)
+              .animation({
+                curve: curves.springMotion(this.animationResponse, this.animationDamping),
+                duration: this.isAnimationEnabled ? this.animationDuration : 0,
+                // Stagger based on index in current view, but clamp to reasonable range for scrolling
+                delay: this.isAnimationEnabled ? (this.filteredIcons.indexOf(icon) % 15) * 30 : 0
+              })
+            )
+          }, (icon: AppInfo) => icon.name + (this.selectedIconNames.includes(icon.name) ? '_s' : '_u'))
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .cachedCount(4)
+      .columnsTemplate('1fr 1fr 1fr 1fr')
+      .columnsGap(12)
+      .rowsGap(12)
+      .padding({ left: 16, right: 16, bottom: 20 })
+      .editMode(this.isSelectionMode)
+      .scrollBar(BarState.Off)
+      .zIndex(1)
 
-          // Icons List
-          if (this.isLoading) {
-            GridItem() {
-              Column() {
-                LoadingProgress().width(40).height(40)
-                  .color($r('app.color.brand_color'))
-                Text('快速加载图标中...').fontSize(14).fontColor($r('app.color.text_secondary'))
-                  .margin({ top: 12 })
-              }.width('100%').height(200).justifyContent(FlexAlign.Center)
-            }.columnStart(0).columnEnd(3)
-          } else if (this.filteredIcons.length === 0) {
-            GridItem() {
-              Column() {
-                SymbolGlyph($r('sys.symbol.magnifyingglass_circle')).fontSize(48).fontColor([$r('app.color.text_secondary')])
-                Text('未找到相关图标').fontSize(14).fontColor($r('app.color.text_secondary')).margin({ top: 10 })
-              }.width('100%').height(300).justifyContent(FlexAlign.Center)
-            }.columnStart(0).columnEnd(3)
-          } else {
-            LazyForEach(this.iconDataSource, (icon: AppInfo) => {
-              GridItem() {
-                this.IconItemBuilder(icon)
-              }
-              .transition(TransitionEffect.asymmetric(
-                  TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })),
-                  TransitionEffect.OPACITY)
-                  .animation({ 
-                      curve: curves.springMotion(this.animationResponse, this.animationDamping),
-                      duration: this.isAnimationEnabled ? this.animationDuration : 0,
-                      // Stagger based on index in current view, but clamp to reasonable range for scrolling
-                      delay: this.isAnimationEnabled ? (this.filteredIcons.indexOf(icon) % 15) * 30 : 0 
-                  })
-              )
-            }, (icon: AppInfo) => icon.name + (this.selectedIconNames.includes(icon.name) ? '_s' : '_u'))
-          }
+
+      // 3. Progress Overlay
+      this.ImportOverlay()
+
+      // 4. Help Sheet Helper
+      Column()
+        .bindSheet($$this.showHelpSheet, this.HelpSheetBuilder(), {
+          detents: [SheetSize.LARGE, SheetSize.MEDIUM],
+          backgroundColor: $r('app.color.page_background'),
+          showClose: false,
+          preferType: SheetType.BOTTOM
+        })
+      Column()
+        .bindSheet($$this.showCropSheet, this.CropSheetBuilder(), {
+          detents: [SheetSize.LARGE],
+          backgroundColor: $r('app.color.page_background'),
+          showClose: false,
+          preferType: SheetType.BOTTOM
+        })
+
+      // 5. Add Single Icon Dialog Mask
+      if (this.showAddSingleDialog) {
+        Stack() {
+          Rect()
+            .width('100%')
+            .height('100%')
+            .fill(Color.Black)
+            .opacity(0.3)
+            .onClick(() => {
+              this.showAddSingleDialog = false;
+            })
+
+          this.AddSingleIconDialog()
         }
         .width('100%')
         .height('100%')
-        .cachedCount(4)
-        .columnsTemplate('1fr 1fr 1fr 1fr')
-        .columnsGap(12).rowsGap(12)
-        .padding({ left: 16, right: 16, bottom: 20 })
-        .editMode(this.isSelectionMode)
-        .scrollBar(BarState.Off)
-        .zIndex(1)
-
-        // 2. Fixed Floating Header (Now Single Blur Container)
-        Column() {
-          // Spacer just for System Title Bar
-          Column()
-            .height(TITLE_BAR_HEIGHT_MINI + this.getUIContext().px2vp(this.statusBarHeight))
-          
-          Column() {
-            // Search Bar
-            Search({ placeholder: '搜索图标名称...' })
-              .width('92%')
-              .height(40)
-              .backgroundColor('#33FFFFFF')
-              .placeholderColor($r('app.color.text_secondary'))
-              .margin({ top: 8, bottom: 12 })
-              .border({ width: 0.5, color: 'rgba(255,255,255,0.2)' })
-              .onChange((value: string) => {
-                this.searchText = value;
-                this.filterIcons();
-              })
-
-            // Categories List
-            List({ space: 8 }) {
-              ForEach(this.categories, (cat: string) => {
-                ListItem() {
-                  Text(cat).fontSize(14)
-                    .fontColor(this.selectedCategory === cat ?
-                      (this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
-                      $r('app.color.text_secondary'))
-                    .fontWeight(this.selectedCategory === cat ? FontWeight.Medium : FontWeight.Normal)
-                    .padding({ left: 16, right: 16, top: 6, bottom: 6 })
-                    .backgroundColor(this.selectedCategory === cat ? (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))) : $r('app.color.card_background'))
-                    .borderRadius(16)
-                }
-                .onClick(() => {
-                  this.selectedCategory = cat;
-                  this.filterIcons();
-                })
-              })
-            }
-            .listDirection(Axis.Horizontal)
-            .width('100%')
-            .height(40)
-            .scrollBar(BarState.Off)
-            .padding({ left: 16, right: 16 })
-            .margin({ bottom: 12 })
-          }
-          .width('100%')
-        }
-        .width('100%')
-        .zIndex(100)
-        .backgroundBlurStyle(BlurStyle.Thin)
-        .shadow({ radius: 8, color: 'rgba(0,0,0,0.04)', offsetY: 2 })
-        .backgroundColor('rgba(255,255,255,0.05)')
-
-        // 3. Progress Overlay
-        this.ImportOverlay()
-
-        // 4. Help Sheet Helper
-        Column()
-          .bindSheet($$this.showHelpSheet, this.HelpSheetBuilder(), {
-            detents: [SheetSize.LARGE, SheetSize.MEDIUM],
-            backgroundColor: $r('app.color.page_background'),
-            showClose: false,
-            preferType: SheetType.BOTTOM
-          })
-          Column()
-          .bindSheet($$this.showCropSheet, this.CropSheetBuilder(), {
-            detents: [SheetSize.LARGE],
-            backgroundColor: $r('app.color.page_background'),
-            showClose: false,
-            preferType: SheetType.BOTTOM
-          })
-
-        // 5. Add Single Icon Dialog Mask
-        if (this.showAddSingleDialog) {
-          Stack() {
-            Rect()
-              .width('100%')
-              .height('100%')
-              .fill(Color.Black)
-              .opacity(0.3)
-              .onClick(() => { this.showAddSingleDialog = false; })
-
-            this.AddSingleIconDialog()
-          }
-          .width('100%')
-          .height('100%')
-          .zIndex(200)
-        }
+        .zIndex(200)
       }
     }
-    .bindToScrollable([this.scroller])
-    .titleBar(this.isSelectionMode ? {
-      avoidLayoutSafeArea: true,
-      content: {
-        title: {
-          mainTitle: '已选 ' + this.selectedIconNames.length.toString()
-        },
-        menu: {
-          value: [
-            {
-              content: {
-                label: '删除',
-                icon: $r('sys.symbol.trash'),
-                action: (): void => { this.deleteSelectedIcons(); }
-              }
-            } as HdsNavigationMenuItemOptions,
-            {
-              content: {
-                label: '取消',
-                action: (): void => {
-                  this.isSelectionMode = false;
-                  this.selectedIconNames = [];
+  }
+  build() {
+    if (deviceInfo.distributionOSApiVersion >= 60100&&this.isHdsTabsEnabled) {
+      HdsNavDestination() {
+        this.IconBuilder()
+      }
+      .bindToScrollable([this.scroller])
+      .titleBar(this.isSelectionMode ? {
+        avoidLayoutSafeArea: true,
+        content: {
+          title: {
+            mainTitle: '已选 ' + this.selectedIconNames.length.toString()
+          },
+          menu: {
+            value: [
+              {
+                content: {
+                  label: '删除',
+                  icon: $r('sys.symbol.trash'),
+                  action: (): void => {
+                    this.deleteSelectedIcons();
+                  }
                 }
-              }
-            } as HdsNavigationMenuItemOptions
-          ]
-        }
-      }
-    } as HdsNavigationTitleBarOptions : {
-      avoidLayoutSafeArea: true,
-      content: {
-        title: {
-          mainTitle: '图标库'
+              } as HdsNavigationMenuItemOptions,
+              {
+                content: {
+                  label: '取消',
+                  action: (): void => {
+                    this.isSelectionMode = false;
+                    this.selectedIconNames = [];
+                  }
+                }
+              } as HdsNavigationMenuItemOptions
+            ]
+          }
         },
-        menu: {
-          value: [
-            {
-              content: {
-                label: '帮助',
-                icon: $r('sys.symbol.questionmark_circle'),
-                action: (): void => { this.showHelpSheet = true; }
-              }
-            } as HdsNavigationMenuItemOptions,
-            {
-              content: {
-                label: '添加',
-                icon: $r('sys.symbol.plus_circle'),
-                action: (): void => { this.addSingleIcon(); }
-              }
-            } as HdsNavigationMenuItemOptions,
-            {
-              content: {
-                label: '导入图标包',
-                icon: $r('sys.symbol.square_and_arrow_down'),
-                action: (): void => { this.importIconPack(); }
-              }
-            } as HdsNavigationMenuItemOptions
-          ]
-        }
+      } as HdsNavigationTitleBarOptions :
+        {
+          avoidLayoutSafeArea: true,
+          content: {
+            title: {
+              mainTitle: '图标库'
+            },
+            bottomBuilder: {
+              builder: (): void => this.BottomBuilder(),
+              height: 96
+            },
+            menu: {
+              value: [
+                {
+                  content: {
+                    label: '帮助',
+                    icon: $r('sys.symbol.questionmark_circle'),
+                    action: (): void => {
+                      this.showHelpSheet = true;
+                    }
+                  }
+                } as HdsNavigationMenuItemOptions,
+                {
+                  content: {
+                    label: '添加',
+                    icon: $r('sys.symbol.plus_circle'),
+                    action: (): void => {
+                      this.addSingleIcon();
+                    }
+                  }
+                } as HdsNavigationMenuItemOptions,
+                {
+                  content: {
+                    label: '导入图标包',
+                    icon: $r('sys.symbol.square_and_arrow_down'),
+                    action: (): void => {
+                      this.importIconPack();
+                    }
+                  }
+                } as HdsNavigationMenuItemOptions
+              ]
+            }
+          },
+        } as HdsNavigationTitleBarOptions)
+      .backgroundColor($r('app.color.page_background'))
+    } else {
+      HdsNavDestination() {
+        this.IconBuilder()
       }
-    } as HdsNavigationTitleBarOptions)
-    .backgroundColor($r('app.color.page_background'))
+      .bindToScrollable([this.scroller])
+      .titleBar(this.isSelectionMode ? {
+        avoidLayoutSafeArea: true,
+        content: {
+          title: {
+            mainTitle: '已选 ' + this.selectedIconNames.length.toString()
+          },
+          menu: {
+            value: [
+              {
+                content: {
+                  label: '删除',
+                  icon: $r('sys.symbol.trash'),
+                  action: (): void => {
+                    this.deleteSelectedIcons();
+                  }
+                }
+              } as HdsNavigationMenuItemOptions,
+              {
+                content: {
+                  label: '取消',
+                  action: (): void => {
+                    this.isSelectionMode = false;
+                    this.selectedIconNames = [];
+                  }
+                }
+              } as HdsNavigationMenuItemOptions
+            ]
+          }
+        },
+
+      } as HdsNavigationTitleBarOptions :
+        {
+          avoidLayoutSafeArea: true,
+          content: {
+            title: {
+              mainTitle: '图标库'
+            },
+            bottomBuilder: {
+              builder: (): void => this.BottomBuilder(),
+              height: 96
+            },
+            menu: {
+              value: [
+                {
+                  content: {
+                    label: '帮助',
+                    icon: $r('sys.symbol.questionmark_circle'),
+                    action: (): void => {
+                      this.showHelpSheet = true;
+                    }
+                  }
+                } as HdsNavigationMenuItemOptions,
+                {
+                  content: {
+                    label: '添加',
+                    icon: $r('sys.symbol.plus_circle'),
+                    action: (): void => {
+                      this.addSingleIcon();
+                    }
+                  }
+                } as HdsNavigationMenuItemOptions,
+                {
+                  content: {
+                    label: '导入图标包',
+                    icon: $r('sys.symbol.square_and_arrow_down'),
+                    action: (): void => {
+                      this.importIconPack();
+                    }
+                  }
+                } as HdsNavigationMenuItemOptions
+              ]
+            }
+          },
+        } as HdsNavigationTitleBarOptions)
+      .backgroundColor($r('app.color.page_background'))
+    }
   }
 }

@@ -224,6 +224,16 @@ struct WidgetCardNoAdd4x4 {
                    .borderRadius(4)
                    .padding({ left: 3, right: 3, top: 1, bottom: 1 })
                }
+
+                if (item.isWarranty) {
+                  Text("保")
+                    .fontSize(9)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(Color.White)
+                    .backgroundColor('#007AFF')
+                    .borderRadius(4)
+                    .padding({ left: 3, right: 3, top: 1, bottom: 1 })
+                }
              }
           }
           .width('100%')
@@ -312,4 +322,5 @@ interface CardListItemData {
   fullDate?: string;
   isLifetime?: boolean;
   isGroupBuy?: boolean;
+  isWarranty?: boolean;
 }

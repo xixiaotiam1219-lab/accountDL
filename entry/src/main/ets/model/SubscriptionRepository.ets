@@ -72,6 +72,7 @@ export interface MinimalCardItem {
   uuid?: string;
   recordType: 'subscription' | 'groupBuy' | 'warranty';
   usageStatus: 'unused' | 'used' | 'expired';
+  isWarranty?: boolean;
   name: string;
   price?: number;
   currency?: string;
@@ -533,6 +534,21 @@ export class SubscriptionRepository {
     if (!this.rdbStore) {
       return Promise.reject('RdbStore not initialized');
     }
+
+    try {
+      // 1. 在彻底清空本地数据前，先批量取消所有系统级排程提醒，防止提醒泄漏
+      const subs = await this.queryAll();
+      if (subs && subs.length > 0) {
+        await LocalNotificationManager.getInstance().cancelAllReminders(subs);
+      } else {
+        // 如果没有普通订阅，也确保取消新年提醒
+        await LocalNotificationManager.getInstance().cancelNewYearReminder();
+      }
+    } catch (e) {
+      console.error(`Failed to cancel reminders during clearAllData: ${(e as Error).message}`);
+    }
+
+    // 2. 清空数据库列表
     const predicates = new relationalStore.RdbPredicates(TABLE_NAME);
     await this.rdbStore.delete(predicates);
     console.info('All local data cleared');
@@ -730,7 +746,8 @@ export class SubscriptionRepository {
         const dateStr = DateUtil.formatShortDate(item.nextBillingDate);
 
         const isGroupBuy = item.recordType === 'groupBuy';
-        const isWarranty = item.recordType === 'warranty' || !!item.brand || !!item.purchaseChannel;
+        const isWarranty = item.recordType === 'warranty';
+        const isLifetime = item.billingCycle === 'Lifetime';
 
         const snapshotItem = new SnapshotItem();
         
@@ -740,8 +757,11 @@ export class SubscriptionRepository {
            snapshotItem.content = item.merchantName ? `${item.merchantName} | ${statusText}` : statusText;
         } else if (isWarranty) {
            snapshotItem.title = item.name || '未知保修';
-           // 保修过期显示
-           snapshotItem.content = `保修到期:${dateStr}`;
+           // 保修卡片无论是否设为 Lifetime，只要到期日有效就显示到期日
+           snapshotItem.content = `保修:${dateStr}`;
+        } else if (isLifetime) {
+           snapshotItem.title = item.name || '未知订阅';
+           snapshotItem.content = `永久买断`;
         } else {
            snapshotItem.title = item.name || '未知订阅';
            snapshotItem.content = `到期:${dateStr}`;
@@ -760,6 +780,7 @@ export class SubscriptionRepository {
           uuid: item.uuid,
           recordType: item.recordType || 'subscription',
           usageStatus: item.usageStatus || 'unused',
+          isWarranty: isWarranty,
           name: item.name || '',
           price: item.price,
           currency: item.currency,

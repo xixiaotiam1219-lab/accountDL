@@ -102,6 +102,7 @@ export struct AddSubscription {
 
   // RecentPhotoComponent 配置
   private recentPhotoOptions: RecentPhotoOptions = new RecentPhotoOptions();
+  private reminderDaysOptions: string[] = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30'];
 
 
   // 截屏状态监听回调 - 已废弃
@@ -253,24 +254,32 @@ export struct AddSubscription {
       // 既然用户要求适配阻尼，我们应该使用全局配置或其变体
       const resp = this.animationResponse;
       const damp = this.animationDamping;
-      setTimeout(() => { animateTo({ duration: duration, curve: curves.springMotion(resp, damp) }, () => { this.animStep1 = true }) }, 50);
+      setTimeout(() => { animateTo({ duration: duration, curve: curves.springMotion(resp, damp) }, () => { this.animStep1 = true }) }, 50); 
       setTimeout(() => { animateTo({ duration: duration, curve: curves.springMotion(resp, damp) }, () => { this.animStep2 = true }) }, 50 + interval);
     } else {
-      this.animStep1 = true;
-      this.animStep2 = true;
-    }
+          this.animStep1 = true;
+          this.animStep2 = true;
+      }
   }
 
   async aboutToAppear() {
     this.hasApiKey = !!(await PreferenceUtil.getInstance().getAIKey());
     // 初始化本地图标管理器
     await LocalIconManager.getInstance().init(getContext(this));
-
+    
     // 如果存在残留的闪控球，自动关闭
     try {
       await FloatingBallManager.getInstance().stop();
     } catch (e) {
       hilog.error(0x0000, 'AddSubscription', `Stop floating ball on appear failed: ${e}`);
+    }
+
+    const paramsArray = this.pageStack.getParamByName('AddSubscription') as Object[];
+    if (paramsArray && paramsArray.length > 0) {
+      const params = paramsArray[paramsArray.length - 1] as Record<string, Object>;
+      if (params && params['initialType']) {
+        this.recordType = params['initialType'] as 'subscription' | 'groupBuy' | 'warranty';
+      }
     }
 
     this.triggerAnimations();
@@ -285,59 +294,59 @@ export struct AddSubscription {
     const localApps = await LocalIconManager.getInstance().searchApps(keyword, 20);
 
     animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: curves.responsiveSpringMotion(0.35, 1.0) }, () => {
-      // 转换格式
-      const suggestions: MemberServiceConfig[] = localApps.map(app => {
-        return {
-          name: app.name,
-          icon: app.icon,
-          category: app.category || '其他',
-          subCategory: ''
-        } as MemberServiceConfig;
-      });
+        // 转换格式
+        const suggestions: MemberServiceConfig[] = localApps.map(app => {
+            return {
+                name: app.name,
+                icon: app.icon,
+                category: app.category || '其他',
+                subCategory: ''
+            } as MemberServiceConfig;
+        });
 
-      // 合并建议：LocalIconManager 的结果优先
-      // 原有的 searchMemberServices 结果作为补充（如果它们没有图标的话）
-      // 这里简化策略：直接使用 LocalIconManager 的结果作为主要建议源
-      this.suggestions = suggestions;
-      this.showSuggestions = this.suggestions.length > 0;
+        // 合并建议：LocalIconManager 的结果优先
+        // 原有的 searchMemberServices 结果作为补充（如果它们没有图标的话）
+        // 这里简化策略：直接使用 LocalIconManager 的结果作为主要建议源
+        this.suggestions = suggestions;
+        this.showSuggestions = this.suggestions.length > 0;
 
-      // 自动填充逻辑 - 恢复智能匹配策略 (Exact > Contain > Prefix)
-      // localApps 已经是排好序的 (LocalIconManager searchApps)
+        // 自动填充逻辑 - 恢复智能匹配策略 (Exact > Contain > Prefix)
+        // localApps 已经是排好序的 (LocalIconManager searchApps)
 
-      const lowerKeyword = keyword.toLowerCase();
-      let currentMatch: AppInfo | undefined = undefined;
+        const lowerKeyword = keyword.toLowerCase();
+        let currentMatch: AppInfo | undefined = undefined;
 
-      // 策略 A: 精确匹配优先
-      const exactMatch = localApps.find(app => app.name.toLowerCase() === lowerKeyword);
-      if (exactMatch) {
-        currentMatch = exactMatch;
-      } else {
-        // 策略 B: 用户输入包含了完整应用名 (e.g. "Netflix Premium" -> "Netflix") -> 高置信度
-        const containMatch = localApps.find(app => lowerKeyword.startsWith(app.name.toLowerCase()));
-        if (containMatch) {
-          currentMatch = containMatch;
+        // 策略 A: 精确匹配优先
+        const exactMatch = localApps.find(app => app.name.toLowerCase() === lowerKeyword);
+        if (exactMatch) {
+            currentMatch = exactMatch;
         } else {
-          // 策略 C: 前缀匹配 (e.g. "Netf" -> "Netflix")
-          // 仅当唯一匹配时才自动填充，避免歧义
-          const prefixMatches = localApps.filter(app => app.name.toLowerCase().startsWith(lowerKeyword));
-          if (prefixMatches.length === 1) {
-            currentMatch = prefixMatches[0];
-          }
+            // 策略 B: 用户输入包含了完整应用名 (e.g. "Netflix Premium" -> "Netflix") -> 高置信度
+            const containMatch = localApps.find(app => lowerKeyword.startsWith(app.name.toLowerCase()));
+            if (containMatch) {
+                currentMatch = containMatch;
+            } else {
+                // 策略 C: 前缀匹配 (e.g. "Netf" -> "Netflix")
+                // 仅当唯一匹配时才自动填充，避免歧义
+                const prefixMatches = localApps.filter(app => app.name.toLowerCase().startsWith(lowerKeyword));
+                if (prefixMatches.length === 1) {
+                    currentMatch = prefixMatches[0];
+                }
+            }
         }
-      }
 
-      if (currentMatch) {
-        if (currentMatch.icon) this.icon = currentMatch.icon;
-        if (currentMatch.category) this.category = currentMatch.category;
+        if (currentMatch) {
+            if (currentMatch.icon) this.icon = currentMatch.icon;
+            if (currentMatch.category) this.category = currentMatch.category;
 
-        // 尝试从本地配置补充二级分类
-        const localConfig = matchMemberService(currentMatch.name);
-        if (localConfig && localConfig.subCategory) {
-          if (!this.subCategory && !this.isAIProtected) {
-            this.subCategory = localConfig.subCategory;
-          }
+            // 尝试从本地配置补充二级分类
+            const localConfig = matchMemberService(currentMatch.name);
+            if (localConfig && localConfig.subCategory) {
+                if (!this.subCategory && !this.isAIProtected) {
+                    this.subCategory = localConfig.subCategory;
+                }
+            }
         }
-      }
     });
   }
 
@@ -364,7 +373,7 @@ export struct AddSubscription {
                 .borderRadius(8)
                 .backgroundColor('#F5F5F5')
                 .margin({ bottom: 8 })
-
+              
               Text("订阅截图示例")
                 .fontSize(13)
                 .fontColor($r('app.color.text_primary'))
@@ -380,7 +389,7 @@ export struct AddSubscription {
                 .borderRadius(8)
                 .backgroundColor('#F5F5F5')
                 .margin({ bottom: 8 })
-
+              
               Text("团购券截图示例")
                 .fontSize(13)
                 .fontColor($r('app.color.text_primary'))
@@ -1082,7 +1091,7 @@ export struct AddSubscription {
 
               // 3. 价格区
               Column() {
-                Text(`${this.currency}${this.price || '0.00'}`)
+                Text(`${this.currency === 'USD' ? '$' : '¥'}${this.price || '0.00'}`)
                   .fontSize(18)
                   .fontWeight(FontWeight.Bold)
                   .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
@@ -1674,7 +1683,7 @@ export struct AddSubscription {
                     .margin({ bottom: 12 })
 
                   Row({ space: 4 }) {
-                    Text(this.currency)
+                    Text(this.currency === 'USD' ? '$' : '¥')
                       .fontSize(36)
                       .fontWeight(FontWeight.Bold)
                       .fontColor($r('app.color.text_primary'))
@@ -2035,8 +2044,8 @@ export struct AddSubscription {
                       })
                       .onClick(() => {
                         TextPickerDialog.show({
-                          range: ['1', '2', '3', '5', '7'],
-                          selected: ['1', '2', '3', '5', '7'].indexOf(this.reminderDaysBefore.toString()),
+                          range: this.reminderDaysOptions,
+                          selected: this.reminderDaysOptions.indexOf(this.reminderDaysBefore.toString()),
                           onAccept: (value: TextPickerResult) => {
                             this.reminderDaysBefore = parseInt(value.value as string);
                           }
@@ -2127,35 +2136,35 @@ export struct AddSubscription {
 
             // 预览卡片
             Row() {
-              Stack({ alignContent: Alignment.BottomEnd }) {
-                SubscriptionIcon({
-                  icon: this.icon,
-                  name: this.name,
-                  iconSize: 56,
-                  iconRadius: 14,
-                  showGroupBadge: false
-                })
+                Stack({ alignContent: Alignment.BottomEnd }) {
+                  SubscriptionIcon({
+                    icon: this.icon,
+                    name: this.name,
+                    iconSize: 56,
+                    iconRadius: 14,
+                    showGroupBadge: false
+                  })
 
-                // 编辑角标
-                Row() {
-                  SymbolGlyph($r('sys.symbol.square_and_pencil'))
-                    .fontSize(10)
-                    .fontColor([Color.White])
+                  // 编辑角标
+                  Row() {
+                    SymbolGlyph($r('sys.symbol.square_and_pencil'))
+                      .fontSize(10)
+                      .fontColor([Color.White])
+                  }
+                  .width(20)
+                  .height(20)
+                  .justifyContent(FlexAlign.Center)
+                  .alignItems(VerticalAlign.Center)
+                  .backgroundColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                    (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                  .borderRadius(10)
+                  .border({ width: 2, color: $r('app.color.card_background') })
+                  .offset({ x: 6, y: 6 })
                 }
-                .width(20)
-                .height(20)
-                .justifyContent(FlexAlign.Center)
-                .alignItems(VerticalAlign.Center)
-                .backgroundColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
-                  (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                .borderRadius(10)
-                .border({ width: 2, color: $r('app.color.card_background') })
-                .offset({ x: 6, y: 6 })
-              }
-              .onClick(() => {
-                this.showIconPickerSheet();
-              })
-              .margin({ right: 16 })
+                .onClick(() => {
+                  this.showIconPickerSheet();
+                })
+                .margin({ right: 16 })
 
               Column() {
                 Text(this.name || "物品名称")
@@ -2177,7 +2186,7 @@ export struct AddSubscription {
               .margin({ right: 12 })
 
               Column() {
-                Text(`${this.currency}${this.price || '0.00'}`)
+                Text(`${this.currency === 'USD' ? '$' : '¥'}${this.price || '0.00'}`)
                   .fontSize(18)
                   .fontWeight(FontWeight.Bold)
                   .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
@@ -2388,7 +2397,7 @@ export struct AddSubscription {
                     .margin({ bottom: 12 })
 
                   Row({ space: 4 }) {
-                    Text(this.currency)
+                    Text(this.currency === 'USD' ? '$' : '¥')
                       .fontSize(36)
                       .fontWeight(FontWeight.Bold)
                       .fontColor($r('app.color.text_primary'))
@@ -2516,8 +2525,8 @@ export struct AddSubscription {
                       })
                       .onClick(() => {
                         TextPickerDialog.show({
-                          range: ['1', '2', '3', '5', '7', '14', '30'],
-                          selected: ['1', '2', '3', '5', '7', '14', '30'].indexOf(this.reminderDaysBefore.toString()),
+                          range: this.reminderDaysOptions,
+                          selected: this.reminderDaysOptions.indexOf(this.reminderDaysBefore.toString()),
                           onAccept: (value: TextPickerResult) => {
                             this.reminderDaysBefore = parseInt(value.value as string);
                           }
@@ -2675,7 +2684,7 @@ export struct AddSubscription {
 
                 // 3. 价格区 (显示当前识别/输入的金额)
                 Column() {
-                  Text(`${this.currency}${this.price || '0.00'}`)
+                  Text(`${this.currency === 'USD' ? '$' : '¥'}${this.price || '0.00'}`)
                     .fontSize(18)
                     .fontWeight(FontWeight.Bold)
                     .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
@@ -3245,7 +3254,7 @@ export struct AddSubscription {
                     .margin({ bottom: 12 })
 
                   Row({ space: 4 }) {
-                    Text(this.currency)
+                    Text(this.currency === 'USD' ? '$' : '¥')
                       .fontSize(36)
                       .fontWeight(FontWeight.Bold)
                       .fontColor($r('app.color.text_primary'))
@@ -3622,8 +3631,8 @@ export struct AddSubscription {
                         })
                         .onClick(() => {
                           TextPickerDialog.show({
-                            range: ['1', '2', '3', '5', '7'],
-                            selected: ['1', '2', '3', '5', '7'].indexOf(this.reminderDaysBefore.toString()),
+                            range: this.reminderDaysOptions,
+                            selected: this.reminderDaysOptions.indexOf(this.reminderDaysBefore.toString()),
                             onAccept: (value: TextPickerResult) => {
                               this.reminderDaysBefore = parseInt(value.value as string);
                             }
@@ -3795,6 +3804,7 @@ export struct AddSubscription {
                   }).then(async (resp) => {
                     if (resp.index === 1) {
                       await SubscriptionRepository.getInstance().delete(this.editId);
+                      SubscriptionRepository.getInstance().updateWidgetSnapshotSync('delete');
                       this.pageStack.pop();
                     }
                   });
@@ -3898,6 +3908,7 @@ export struct AddSubscription {
                   price: parseFloat(this.price),
                   currency: this.currency,
                   // warranty 类型固定使用 Lifetime 周期（一次性购买，到期日即保修到期日）
+                  // 注意：显示逻辑需要根据 recordType 为 warranty 来区分显示“保修”还是“永久”
                   billingCycle: this.recordType === 'warranty' ? 'Lifetime' :
                     (this.billingCycle as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite'),
                   nextBillingDate: this.nextBillingDate.getTime(),
@@ -3934,6 +3945,7 @@ export struct AddSubscription {
                 } else {
                   await SubscriptionRepository.getInstance().insert(newSub);
                 }
+                SubscriptionRepository.getInstance().updateWidgetSnapshotSync('save');
                 this.pageStack.clear();
               })
           }
@@ -3975,8 +3987,9 @@ export struct AddSubscription {
   }
   build() {
 
+    if (deviceInfo.distributionOSApiVersion >= 60100&& this.isHdsTabsEnabled) {
       HdsNavDestination() {
-        this.addBuilder()
+          this.addBuilder()
       }
       .titleBar({
         avoidLayoutSafeArea: true,
@@ -4004,7 +4017,7 @@ export struct AddSubscription {
       .onReady((context: NavDestinationContext) => {
         const rawParams = context.pathInfo.param as Record<string, Object>;
         if (rawParams && rawParams['initialType']) {
-          this.recordType = rawParams['initialType'] as 'subscription' | 'groupBuy';
+          this.recordType = rawParams['initialType'] as 'subscription' | 'groupBuy' | 'warranty';
 
           // 来自市场的预填充数据
           if (rawParams['marketplaceName']) {
@@ -4072,6 +4085,10 @@ export struct AddSubscription {
             this.couponImage = params.couponImage || '';
             this.usageTime = params.usageTime || '';
             this.realUsageTime = params.realUsageTime;
+          } else if (this.recordType === 'warranty') {
+            // 加载保修/保质期专属字段
+            this.brand = params.brand || '';
+            this.purchaseChannel = params.purchaseChannel || '';
           }
 
           // 自动修正旧数据的分类
@@ -4120,6 +4137,157 @@ export struct AddSubscription {
         // 只有在检测到截图并正在处理时才自动关闭，如果只是切换回来什么都没做，保留闪控球
       })
 
+    }
+    else {
+      HdsNavDestination() {
+        this.addBuilder()
+      }
+      .titleBar({
+        avoidLayoutSafeArea: true,
+        content: {
+          title: {
+            mainTitle: this.editId !== -1 ? (this.recordType === 'groupBuy' ? "编辑团购" : "编辑服务") :
+              (this.recordType === 'groupBuy' ? "添加团购" : "添加服务")
+          },
+          menu: {
+            value: [
+              {
+                content: {
+                  icon: $r('sys.symbol.questionmark_circle'),
+                  isEnabled: true,
+                  action: () => {
+                    this.showExampleSheet = true;
+                  }
+                }
+              }
+            ]
+          }
+        },
+      })
+      .backgroundColor($r('app.color.page_background'))
+      .onReady((context: NavDestinationContext) => {
+        const rawParams = context.pathInfo.param as Record<string, Object>;
+        if (rawParams && rawParams['initialType']) {
+          this.recordType = rawParams['initialType'] as 'subscription' | 'groupBuy' | 'warranty';
+
+          // 来自市场的预填充数据
+          if (rawParams['marketplaceName']) {
+            this.name = rawParams['marketplaceName'] as string;
+            this.skipNextSearch = true; // 防止触发搜索覆盖
+          }
+          if (rawParams['marketplaceIcon']) {
+            this.icon = rawParams['marketplaceIcon'] as string;
+          }
+          if (rawParams['marketplaceCategory']) {
+            this.category = rawParams['marketplaceCategory'] as string;
+          }
+          if (rawParams['marketplaceSubCategory']) {
+            this.subCategory = rawParams['marketplaceSubCategory'] as string;
+          }
+          if (rawParams['marketplaceCycle']) {
+            this.billingCycle =
+              rawParams['marketplaceCycle'] as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite';
+          }
+          // 显示预览卡片（与 OCR 识别共用同一标志位）
+          if (rawParams['marketplaceName']) {
+            this.showOCRResult = true;
+          }
+          return;
+        }
+
+        const params = context.pathInfo.param as SubscriptionModel;
+        if (params && (params.id || params.uuid)) {
+          // 防止初始化时的名称设置触发 onChange 导致图标被重置
+          this.skipNextSearch = true;
+          this.editId = params.id || -1;
+          this.uuid = params.uuid;
+          this.name = params.name;
+          this.price = params.price.toString();
+          this.currency = params.currency;
+          this.billingCycle = params.billingCycle;
+          this.nextBillingDate = new Date(params.nextBillingDate);
+          if (params.startDate) {
+            this.startDate = new Date(params.startDate);
+          }
+          this.isAutoRenewal = params.isAutoRenewal !== undefined ? params.isAutoRenewal : true;
+          this.icon = params.icon || '';
+
+          // 加载提醒设置
+          if (params.reminderDaysBefore !== undefined) {
+            this.isReminderEnabled = true;
+            this.isReminderExpanded = true;
+            this.reminderOpacity = 1;
+            this.reminderDaysBefore = params.reminderDaysBefore;
+            this.reminderTime = params.reminderTime || '09:00';
+          }
+
+          this.category = params.category || '其他';
+          this.subCategory = params.subCategory || '';
+          this.paymentMethod = params.paymentMethod || '其他支付方式';
+
+          // 加载团购券特有字段
+          this.recordType = params.recordType || 'subscription';
+          if (this.recordType === 'groupBuy') {
+            this.platform = params.platform || 'meituan';
+            this.couponCode = params.couponCode || '';
+            this.usageStatus = params.usageStatus || 'unused';
+            this.merchantName = params.merchantName || '';
+            this.quantity = params.quantity || 1;
+            this.couponImage = params.couponImage || '';
+            this.usageTime = params.usageTime || '';
+            this.realUsageTime = params.realUsageTime;
+          } else if (this.recordType === 'warranty') {
+            // 加载保修/保质期专属字段
+            this.brand = params.brand || '';
+            this.purchaseChannel = params.purchaseChannel || '';
+          }
+
+          // 自动修正旧数据的分类
+          if (this.category === '其他' && this.name && this.recordType === 'subscription') {
+            const matched = matchMemberService(this.name);
+            if (matched?.category) {
+              this.category = matched.category;
+            }
+          }
+
+          if (this.recordType === 'subscription') {
+            // 加载可用的会员等级选项
+            const service = matchMemberService(this.name);
+            if (service && service.validSubCategories) {
+              this.availableSubCategories = service.validSubCategories;
+            }
+          }
+
+          // 显示信息卡片
+          this.showOCRResult = true;
+          this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
+          // 注意：编辑模式下我们没有 ocrMonthlyPrice/ocrYearlyPrice 的原始数据，
+          // 如果需要显示价格，可以用 params.price 填充其中一个，或者留空只显示名称和日期
+          if (this.recordType === 'subscription') {
+            if (this.billingCycle === 'Monthly') {
+              this.ocrMonthlyPrice = this.price;
+            } else if (this.billingCycle === 'Quarterly') {
+              this.ocrQuarterlyPrice = this.price;
+            } else if (this.billingCycle === 'Yearly') {
+              this.ocrYearlyPrice = this.price;
+            } else if (this.billingCycle === 'Lifetime') {
+              this.ocrLifetimePrice = this.price;
+            }
+          }
+        }
+      })
+      .onBackPressed(() => {
+        this.pageStack.pop();
+        return true;
+      })
+      .onShown(async () => {
+        // 页面显示时（包括从配置页返回），重新检查 API Key 状态，确保及时隐藏提示文字
+        this.hasApiKey = !!(await PreferenceUtil.getInstance().getAIKey());
+
+        // 页面显示时，如果处于截图模式，说明用户手动切换回应用了
+        // 只有在检测到截图并正在处理时才自动关闭，如果只是切换回来什么都没做，保留闪控球
+      })
+    }
 
   }
 
@@ -4274,7 +4442,7 @@ export struct AddSubscription {
           if (pixelMap) {
             this.recognizePixelMap(pixelMap);
           } else {
-            throw new Error('PixelMap is empty');
+             throw new Error('PixelMap is empty');
           }
 
         } catch (err) {
@@ -4286,9 +4454,9 @@ export struct AddSubscription {
 
           let msg = '自动截屏失败';
           if (err.code === 201) {
-            msg = '请授予截屏权限';
+             msg = '请授予截屏权限';
           } else if (err.code === 801) {
-            msg = '当前设备不支持截屏';
+             msg = '当前设备不支持截屏';
           }
           this.promptAction.showToast({ message: msg });
         }
@@ -4464,173 +4632,173 @@ export struct AddSubscription {
    * 识别 PixelMap (复用识别逻辑)
    */
   async recognizePixelMap(pixelMap: image.PixelMap): Promise<void> {
-    // 1. 清空旧数据
-    animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.EaseInOut }, () => {
-      this.ocrMonthlyPrice = '';
-      this.ocrQuarterlyPrice = '';
-      this.ocrYearlyPrice = '';
-      this.ocrLifetimePrice = '';
-      this.showOCRResult = false;
-      this.ocrExpireDate = '';
-      this.icon = '';
-      this.price = '';
-      this.name = '';
-      this.category = '其他';
-      this.subCategory = '';
-      this.couponImage = ''; // Clear image
-      this.usageTime = ''; // Clear usage time
-    });
-
-    this.isOCRLoading = true;
-
-    try {
-      // 2. 获取文字
-      const rawText = await OCRManager.getInstance().recognizeText(pixelMap);
-      if (!rawText) throw new Error('本地OCR未识别到文字');
-
-      // 3. 自动匹配模式
-      // const couponKeywords = ['券码', '券号', '验证码', '待到店使用', '核销', '有效期为', '实付¥', '任选', '套餐'];
-      // const isCoupon = couponKeywords.some(kw => rawText.includes(kw));
-
-      let result: OCRResult;
-      let qrCodePromise: Promise<QRCodeResult | undefined> | undefined = undefined;
-
-      if (this.recordType === 'groupBuy') {
-        const context = getContext(this) as common.UIAbilityContext;
-        qrCodePromise = GroupBuyOCRManager.getInstance().extractQRCode(context, pixelMap);
-        result = GroupBuyOCRManager.getInstance().parseText(rawText);
-      } else {
-        // 订阅模式优先使用 AI
-        try {
-          result = await AIVisionManager.getInstance().recognizeSubscription(pixelMap);
-        } catch (e) {
-          console.error('AI Vision failed, fallback to local:', e);
-          result = OCRManager.getInstance().parseText(rawText);
-        }
-      }
-
-      // 3. 更新 UI
-      // 等待 QR 码结果 (如果是团购模式)
-      // 等待 QR 码结果 (如果是团购模式)
-      let qrCodeResult: QRCodeResult | undefined = undefined;
-      if (qrCodePromise) {
-        try {
-          qrCodeResult = await qrCodePromise;
-        } catch (e) {
-          console.error('QR Scan failed:', e);
-        }
-      }
-
-      animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.FastOutSlowIn }, () => {
-        if (this.recordType === 'groupBuy') {
-          if (result.merchantName) this.merchantName = result.merchantName;
-          if (result.appName) this.name = result.appName;
-
-          // 优先使用二维码提取的券码
-          if (qrCodeResult && qrCodeResult.code) {
-            this.couponCode = qrCodeResult.code;
-
-            // 如果有裁剪的二维码图片，可以考虑显示 specific handling (Future TODO)
-            if (qrCodeResult.codeImageUri) {
-              this.couponImage = qrCodeResult.codeImageUri;
-              hilog.info(0x0000, 'AddSubscription', `Coupon Image Saved: ${qrCodeResult.codeImageUri}`);
-            }
-          } else if (result.couponCode) {
-            this.couponCode = result.couponCode;
-          }
-
-          if (result.platform) this.platform = result.platform;
-          if (result.price) this.price = result.price.toString();
-
-          hilog.info(0x0000, 'AddSubscription', `OCR Result usageTime (PixelMap): ${result.usageTime}`);
-          this.usageTime = result.usageTime || '';
-
-          if (result.date) {
-            this.nextBillingDate = new Date(result.date);
-            this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
-            this.startDate = new Date();
-          }
-          return;
-        }
-
-        // Subscription Logic
-        if (result.monthlyPrice) this.ocrMonthlyPrice = result.monthlyPrice.toString();
-        if (result.yearlyPrice) this.ocrYearlyPrice = result.yearlyPrice.toString();
-
-        if (result.billingCycle) {
-          this.billingCycle = result.billingCycle;
-        } else if (result.yearlyPrice && !result.monthlyPrice) {
-          this.billingCycle = 'Yearly';
-        } else if (result.monthlyPrice && !result.yearlyPrice) {
-          this.billingCycle = 'Monthly';
-        }
-
-        // 当前价格
-        if (this.billingCycle === 'Monthly' && this.ocrMonthlyPrice) {
-          this.price = this.ocrMonthlyPrice;
-        } else if (this.billingCycle === 'Quarterly' && this.ocrQuarterlyPrice) {
-          this.price = this.ocrQuarterlyPrice;
-        } else if (this.billingCycle === 'Yearly' && this.ocrYearlyPrice) {
-          this.price = this.ocrYearlyPrice;
-        } else if (this.billingCycle === 'Lifetime' && this.ocrLifetimePrice) {
-          this.price = this.ocrLifetimePrice;
-        } else if (result.price) {
-          this.price = result.price.toString();
-        }
-
-        // 名称与分类
-        if (result.appName) {
-          this.name = result.appName;
-          this.icon = result.serviceIcon || '';
-          this.showOCRResult = true;
-
-          const service = matchMemberService(this.name);
-          if (service && service.validSubCategories) {
-            this.availableSubCategories = service.validSubCategories;
-          } else {
-            this.availableSubCategories = [];
-          }
-        } else {
-          this.showOCRResult = false;
-          this.availableSubCategories = [];
-        }
-
-        if (result.category) {
-          this.category = result.category;
-        }
-        if (result.subCategory) {
-          this.subCategory = result.subCategory;
-        } else {
-          this.subCategory = '';
-        }
-
-        // 日期
-        if (result.date) {
-          this.nextBillingDate = new Date(result.date);
-          this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
-
-          // [Smart Inference] 根据到期日反推开始日期
-          this.startDate = this.inferStartDate(this.nextBillingDate, this.billingCycle);
-
-        } else {
-          const target = new Date();
-          this.startDate = new Date(); // Default today if no date found
-          target.setDate(target.getDate() + 31);
-          this.nextBillingDate = target;
-          this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
-        }
+      // 1. 清空旧数据
+      animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.EaseInOut }, () => {
+        this.ocrMonthlyPrice = '';
+        this.ocrQuarterlyPrice = '';
+        this.ocrYearlyPrice = '';
+        this.ocrLifetimePrice = '';
+        this.showOCRResult = false;
+        this.ocrExpireDate = '';
+        this.icon = '';
+        this.price = '';
+        this.name = '';
+        this.category = '其他';
+        this.subCategory = '';
+        this.couponImage = ''; // Clear image
+        this.usageTime = ''; // Clear usage time
       });
 
-      this.promptAction.showToast({ message: '识别完成' });
+      this.isOCRLoading = true;
 
-    } catch (e) {
-      console.error('识别失败:', e);
-      this.promptAction.showToast({ message: '识别失败，请重试' });
-    } finally {
-      this.isOCRLoading = false;
-      // 记得释放 pixelMap
-      pixelMap.release();
-    }
+      try {
+          // 2. 获取文字
+          const rawText = await OCRManager.getInstance().recognizeText(pixelMap);
+          if (!rawText) throw new Error('本地OCR未识别到文字');
+
+          // 3. 自动匹配模式
+          // const couponKeywords = ['券码', '券号', '验证码', '待到店使用', '核销', '有效期为', '实付¥', '任选', '套餐'];
+          // const isCoupon = couponKeywords.some(kw => rawText.includes(kw));
+
+          let result: OCRResult;
+          let qrCodePromise: Promise<QRCodeResult | undefined> | undefined = undefined;
+
+          if (this.recordType === 'groupBuy') {
+             const context = getContext(this) as common.UIAbilityContext;
+             qrCodePromise = GroupBuyOCRManager.getInstance().extractQRCode(context, pixelMap);
+             result = GroupBuyOCRManager.getInstance().parseText(rawText);
+          } else {
+             // 订阅模式优先使用 AI
+             try {
+                result = await AIVisionManager.getInstance().recognizeSubscription(pixelMap);
+             } catch (e) {
+                console.error('AI Vision failed, fallback to local:', e);
+                result = OCRManager.getInstance().parseText(rawText);
+             }
+          }
+
+          // 3. 更新 UI
+          // 等待 QR 码结果 (如果是团购模式)
+          // 等待 QR 码结果 (如果是团购模式)
+          let qrCodeResult: QRCodeResult | undefined = undefined;
+          if (qrCodePromise) {
+             try {
+                qrCodeResult = await qrCodePromise;
+             } catch (e) {
+                console.error('QR Scan failed:', e);
+             }
+          }
+
+          animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.FastOutSlowIn }, () => {
+            if (this.recordType === 'groupBuy') {
+               if (result.merchantName) this.merchantName = result.merchantName;
+               if (result.appName) this.name = result.appName;
+
+               // 优先使用二维码提取的券码
+               if (qrCodeResult && qrCodeResult.code) {
+                   this.couponCode = qrCodeResult.code;
+
+                   // 如果有裁剪的二维码图片，可以考虑显示 specific handling (Future TODO)
+                   if (qrCodeResult.codeImageUri) {
+                       this.couponImage = qrCodeResult.codeImageUri;
+                       hilog.info(0x0000, 'AddSubscription', `Coupon Image Saved: ${qrCodeResult.codeImageUri}`);
+                   }
+               } else if (result.couponCode) {
+                   this.couponCode = result.couponCode;
+               }
+
+               if (result.platform) this.platform = result.platform;
+               if (result.price) this.price = result.price.toString();
+
+               hilog.info(0x0000, 'AddSubscription', `OCR Result usageTime (PixelMap): ${result.usageTime}`);
+               this.usageTime = result.usageTime || '';
+
+               if (result.date) {
+                  this.nextBillingDate = new Date(result.date);
+                  this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
+                  this.startDate = new Date();
+               }
+               return;
+            }
+
+            // Subscription Logic
+            if (result.monthlyPrice) this.ocrMonthlyPrice = result.monthlyPrice.toString();
+            if (result.yearlyPrice) this.ocrYearlyPrice = result.yearlyPrice.toString();
+
+            if (result.billingCycle) {
+              this.billingCycle = result.billingCycle;
+            } else if (result.yearlyPrice && !result.monthlyPrice) {
+               this.billingCycle = 'Yearly';
+            } else if (result.monthlyPrice && !result.yearlyPrice) {
+               this.billingCycle = 'Monthly';
+            }
+
+            // 当前价格
+            if (this.billingCycle === 'Monthly' && this.ocrMonthlyPrice) {
+              this.price = this.ocrMonthlyPrice;
+            } else if (this.billingCycle === 'Quarterly' && this.ocrQuarterlyPrice) {
+               this.price = this.ocrQuarterlyPrice;
+            } else if (this.billingCycle === 'Yearly' && this.ocrYearlyPrice) {
+              this.price = this.ocrYearlyPrice;
+            } else if (this.billingCycle === 'Lifetime' && this.ocrLifetimePrice) {
+               this.price = this.ocrLifetimePrice;
+            } else if (result.price) {
+              this.price = result.price.toString();
+            }
+
+            // 名称与分类
+            if (result.appName) {
+              this.name = result.appName;
+              this.icon = result.serviceIcon || '';
+              this.showOCRResult = true;
+
+              const service = matchMemberService(this.name);
+              if (service && service.validSubCategories) {
+                this.availableSubCategories = service.validSubCategories;
+              } else {
+                this.availableSubCategories = [];
+              }
+            } else {
+               this.showOCRResult = false;
+               this.availableSubCategories = [];
+            }
+
+            if (result.category) {
+              this.category = result.category;
+            }
+            if (result.subCategory) {
+               this.subCategory = result.subCategory;
+            } else {
+               this.subCategory = '';
+            }
+
+            // 日期
+            if (result.date) {
+               this.nextBillingDate = new Date(result.date);
+               this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
+
+               // [Smart Inference] 根据到期日反推开始日期
+               this.startDate = this.inferStartDate(this.nextBillingDate, this.billingCycle);
+
+            } else {
+               const target = new Date();
+               this.startDate = new Date(); // Default today if no date found
+               target.setDate(target.getDate() + 31);
+               this.nextBillingDate = target;
+               this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
+            }
+          });
+
+          this.promptAction.showToast({ message: '识别完成' });
+
+      } catch (e) {
+          console.error('识别失败:', e);
+          this.promptAction.showToast({ message: '识别失败，请重试' });
+      } finally {
+          this.isOCRLoading = false;
+          // 记得释放 pixelMap
+          pixelMap.release();
+      }
   }
 
   // --- 旧代码清理 ---
@@ -4746,7 +4914,7 @@ export struct AddSubscription {
         });
       }
 
-      this.isOCRLoading = true;
+       this.isOCRLoading = true;
 
       // 1. 获取原始 OCR 文本 (仅执行一次)
       const rawText = await OCRManager.getInstance().recognizeText(pixelMap);
@@ -4760,132 +4928,132 @@ export struct AddSubscription {
       let qrCodePromise: Promise<QRCodeResult | undefined> | undefined = undefined;
 
       if (this.isQROnly) {
-        // 专项模式：仅执行二维码识别
-        const context = getContext(this) as common.UIAbilityContext;
-        qrCodePromise = GroupBuyOCRManager.getInstance().extractQRCode(context, pixelMap);
+         // 专项模式：仅执行二维码识别
+         const context = getContext(this) as common.UIAbilityContext;
+         qrCodePromise = GroupBuyOCRManager.getInstance().extractQRCode(context, pixelMap);
       } else {
-        // 正常模式：全量识别
-        if (this.recordType === 'groupBuy') {
-          const context = getContext(this) as common.UIAbilityContext;
-          qrCodePromise = GroupBuyOCRManager.getInstance().extractQRCode(context, pixelMap);
-          result = GroupBuyOCRManager.getInstance().parseText(rawText);
-        } else {
-          result = OCRManager.getInstance().parseText(rawText);
-        }
+         // 正常模式：全量识别
+         if (this.recordType === 'groupBuy') {
+            const context = getContext(this) as common.UIAbilityContext;
+            qrCodePromise = GroupBuyOCRManager.getInstance().extractQRCode(context, pixelMap);
+            result = GroupBuyOCRManager.getInstance().parseText(rawText);
+         } else {
+            result = OCRManager.getInstance().parseText(rawText);
+         }
       }
 
       // 3. 等待 QR 结果
       let qrCodeResult: QRCodeResult | undefined = undefined;
       if (qrCodePromise) {
-        try { qrCodeResult = await qrCodePromise; } catch (e) {}
+         try { qrCodeResult = await qrCodePromise; } catch (e) {}
       }
 
       animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: Curve.FastOutSlowIn }, () => {
-        // Update UI
-        if (this.isQROnly) {
-          // === 专项模式：仅更新券码和券码图片 ===
-          if (qrCodeResult && qrCodeResult.code) {
-            this.couponCode = qrCodeResult.code;
-            if (qrCodeResult.codeImageUri) {
-              this.couponImage = qrCodeResult.codeImageUri;
+         // Update UI
+         if (this.isQROnly) {
+            // === 专项模式：仅更新券码和券码图片 ===
+            if (qrCodeResult && qrCodeResult.code) {
+               this.couponCode = qrCodeResult.code;
+               if (qrCodeResult.codeImageUri) {
+                  this.couponImage = qrCodeResult.codeImageUri;
+               }
+               hilog.info(0x0000, 'AddSubscription', `QR-Only: Updated coupon code: ${qrCodeResult.code}`);
             }
-            hilog.info(0x0000, 'AddSubscription', `QR-Only: Updated coupon code: ${qrCodeResult.code}`);
-          }
-          // 不修改其他任何字段
-          return;
-        }
+            // 不修改其他任何字段
+            return;
+         }
 
-        // === 正常模式：完整更新 ===
-        if (this.recordType === 'groupBuy') {
-          if (result.merchantName) this.merchantName = result.merchantName;
-          if (result.appName) this.name = result.appName;
+         // === 正常模式：完整更新 ===
+         if (this.recordType === 'groupBuy') {
+            if (result.merchantName) this.merchantName = result.merchantName;
+            if (result.appName) this.name = result.appName;
 
-          if (qrCodeResult && qrCodeResult.code) {
-            this.couponCode = qrCodeResult.code;
-            if (qrCodeResult.codeImageUri) {
-              this.couponImage = qrCodeResult.codeImageUri;
+            if (qrCodeResult && qrCodeResult.code) {
+                this.couponCode = qrCodeResult.code;
+                if (qrCodeResult.codeImageUri) {
+                   this.couponImage = qrCodeResult.codeImageUri;
+                }
+            } else if (result.couponCode) {
+                this.couponCode = result.couponCode;
             }
-          } else if (result.couponCode) {
-            this.couponCode = result.couponCode;
-          }
 
-          if (result.platform) this.platform = result.platform;
-          if (result.price) this.price = result.price.toString();
+            if (result.platform) this.platform = result.platform;
+            if (result.price) this.price = result.price.toString();
 
-          hilog.info(0x0000, "AddSubscription", `OCR Result usageTime: ${result.usageTime}`);
-          this.usageTime = result.usageTime || '';
+            hilog.info(0x0000, "AddSubscription", `OCR Result usageTime: ${result.usageTime}`);
+            this.usageTime = result.usageTime || '';
 
-          if (result.date) {
-            this.nextBillingDate = new Date(result.date);
-            this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
-            this.startDate = new Date();
-          }
-          return; // Skip subscription logic
-        }
+            if (result.date) {
+               this.nextBillingDate = new Date(result.date);
+               this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
+               this.startDate = new Date();
+            }
+            return; // Skip subscription logic
+         }
 
-        // Subscription Logic
-        if (result.monthlyPrice) this.ocrMonthlyPrice = result.monthlyPrice.toString();
-        if (result.yearlyPrice) this.ocrYearlyPrice = result.yearlyPrice.toString();
+            // Subscription Logic
+            if (result.monthlyPrice) this.ocrMonthlyPrice = result.monthlyPrice.toString();
+            if (result.yearlyPrice) this.ocrYearlyPrice = result.yearlyPrice.toString();
 
-        if (result.billingCycle) {
-          this.billingCycle = result.billingCycle;
-        } else if (result.yearlyPrice && !result.monthlyPrice) {
-          this.billingCycle = 'Yearly';
-        } else if (result.monthlyPrice && !result.yearlyPrice) {
-          this.billingCycle = 'Monthly';
-        }
+            if (result.billingCycle) {
+              this.billingCycle = result.billingCycle;
+            } else if (result.yearlyPrice && !result.monthlyPrice) {
+               this.billingCycle = 'Yearly';
+            } else if (result.monthlyPrice && !result.yearlyPrice) {
+               this.billingCycle = 'Monthly';
+            }
 
-        if (this.billingCycle === 'Monthly' && result.monthlyPrice) {
-          this.price = result.monthlyPrice.toString();
-        } else if (this.billingCycle === 'Quarterly' && result.quarterlyPrice) {
-          this.price = result.quarterlyPrice.toString();
-        } else if (this.billingCycle === 'Yearly' && result.yearlyPrice) {
-          this.price = result.yearlyPrice.toString();
-        } else if (this.billingCycle === 'Lifetime' && result.lifetimePrice) {
-          this.price = result.lifetimePrice.toString();
-        } else if (result.price) {
-          this.price = result.price.toString();
-        }
+            if (this.billingCycle === 'Monthly' && result.monthlyPrice) {
+              this.price = result.monthlyPrice.toString();
+            } else if (this.billingCycle === 'Quarterly' && result.quarterlyPrice) {
+               this.price = result.quarterlyPrice.toString();
+            } else if (this.billingCycle === 'Yearly' && result.yearlyPrice) {
+              this.price = result.yearlyPrice.toString();
+            } else if (this.billingCycle === 'Lifetime' && result.lifetimePrice) {
+               this.price = result.lifetimePrice.toString();
+            } else if (result.price) {
+              this.price = result.price.toString();
+            }
 
-        if (result.appName) {
-          this.name = result.appName;
-          this.icon = result.serviceIcon || '';
-          this.showOCRResult = true;
+            if (result.appName) {
+              this.name = result.appName;
+              this.icon = result.serviceIcon || '';
+              this.showOCRResult = true;
 
-          const service = matchMemberService(this.name);
-          if (service && service.validSubCategories) {
-            this.availableSubCategories = service.validSubCategories;
-          } else {
-            this.availableSubCategories = [];
-          }
-        } else {
-          this.showOCRResult = false;
-          this.availableSubCategories = [];
-        }
+              const service = matchMemberService(this.name);
+              if (service && service.validSubCategories) {
+                this.availableSubCategories = service.validSubCategories;
+              } else {
+                this.availableSubCategories = [];
+              }
+            } else {
+                this.showOCRResult = false;
+                this.availableSubCategories = [];
+            }
 
-        if (result.category) {
-          this.category = result.category;
-        }
-        if (result.subCategory) {
-          this.subCategory = result.subCategory;
-        } else {
-          this.subCategory = '';
-        }
+            if (result.category) {
+              this.category = result.category;
+            }
+            if (result.subCategory) {
+               this.subCategory = result.subCategory;
+            } else {
+               this.subCategory = '';
+            }
 
-        if (result.date) {
-          this.nextBillingDate = new Date(result.date);
-          this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
+            if (result.date) {
+              this.nextBillingDate = new Date(result.date);
+              this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
 
-          // [Smart Inference] 根据到期日反推开始日期
-          this.startDate = this.inferStartDate(this.nextBillingDate, this.billingCycle);
+              // [Smart Inference] 根据到期日反推开始日期
+              this.startDate = this.inferStartDate(this.nextBillingDate, this.billingCycle);
 
-        } else {
-          const target = new Date();
-          this.startDate = new Date(); // Default today if no date found
-          target.setDate(target.getDate() + 31);
-          this.nextBillingDate = target;
-          this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
-        }
+            } else {
+              const target = new Date();
+              this.startDate = new Date(); // Default today if no date found
+              target.setDate(target.getDate() + 31);
+              this.nextBillingDate = target;
+              this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
+            }
       });
 
       this.isOCRLoading = false;
@@ -4896,9 +5064,9 @@ export struct AddSubscription {
       console.error('[Screenshot] Recognition failed:', JSON.stringify(e));
       this.promptAction.showToast({ message: '识别失败，请手动输入' });
     } finally {
-      if (pixelMap) {
-        pixelMap.release();
-      }
+       if (pixelMap) {
+          pixelMap.release();
+       }
     }
   }
 
@@ -5007,17 +5175,17 @@ export struct AddSubscription {
     // 持续回溯：只要当前计算出的开始日期还在未来，就继续往前推
     // 我们比较的是 00:00:00 时间戳
     while (current.getTime() > today.getTime() && iteration < maxIterations) {
-      if (cycle === 'Monthly') current = DateUtil.safeSubtractMonth(current, 1);
-      else if (cycle === 'Quarterly') current = DateUtil.safeSubtractMonth(current, 3);
-      else if (cycle === 'Yearly') current = DateUtil.safeSubtractYear(current, 1);
-      else break;
+       if (cycle === 'Monthly') current = DateUtil.safeSubtractMonth(current, 1);
+       else if (cycle === 'Quarterly') current = DateUtil.safeSubtractMonth(current, 3);
+       else if (cycle === 'Yearly') current = DateUtil.safeSubtractYear(current, 1);
+       else break;
 
-      iteration++;
+       iteration++;
     }
 
     // 如果回溯了1200次还没找到（极地异常），或者出错，就返回今天
     if (iteration >= maxIterations) {
-      return new Date();
+       return new Date();
     }
 
     return current;

@@ -15,6 +15,7 @@ export struct SubscriptionIcon {
   @StorageLink('isNewYearTheme') isNewYearTheme: boolean = false;
 
   @Prop showGroupBadge: boolean = false;
+  @Prop showWarrantyBadge: boolean = false;
   
   // State to handle resource resolution status
   @State resolvedResource: Resource | null = null;
@@ -119,6 +120,19 @@ export struct SubscriptionIcon {
             .borderRadius(this.iconRadius * 0.4)
             .margin({ right: -this.iconSize * 0.05, bottom: -this.iconSize * 0.05 })
             .border({ width: this.iconSize * 0.03, color: $r('app.color.card_background') })
+      }
+
+      // Badge for Warranty
+      if (this.showWarrantyBadge) {
+        Text('保')
+          .fontSize(this.iconSize * 0.22)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+          .backgroundColor('#007AFF') // 保修蓝色
+          .padding({ left: 3, right: 3, top: 1, bottom: 1 })
+          .borderRadius(this.iconRadius * 0.4)
+          .margin({ right: -this.iconSize * 0.05, bottom: -this.iconSize * 0.05 })
+          .border({ width: this.iconSize * 0.03, color: $r('app.color.card_background') })
       }
     }
   }

@@ -10,10 +10,48 @@
                 "executeMode": [
                     "background"
                 ]
-            }
+            },
+            "inputParams": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "price",
+                    "type": "string"
+                },
+                {
+                    "name": "billingCycle",
+                    "type": "string"
+                },
+                {
+                    "name": "expireDate",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderDaysBefore",
+                    "type": "string"
+                },
+                {
+                    "name": "recordType",
+                    "type": "string"
+                },
+                {
+                    "name": "purchaseDate",
+                    "type": "string"
+                },
+                {
+                    "name": "platform",
+                    "type": "string"
+                },
+                {
+                    "name": "brand",
+                    "type": "string"
+                }
+            ]
         },
         {
-            "intentName": "QueryRecord",
+            "intentName": "AddSubscription",
             "domain": "",
             "intentVersion": "1.0.0",
             "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
@@ -23,21 +61,186 @@
                     "background"
                 ]
             },
+            "inputParams": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "price",
+                    "type": "string"
+                },
+                {
+                    "name": "billingCycle",
+                    "type": "string"
+                },
+                {
+                    "name": "expireDate",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderDaysBefore",
+                    "type": "string"
+                },
+                {
+                    "name": "isReminderEnabled",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderTime",
+                    "type": "string"
+                },
+                {
+                    "name": "subCategory",
+                    "type": "string"
+                },
+                {
+                    "name": "purchaseDate",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "intentName": "AddVoucher",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "price",
+                    "type": "string"
+                },
+                {
+                    "name": "platform",
+                    "type": "string"
+                },
+                {
+                    "name": "purchaseDate",
+                    "type": "string"
+                },
+                {
+                    "name": "expireDate",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderDaysBefore",
+                    "type": "string"
+                },
+                {
+                    "name": "isReminderEnabled",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderTime",
+                    "type": "string"
+                },
+                {
+                    "name": "merchantName",
+                    "type": "string"
+                },
+                {
+                    "name": "couponCode",
+                    "type": "string"
+                },
+                {
+                    "name": "usageTime",
+                    "type": "string"
+                },
+                {
+                    "name": "quantity",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "intentName": "AddWarranty",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "price",
+                    "type": "string"
+                },
+                {
+                    "name": "brand",
+                    "type": "string"
+                },
+                {
+                    "name": "purchaseDate",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderDaysBefore",
+                    "type": "string"
+                },
+                {
+                    "name": "isReminderEnabled",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderTime",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "intentName": "QueryRecord",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "foreground"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "queryType",
+                    "type": "string"
+                },
+                {
+                    "name": "timeRange",
+                    "type": "string"
+                }
+            ],
             "outputParams": [
                 {
-                    "name": "resultText"
+                    "name": "resultText",
+                    "type": "string"
                 },
                 {
-                    "name": "records"
+                    "name": "count",
+                    "type": "number"
                 },
                 {
-                    "name": "count"
+                    "name": "totalAmount",
+                    "type": "string"
                 },
                 {
-                    "name": "totalAmount"
-                },
-                {
-                    "name": "errorMessage"
+                    "name": "records",
+                    "type": "string"
                 }
             ]
         },
@@ -49,24 +252,97 @@
             "uiAbility": {
                 "ability": "EntryAbility",
                 "executeMode": [
-                    "background"
+                    "foreground"
                 ]
             },
             "outputParams": [
                 {
-                    "name": "resultText"
+                    "name": "resultText",
+                    "type": "string"
                 },
                 {
-                    "name": "records"
+                    "name": "count",
+                    "type": "number"
                 },
                 {
-                    "name": "count"
+                    "name": "items",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "intentName": "QuerySubscription",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "foreground"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "queryType",
+                    "type": "string"
                 },
                 {
-                    "name": "totalAmount"
-                },
+                    "name": "timeRange",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
                 {
-                    "name": "errorMessage"
+                    "name": "resultText",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "intentName": "QueryVoucher",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "foreground"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "timeRange",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "resultText",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "intentName": "QueryWarranty",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "foreground"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "productName",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "resultText",
+                    "type": "string"
                 }
             ]
         }
