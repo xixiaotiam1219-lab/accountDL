@@ -6,7 +6,7 @@ import { GroupBuyOCRManager, QRCodeResult } from '../utils/GroupBuyOCRManager';
 import { AIVisionManager } from '../utils/AIVisionManager';
 import { common, Want, abilityAccessCtrl, Permissions } from '@kit.AbilityKit';
 import { DateUtil } from '../utils/DateUtil';
-import { resolveIcon, matchMemberService, MemberServiceConfig, searchMemberServices } from '../utils/MemberServiceConfig';
+import { resolveIcon, matchMemberService, matchWarrantyCategory, MemberServiceConfig, searchMemberServices } from '../utils/MemberServiceConfig';
 import { PromptAction, window, display, promptAction, screenshot, curves, LengthMetrics } from '@kit.ArkUI';
 import { util } from '@kit.ArkTS';
 import { BusinessError, Callback, deviceInfo } from '@kit.BasicServicesKit';
@@ -24,6 +24,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { PreferenceUtil } from '../utils/PreferenceUtil';
 import { AppInfo, LocalIconManager } from '../utils/LocalIconManager';
 import { WebViewParam } from './WebViewPage';
+import { WarrantyCategorySheet, WarrantyCategory } from './WarrantyCategorySheet';
 
 @Builder
 export function AddSubscriptionBuilder() {
@@ -97,6 +98,8 @@ export struct AddSubscription {
 
   // 图片裁剪
   @State showCropSheet: boolean = false;
+  @State showWarrantyCategorySheet: boolean = false; // 是否显示保修分类 Sheet
+  @State isWarrantyCategoryPressed: boolean = false; // 物品分类行是否被按下
   @State cropSourceUri: string = '';
   @State showExampleSheet: boolean = false; // 控制示例图 Sheet 显示
 
@@ -232,6 +235,12 @@ export struct AddSubscription {
 
   @State isHelpPressed: boolean = false;
   @State helpLight: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
+
+  @State isBrandPressed: boolean = false;
+  @State brandLight: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
+
+  @State isChannelPressed: boolean = false;
+  @State channelLight: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
 
 
 
@@ -664,6 +673,12 @@ export struct AddSubscription {
                 }
                 pixelMap = pickResult.pixelMap;
                 imageUri = pickResult.uri;
+
+                // [Fix] For Group Buy, use the specialized logic (Local OCR + QR Code) consistent with Screenshot
+                if (this.recordType === 'groupBuy') {
+                  await this.processPixelMap(pixelMap);
+                  return;
+                }
 
                 // 使用动画包裹状态变化 - 清空所有 OCR 相关状态
                 animateTo({
@@ -2220,73 +2235,199 @@ export struct AddSubscription {
                   Text("保修详情")
                     .fontSize(16)
                     .fontWeight(FontWeight.Bold)
+
+                  Blank()
+
+                  Text("建议您先选择物品分类后再填写")
+                    .fontSize(11)
+                    .fontColor($r('app.color.text_secondary'))
                 }
                 .width('100%')
-                .alignItems(VerticalAlign.Top)
+                .alignItems(VerticalAlign.Center)
                 .justifyContent(FlexAlign.Start)
                 .margin({ bottom: 4 })
 
                 // 1. 物品名称
                 Row() {
                   Text("物品名称")
-                    .fontSize(13)
+                    .fontSize(14)
                     .fontColor($r('app.color.text_secondary'))
-                    .width(72)
-                    .flexShrink(0)
+                  Blank()
                   TextInput({ placeholder: '请输入物品名称', text: this.name })
+                    .width('60%')
                     .fontSize(15)
                     .fontColor($r('app.color.text_primary'))
                     .placeholderColor($r('app.color.text_secondary'))
                     .backgroundColor(Color.Transparent)
-                    .layoutWeight(1)
                     .textAlign(TextAlign.End)
                     .onChange((value: string) => {
                       this.name = value;
+                      // 实时推断分类并同步图标
+                      if (this.recordType === 'warranty' && value) {
+                        const matched = matchWarrantyCategory(value);
+                        if (matched !== '其他物品') {
+                          this.category = matched;
+                          this.icon = 'warranty_icon:' + matched;
+                        }
+                      }
                     })
                 }
                 .width('100%')
-
-                Divider().color($r('app.color.divider_color')).opacity(0.3)
+                .height(56)
+                .padding({ left: 12, right: 12 })
+                .backgroundColor($r('app.color.page_background'))
+                .borderRadius(12)
+                .visualEffect(new hdsEffect.HdsEffectBuilder()
+                  .pointLight({
+                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isNamePressed) ?
+                      hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                    illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                  })
+                  .buildEffect())
+                .scale({
+                  x: (this.isAnimationEnabled && this.isNamePressed) ? 0.98 : 1,
+                  y: (this.isAnimationEnabled && this.isNamePressed) ? 0.98 : 1
+                })
+                .animation({
+                  duration: this.isAnimationEnabled ? 150 : 0,
+                  curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                })
+                .onTouch((event: TouchEvent) => {
+                  if (event.type === TouchType.Down) {
+                    this.isNamePressed = true;
+                  } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                    this.isNamePressed = false;
+                  }
+                })
 
                 // 2. 品牌
                 Row() {
                   Text("品牌")
-                    .fontSize(13)
+                    .fontSize(14)
                     .fontColor($r('app.color.text_secondary'))
-                    .width(72)
-                    .flexShrink(0)
+                  Blank()
                   TextInput({ placeholder: '请输入品牌名称', text: this.brand })
+                    .width('60%')
                     .fontSize(15)
                     .fontColor($r('app.color.text_primary'))
                     .placeholderColor($r('app.color.text_secondary'))
                     .backgroundColor(Color.Transparent)
-                    .layoutWeight(1)
                     .textAlign(TextAlign.End)
                     .onChange((value: string) => {
                       this.brand = value;
                     })
                 }
                 .width('100%')
-
-                Divider().color($r('app.color.divider_color')).opacity(0.3)
+                .height(56)
+                .padding({ left: 12, right: 12 })
+                .backgroundColor($r('app.color.page_background'))
+                .borderRadius(12)
+                .visualEffect(new hdsEffect.HdsEffectBuilder()
+                  .pointLight({
+                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isBrandPressed) ?
+                      hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                    illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                  })
+                  .buildEffect())
+                .scale({
+                  x: (this.isAnimationEnabled && this.isBrandPressed) ? 0.98 : 1,
+                  y: (this.isAnimationEnabled && this.isBrandPressed) ? 0.98 : 1
+                })
+                .animation({
+                  duration: this.isAnimationEnabled ? 150 : 0,
+                  curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                })
+                .onTouch((event: TouchEvent) => {
+                  if (event.type === TouchType.Down) {
+                    this.isBrandPressed = true;
+                  } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                    this.isBrandPressed = false;
+                  }
+                })
 
                 // 3. 购买渠道
                 Row() {
                   Text("购买渠道")
-                    .fontSize(13)
+                    .fontSize(14)
                     .fontColor($r('app.color.text_secondary'))
-                    .width(72)
-                    .flexShrink(0)
-                  TextInput({ placeholder: '京东、天猫、线下门店等', text: this.purchaseChannel })
+                  Blank()
+                  TextInput({ placeholder: '选填', text: this.purchaseChannel })
+                    .width('60%')
                     .fontSize(15)
                     .fontColor($r('app.color.text_primary'))
                     .placeholderColor($r('app.color.text_secondary'))
                     .backgroundColor(Color.Transparent)
-                    .layoutWeight(1)
                     .textAlign(TextAlign.End)
                     .onChange((value: string) => {
                       this.purchaseChannel = value;
                     })
+                }
+                .width('100%')
+                .height(56)
+                .padding({ left: 12, right: 12 })
+                .backgroundColor($r('app.color.page_background'))
+                .borderRadius(12)
+                .visualEffect(new hdsEffect.HdsEffectBuilder()
+                  .pointLight({
+                    sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isChannelPressed) ?
+                      hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                    illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                  })
+                  .buildEffect())
+                .scale({
+                  x: (this.isAnimationEnabled && this.isChannelPressed) ? 0.98 : 1,
+                  y: (this.isAnimationEnabled && this.isChannelPressed) ? 0.98 : 1
+                })
+                .animation({
+                  duration: this.isAnimationEnabled ? 150 : 0,
+                  curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                })
+                .onTouch((event: TouchEvent) => {
+                  if (event.type === TouchType.Down) {
+                    this.isChannelPressed = true;
+                  } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                    this.isChannelPressed = false;
+                  }
+                })
+
+                // 3.1 物品分类
+                Row() {
+                  Text("物品分类")
+                    .fontSize(13)
+                    .fontColor($r('app.color.text_secondary'))
+                  Blank()
+                  Row() {
+                    Text(this.category || '请选择分类')
+                      .fontSize(15)
+                      .fontColor($r('app.color.text_primary'))
+                      .fontWeight(FontWeight.Medium)
+                      .margin({ right: 6 })
+                    SymbolGlyph($r('sys.symbol.chevron_right'))
+                      .fontSize(16)
+                      .fontColor([$r('app.color.text_secondary')])
+                  }
+                  .padding({ left: 12, right: 10, top: 6, bottom: 6 })
+                  .backgroundColor($r('app.color.page_background'))
+                  .borderRadius(8)
+                  .visualEffect(new hdsEffect.HdsEffectBuilder()
+                    .pointLight({
+                      sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isWarrantyCategoryPressed) ?
+                        hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                      illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                    })
+                    .buildEffect())
+                  .scale({ x: this.isWarrantyCategoryPressed ? 0.98 : 1, y: this.isWarrantyCategoryPressed ? 0.98 : 1 })
+                  .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+                  .onTouch((event: TouchEvent) => {
+                    if (event.type === TouchType.Down) {
+                      this.isWarrantyCategoryPressed = true;
+                    } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                      this.isWarrantyCategoryPressed = false;
+                    }
+                  })
+                  .onClick(() => {
+                    this.showWarrantyCategorySheet = true;
+                  })
                 }
                 .width('100%')
 
@@ -2312,6 +2453,13 @@ export struct AddSubscription {
                   .padding({ left: 12, right: 10, top: 6, bottom: 6 })
                   .backgroundColor($r('app.color.page_background'))
                   .borderRadius(8)
+                  .visualEffect(new hdsEffect.HdsEffectBuilder()
+                    .pointLight({
+                      sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isStartDatePressed) ?
+                        hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                      illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER,
+                    })
+                    .buildEffect())
                   .scale({ x: this.isStartDatePressed ? 0.98 : 1, y: this.isStartDatePressed ? 0.98 : 1 })
                   .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
                   .onTouch((event: TouchEvent) => {
@@ -2358,6 +2506,13 @@ export struct AddSubscription {
                   .padding({ left: 12, right: 10, top: 6, bottom: 6 })
                   .backgroundColor($r('app.color.page_background'))
                   .borderRadius(8)
+                  .visualEffect(new hdsEffect.HdsEffectBuilder()
+                    .pointLight({
+                      sourceType: (this.isAnimationEnabled && this.isPointLightEnabled && this.isDatePressed) ?
+                        hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                      illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER,
+                    })
+                    .buildEffect())
                   .scale({ x: this.isDatePressed ? 0.98 : 1, y: this.isDatePressed ? 0.98 : 1 })
                   .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
                   .onTouch((event: TouchEvent) => {
@@ -2737,7 +2892,7 @@ export struct AddSubscription {
                     .fontColor([this.isNewYearTheme ? $r('app.color.new_year_red_start') :
                       (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
                     .margin({ right: 8 })
-                  Text("订阅详情")
+                  Text("服务详情")
                     .fontSize(16)
                     .fontWeight(FontWeight.Bold)
                     .fontColor($r('app.color.text_primary'))
@@ -3978,6 +4133,15 @@ export struct AddSubscription {
           preferType: SheetType.CENTER,
           title: { title: '识别示例', subtitle: '参考以下截图格式' }
         })
+      Column()
+        .bindSheet($$this.showWarrantyCategorySheet, this.WarrantyCategorySheetBuilder(), {
+          detents: [SheetSize.MEDIUM],
+          backgroundColor: $r('app.color.page_background'),
+          showClose: false,
+          dragBar: true,
+          preferType: SheetType.BOTTOM,
+
+        })
 
     }
   }
@@ -4099,19 +4263,26 @@ export struct AddSubscription {
             this.purchaseChannel = params.purchaseChannel || '';
           }
 
-          // 自动修正旧数据的分类
-          if (this.category === '其他' && this.name && this.recordType === 'subscription') {
-            const matched = matchMemberService(this.name);
-            if (matched?.category) {
-              this.category = matched.category;
-            }
-          }
-
           if (this.recordType === 'subscription') {
+            // 自动修正旧数据的分类 (订阅)
+            if (this.category === '其他' && this.name) {
+              const matched = matchMemberService(this.name);
+              if (matched?.category) {
+                this.category = matched.category;
+              }
+            }
             // 加载可用的会员等级选项
             const service = matchMemberService(this.name);
             if (service && service.validSubCategories) {
               this.availableSubCategories = service.validSubCategories;
+            }
+          } else if (this.recordType === 'warranty') {
+            // 自动修正旧数据的分类 (保修)
+            if (this.category === '其他' && this.name) {
+              this.category = matchWarrantyCategory(this.name);
+              if (this.category !== '其他物品') {
+                this.icon = 'warranty_icon:' + this.category;
+              }
             }
           }
 
@@ -4148,6 +4319,24 @@ export struct AddSubscription {
 
 
 
+  }
+
+  @Builder
+  WarrantyCategorySheetBuilder() {
+    WarrantyCategorySheet({
+      selectedCategory: this.category,
+      onSelect: (category: WarrantyCategory) => {
+        animateTo({ duration: this.isAnimationEnabled ? this.animationDuration : 0, curve: curves.springMotion() }, () => {
+          this.category = category.name;
+          this.icon = 'warranty_icon:' + category.name;
+        })
+        this.showWarrantyCategorySheet = false;
+        this.promptAction.showToast({ message: `已选择: ${category.name}` });
+      },
+      onClose: () => {
+        this.showWarrantyCategorySheet = false;
+      }
+    })
   }
 
   @Builder

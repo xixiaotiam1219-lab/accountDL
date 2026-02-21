@@ -1,5 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { resolveIcon } from '../utils/MemberServiceConfig';
+import { WARRANTY_THEME_MAP, WarrantyColorTheme, getWarrantyThemeColors } from '../utils/WarrantyConstants';
 
 @Component
 export struct SubscriptionIcon {
@@ -30,7 +31,7 @@ export struct SubscriptionIcon {
     this.isResourceResolved = false;
     this.resolvedResource = null;
 
-    if (this.icon && this.icon.startsWith('resource:')) {
+    if (this.icon && (this.icon.startsWith('resource:') || this.icon.startsWith('warranty_icon:'))) {
       const result = resolveIcon(this.icon);
       // Check if resolution was successful (returned a Resource object, not the string input)
       if (typeof result !== 'string') {
@@ -38,6 +39,18 @@ export struct SubscriptionIcon {
         this.isResourceResolved = true;
       }
     }
+  }
+
+  // 获取保修主题柔和渐变底座
+  private getWarrantyBgGradient(): LinearGradient | undefined {
+    if (!this.icon.startsWith('warranty_icon:')) return undefined;
+    const name = this.icon.split(':')[1];
+    const theme: WarrantyColorTheme = WARRANTY_THEME_MAP[name] || 'blue';
+    const colors = getWarrantyThemeColors(theme);
+    return {
+      angle: 135,
+      colors: [[colors[0], 0.0], [colors[1], 1.0]]
+    };
   }
 
   // 计算最终显示的图标内容，处理内置协议逻辑
@@ -50,13 +63,14 @@ export struct SubscriptionIcon {
       return `file://${context.filesDir}/local_icons/${filename}`;
     }
     
+    // 如果是 file://, http://, data: 等原生支持的路径，直接返回
     return this.icon;
   }
 
   build() {
     // Root container with unified styling for ALL icon types
     Stack({ alignContent: Alignment.BottomEnd }) {
-      Stack({ alignContent: Alignment.Center }) {
+      Stack() {
         // 1. 底层默认显示（首字母） - acting as background/fallback
         // 仅当没有图标，或者图标加载失败时显示
         if (!this.icon || this.loadFailed) {
@@ -71,12 +85,13 @@ export struct SubscriptionIcon {
 
         // 2. 表层内容 (Resource vs URL/File vs Text)
         if (this.isResourceResolved && this.resolvedResource) {
-          // Resource Type (App Icons)
+          // Resource Type (App Icons / SVG Warranty Icons)
           Image(this.resolvedResource)
             .width('100%') // Slightly scale up to ensure edges are fully clipped
             .height('100%') // Removing any potential 1px dark edge artifacts
             .objectFit(ImageFit.Contain) // Use Contain to ensure full icon is visible within the rounded container
             .borderRadius(this.iconRadius) // Double safety, though container clip handles it
+            .opacity(0.85) // 保持适度的柔和感，避免纯黑过于突兀
         } else if (this.icon) {
           if (this.icon.startsWith('file://') || this.icon.startsWith('http') || this.icon.startsWith('data:') || this.icon.startsWith('builtin://')) {
             // Image Type (Local File, Network, or Builtin Preview)
@@ -105,7 +120,10 @@ export struct SubscriptionIcon {
       }
       .width(this.iconSize)
       .height(this.iconSize)
-      .backgroundColor(this.isNewYearTheme ? '#1AFF2400' : (this.showVipTheme ? '#20EDC269' : '#1A0A59F7'))
+      // 为保修图标提供 100% 不透明的浅色弱渐变底座，其他场景保持默认轻微背景
+      .linearGradient(this.getWarrantyBgGradient())
+      .backgroundColor(this.icon.startsWith('warranty_icon:') ? Color.Transparent : 
+        (this.isNewYearTheme ? '#1AFF2400' : (this.showVipTheme ? '#20EDC269' : '#1A0A59F7')))
       .borderRadius(this.iconRadius)
       .clip(true) // CRITICAL: Clip content to border radius to prevent "black edges" or unrounded corners
 

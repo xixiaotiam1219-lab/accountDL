@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="visorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8B5CF6" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </linearGradient>
+    <filter id="shadowVR" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  <path d="M 20 50 Q 60 25 100 50 L 100 65 Q 60 40 20 65 Z" fill="#334155" filter="url(#shadowVR)"/>
+  <rect x="10" y="52" width="20" height="24" rx="4" fill="#334155"/>
+  <rect x="90" y="52" width="20" height="24" rx="4" fill="#334155"/>
+  <rect x="25" y="45" width="70" height="40" rx="12" fill="#1E293B" filter="url(#shadowVR)"/>
+  <rect x="30" y="50" width="60" height="30" rx="8" fill="url(#visorGrad)"/>
+  <circle cx="40" cy="65" r="3" fill="#0F172A"/>
+  <circle cx="80" cy="65" r="3" fill="#0F172A"/>
+</svg>

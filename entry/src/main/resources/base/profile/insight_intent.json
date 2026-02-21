@@ -1,56 +1,6 @@
 {
     "insightIntents": [
         {
-            "intentName": "AddRecord",
-            "domain": "",
-            "intentVersion": "1.0.0",
-            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
-            "uiAbility": {
-                "ability": "EntryAbility",
-                "executeMode": [
-                    "background"
-                ]
-            },
-            "inputParams": [
-                {
-                    "name": "name",
-                    "type": "string"
-                },
-                {
-                    "name": "price",
-                    "type": "string"
-                },
-                {
-                    "name": "billingCycle",
-                    "type": "string"
-                },
-                {
-                    "name": "expireDate",
-                    "type": "string"
-                },
-                {
-                    "name": "reminderDaysBefore",
-                    "type": "string"
-                },
-                {
-                    "name": "recordType",
-                    "type": "string"
-                },
-                {
-                    "name": "purchaseDate",
-                    "type": "string"
-                },
-                {
-                    "name": "platform",
-                    "type": "string"
-                },
-                {
-                    "name": "brand",
-                    "type": "string"
-                }
-            ]
-        },
-        {
             "intentName": "AddSubscription",
             "domain": "",
             "intentVersion": "1.0.0",
@@ -200,6 +150,10 @@
                 },
                 {
                     "name": "reminderTime",
+                    "type": "string"
+                },
+                {
+                    "name": "category",
                     "type": "string"
                 }
             ]

@@ -46,7 +46,7 @@
 
 ## 📝 许可证
 
-本项目遵循 [开源许可证 (AGPL-3.0)](LICENSE) 及项目内置的 [用户协议与开源许可](entry/src/main/resources/rawfile/user_agreement.md)。
+本项目遵循 [开源许可证 (AGPL-3.0)](LICENSE) 及项目内置的 [用户协议与开源许可](AppScope/resources/rawfile/user_agreement.md)。
 
 ---
 *由 ArkTS Antigravity 辅助构建。*

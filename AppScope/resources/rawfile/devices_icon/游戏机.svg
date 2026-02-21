@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="screenGradGame" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06B6D4" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+    <filter id="shadowGame" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  <rect x="10" y="35" width="100" height="50" rx="25" fill="#1E293B" filter="url(#shadowGame)"/>
+  <path d="M 35 35 L 35 85" fill="none" stroke="#0F172A" stroke-width="2"/>
+  <path d="M 85 35 L 85 85" fill="none" stroke="#0F172A" stroke-width="2"/>
+  <rect x="38" y="39" width="44" height="42" rx="4" fill="url(#screenGradGame)"/>
+  <circle cx="23" cy="50" r="6" fill="#334155"/>
+  <rect x="21" y="65" width="4" height="12" fill="#475569"/>
+  <rect x="17" y="69" width="12" height="4" fill="#475569"/>
+  <circle cx="97" cy="65" r="6" fill="#334155"/>
+  <circle cx="97" cy="45" r="2.5" fill="#EF4444"/>
+  <circle cx="91" cy="51" r="2.5" fill="#F59E0B"/>
+  <circle cx="103" cy="51" r="2.5" fill="#3B82F6"/>
+  <circle cx="97" cy="57" r="2.5" fill="#10B981"/>
+</svg>

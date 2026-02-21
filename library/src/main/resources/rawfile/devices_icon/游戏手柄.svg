@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="homeGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </linearGradient>
+    <filter id="shadowPad" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  <rect x="25" y="35" width="20" height="20" rx="6" fill="#334155" filter="url(#shadowPad)"/>
+  <rect x="75" y="35" width="20" height="20" rx="6" fill="#334155" filter="url(#shadowPad)"/>
+  
+  <rect x="15" y="45" width="90" height="45" rx="22.5" fill="#1E293B" filter="url(#shadowPad)"/>
+  <path d="M 15 65 Q 15 95 25 95 Q 35 95 38 75 Z" fill="#1E293B" filter="url(#shadowPad)"/>
+  <path d="M 105 65 Q 105 95 95 95 Q 85 95 82 75 Z" fill="#1E293B" filter="url(#shadowPad)"/>
+
+  <path d="M 28 58 h 5 v -5 h 4 v 5 h 5 v 4 h -5 v 5 h -4 v -5 h -5 z" fill="#475569"/>
+  
+  <circle cx="85" cy="53" r="3" fill="#EF4444"/> <circle cx="79" cy="59" r="3" fill="#3B82F6"/> <circle cx="91" cy="59" r="3" fill="#F59E0B"/> <circle cx="85" cy="65" r="3" fill="#10B981"/> <circle cx="45" cy="72" r="8" fill="#334155"/>
+  <circle cx="45" cy="72" r="5" fill="#0F172A"/> <circle cx="75" cy="72" r="8" fill="#334155"/>
+  <circle cx="75" cy="72" r="5" fill="#0F172A"/>
+
+  <rect x="50" y="55" width="6" height="3" rx="1.5" fill="#94A3B8"/> <rect x="64" y="55" width="6" height="3" rx="1.5" fill="#94A3B8"/> <circle cx="60" cy="48" r="4.5" fill="url(#homeGlow)"/>
+  <circle cx="60" cy="48" r="2.5" fill="#1E293B"/> </svg>

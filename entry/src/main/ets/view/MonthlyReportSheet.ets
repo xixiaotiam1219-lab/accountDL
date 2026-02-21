@@ -163,6 +163,18 @@ export struct MonthlyReportSheet {
           }
         }
         totalMonthlyItems += monthlyCost;
+      } else if (sub.recordType === 'warranty') {
+          // 保修记录：通常是一次性支出，按购买日期 (startDate) 判断是否计入本月
+          const startDate = new Date(sub.startDate || 0);
+          const isCurrentMonth = startDate.getFullYear() === new Date().getFullYear() && 
+                                 startDate.getMonth() === new Date().getMonth();
+          if (isCurrentMonth) {
+            monthlyCost = Number(sub.price);
+            totalMonthlyItems += monthlyCost;
+          } else {
+            // 非本月购买的保修，不计入月度支出
+            return;
+          }
       } else if (sub.billingCycle === 'Lifetime' || sub.billingCycle === 'Indefinite') {
         const billingDate = new Date(sub.nextBillingDate);
         const isCurrentMonth = billingDate.getFullYear() === new Date().getFullYear() && 
@@ -218,6 +230,10 @@ export struct MonthlyReportSheet {
   getItemInfo(sub: SubscriptionModel): string {
     if (sub.recordType === 'groupBuy') {
       return (sub.subCategory ? `团购券 · ${sub.subCategory}` : '团购券');
+    }
+
+    if (sub.recordType === 'warranty') {
+      return (sub.brand ? `保修 · ${sub.brand}` : '保修');
     }
 
     let cycleText = '';
@@ -644,7 +660,7 @@ export struct MonthlyReportSheet {
                          .fontWeight(FontWeight.Bold)
                                                        .fontColor($r('app.color.text_primary'))
 
-                      Text(item.sub.billingCycle === 'Lifetime' || item.sub.billingCycle === 'Indefinite' || item.sub.recordType === 'groupBuy' ? '一次性' : '/月')
+                      Text(item.sub.recordType === 'warranty' ? '一次性' : (item.sub.billingCycle === 'Lifetime' || item.sub.billingCycle === 'Indefinite' || item.sub.recordType === 'groupBuy' ? '一次性' : '/月'))
                          .fontSize(11)
                                                         .fontColor($r('app.color.text_secondary'))
 

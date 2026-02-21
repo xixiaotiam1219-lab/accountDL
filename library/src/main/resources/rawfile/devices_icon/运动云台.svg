@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="motorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#F43F5E" />
+    </linearGradient>
+    <filter id="shadowGimbal" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  
+  <rect x="48" y="65" width="16" height="45" rx="8" fill="#1E293B" filter="url(#shadowGimbal)"/>
+  
+  <circle cx="56" cy="75" r="4" fill="#334155"/>
+  <circle cx="56" cy="75" r="2" fill="#0F172A"/>
+  <rect x="54" y="84" width="4" height="4" rx="1" fill="#EF4444"/> <path d="M 56 65 L 56 55 L 76 55 L 76 35 L 66 35" fill="none" stroke="#334155" stroke-width="6" stroke-linecap="round"/>
+  
+  <circle cx="56" cy="60" r="5" fill="url(#motorGrad)"/>
+  <circle cx="76" cy="35" r="5" fill="url(#motorGrad)"/>
+
+  <rect x="25" y="25" width="50" height="25" rx="4" fill="#0F172A"/>
+  <rect x="27" y="27" width="46" height="21" rx="2" fill="#1E293B"/>
+
+  <rect x="46" y="20" width="8" height="35" rx="3" fill="#1E293B" filter="url(#shadowGimbal)"/>
+</svg>

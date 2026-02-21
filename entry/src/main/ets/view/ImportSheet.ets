@@ -106,10 +106,20 @@ struct ImportSheetItem {
 
           // 第二行：续费状态 · 分类
           Row({ space: 4 }) {
-            Text(this.item.data.isAutoRenewal !== false ? '自动续费' : '到期停止')
-              .fontSize(11)
-              .fontColor(this.item.data.isAutoRenewal !== false ? $r('app.color.success_color') : $r('app.color.text_secondary'))
-            
+            if (this.item.data.recordType === 'warranty') {
+              Text(this.item.data.brand || '保修')
+                .fontSize(11)
+                .fontColor($r('app.color.text_secondary'))
+            } else if (this.item.data.recordType === 'groupBuy') {
+              Text(this.item.data.merchantName || '团购')
+                .fontSize(11)
+                .fontColor($r('app.color.text_secondary'))
+            } else {
+              Text(this.item.data.isAutoRenewal !== false ? '自动续费' : '到期停止')
+                .fontSize(11)
+                .fontColor(this.item.data.isAutoRenewal !== false ? $r('app.color.success_color') : $r('app.color.text_secondary'))
+            }
+
             Text('·')
               .fontSize(11)
               .fontColor($r('app.color.text_secondary'))
@@ -228,6 +238,7 @@ export struct ImportSheet {
   @State pressedIndex: number = -1;
   @StorageLink('importFileContent') importFileContent: string = ''; // 确保注入此属性以便恢复图标库
   @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
+  @StorageLink('statusBarHeight') statusBarHeight: number = 0;
 
   async onDataChange(): Promise<void> {
     // 只有在数据真正为空或第一次加载时才显示全屏Loading，减少切换闪烁
@@ -258,6 +269,13 @@ export struct ImportSheet {
     // 并行分析所有项，显著提升速度
     const promises = this.importData.map(async (item: SubscriptionModel): Promise<ImportItem> => {
       // 0. Auto-Calibration: Ensure start date is valid
+      if (!item.recordType) {
+        if (item.brand) {
+          item.recordType = 'warranty';
+        } else if (item.merchantName || item.couponCode) {
+          item.recordType = 'groupBuy';
+        }
+      }
       this.calibrateStartDate(item);
 
       // --- 核心改进：在预览阶段就执行图标修复 ---
@@ -265,7 +283,13 @@ export struct ImportSheet {
         // 对于 builtin://、旧路径或失效链接，直接尝试通过库找回
         const info = await iconManager.getAppInfo(item.name);
         if (info && info.icon) {
-          item.icon = info.icon; // 提前修正路径以便预览显示
+          // 策略调整：如果是精确匹配，直接使用；如果是模糊匹配，仅在原图标无效或为空时使用
+          if (info.name === item.name) {
+            item.icon = info.icon;
+          } else if (!item.icon || item.icon.startsWith('builtin://') || item.icon.startsWith('app.media.')) {
+            // 模糊匹配结果仅作为兜底
+            item.icon = info.icon;
+          }
         } else if (item.icon && item.icon.startsWith('app.media.')) {
           if (item.icon.includes('meituan')) item.icon = 'resource:meituan_logo';
           else if (item.icon.includes('douyin')) item.icon = 'resource:douyin_logo';
@@ -346,6 +370,12 @@ export struct ImportSheet {
     // 简单处理：月付-1月，年付-1年
     const startDate = new Date(nextBilling);
 
+    if (item.recordType === 'warranty') {
+      // 保修记录缺失开始时间，默认为当前时间 (避免被误设为过期时间)
+      item.startDate = new Date().getTime();
+      return;
+    }
+
     switch (billingCycle) {
       case 'Monthly':
         startDate.setMonth(startDate.getMonth() - 1);
@@ -410,6 +440,13 @@ export struct ImportSheet {
         .justifyContent(FlexAlign.Center)
       } else {
         List() {
+          ListItem() {
+            Column() {
+              Blank()
+                .height(TITLE_BAR_HEIGHT_MINI)
+            }
+          }
+
           // Select All Header
           ListItem() {
             Row() {
@@ -465,7 +502,7 @@ export struct ImportSheet {
         }
         .width('100%')
         .layoutWeight(1)
-        .padding({ left: 16, right: 16, top: TITLE_BAR_HEIGHT_MINI, bottom: 80 }) 
+        .padding({ left: 16, right: 16, top: 0, bottom: 80 }) 
         .edgeEffect(EdgeEffect.Spring)
         .scrollBar(BarState.Off)
 

@@ -141,8 +141,12 @@ export struct SubscriptionCard {
                     Span(`${this.data.quantity}张`)
                   }
                 } else if (this.data.recordType === 'warranty') {
-                  // 保修类型：显示品牌和购买渠道
-                  Span(this.data.brand || '保修期')
+                  // 保修类型：显示分类和品牌
+                  Span(this.data.category || '保修')
+                  if (this.data.brand) {
+                    Span(' · ')
+                    Span(this.data.brand)
+                  }
                   if (this.data.purchaseChannel) {
                     Span(' · ')
                     Span(this.data.purchaseChannel)

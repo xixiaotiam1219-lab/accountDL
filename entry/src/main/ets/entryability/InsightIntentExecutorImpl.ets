@@ -663,15 +663,35 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       // 自动尝试匹配图标
       let iconPath = '';
       try {
-        // 1. 尝试从本地图标库匹配 (LocalIconManager)
-        let appInfo = await LocalIconManager.getInstance().getAppInfo(name);
+        const iconManager = LocalIconManager.getInstance();
+        let appInfo = await iconManager.getAppInfo(name);
+
+        // 校验匹配质量: 仅接受精确匹配或前缀匹配 (e.g. "京东" matches "京东金融")
+        // 拒绝中间包含匹配 (e.g. "京东" matches "北京东站")
+        if (appInfo) {
+           const matchedName = appInfo.name.toLowerCase();
+           const inputName = name.toLowerCase();
+           if (matchedName !== inputName && !inputName.startsWith(matchedName)) {
+               hilog.info(0xFEED, TAG, `[AddRecord] Discarding fuzzy match: ${appInfo.name} for ${name}`);
+               appInfo = null;
+           }
+        }
 
         // 2. 如果没匹配到，尝试去掉常见后缀再次匹配 (如：腾讯视频会员 -> 腾讯视频)
         if (!appInfo) {
           const cleanName = name.replace(/(会员|VIP|订阅|套餐|卷|代金券|服务|卡|Premium|Member)$/i, '').trim();
           if (cleanName && cleanName !== name) {
             hilog.info(0xFEED, TAG, `[AddRecord] Retry icon match with cleaned name: ${cleanName}`);
-            appInfo = await LocalIconManager.getInstance().getAppInfo(cleanName);
+            appInfo = await iconManager.getAppInfo(cleanName);
+
+            // 对清洗后的名字也进行校验
+            if (appInfo) {
+                const matchedName = appInfo.name.toLowerCase();
+                const inputCleanName = cleanName.toLowerCase();
+                if (matchedName !== inputCleanName && !inputCleanName.startsWith(matchedName)) {
+                    appInfo = null;
+                }
+            }
           }
         }
 
@@ -711,6 +731,19 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         }
       }
 
+      // 永久/不定期项目：统一把「购买日期」作为核心时间点
+      // 即便小艺或平台传入了一个很远的 expireDate（例如 2099-12-31），
+      // 对于 Lifetime/Indefinite，我们始终以 purchaseDate 作为 nextBillingDate，
+      // 这样日历、月度报告等视图都会按真实购买时间来展示。
+      if (cycle === 'Lifetime' || cycle === 'Indefinite') {
+        if (purchaseDateStr) {
+          nextBillingDate = startDate;
+        } else if (expireDateStr) {
+          // 如果没有显式购买日期，至少保证 startDate 与 nextBillingDate 保持一致
+          startDate = nextBillingDate;
+        }
+      }
+
       // ==== 提醒相关字段 ====
       let isReminderEnabled = false; // 默认不开启
       let reminderDaysBefore = 1;
@@ -739,6 +772,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       }
 
       // 提取分类
+      let category = param['category'] as string;
       const subCategory = param['subCategory'] as string;
 
       // 提取团购专属字段
@@ -775,6 +809,11 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       } else if (recordTypeParam === 'warranty' || (name.toLowerCase().match(/保修|延保|碎屏险|保质期|售后|care/))) {
         recordType = 'warranty';
         cycle = 'Lifetime'; // 保修资产强制设为永久
+        
+        // 自动使用分类图标 (精确匹配)
+        if (category && category !== '其他物品') {
+          iconPath = 'warranty_icon:' + category;
+        }
       } else {
         const nameLower = name.toLowerCase();
         if (nameLower.includes('券') || nameLower.includes('团购') || nameLower.includes('次卡') || nameLower.includes('体验') || 
@@ -812,6 +851,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         startDate: startDate,
         currency: 'CNY',
         icon: iconPath,
+        category: category || undefined,
         recordType: recordType,
         platform: (platformParam as 'meituan' | 'douyin' | 'dianping') || undefined,
         brand: brandParam || undefined,

@@ -20,6 +20,7 @@ import { DateUtil } from '../utils/DateUtil';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
 import { util, url } from '@kit.ArkTS';
+import { WARRANTY_ICON_MAP_NAMES, WARRANTY_THEME_MAP, getWarrantyThemeColors } from '../utils/WarrantyConstants';
 
 const DOMAIN = 0x0000;
 
@@ -311,6 +312,8 @@ export default class EntryAbility extends UIAbility {
         fullDate: string = '';
         isGroupBuy: boolean = false;
         isWarranty: boolean = false;
+        colorStart?: string;
+        colorEnd?: string;
         originalItem: string = '';
       }
 
@@ -335,6 +338,8 @@ export default class EntryAbility extends UIAbility {
         // Use async processing for network images
         widgetList = await Promise.all(subs.map(async (item: SubscriptionModel): Promise<CardItemData> => {
           let iconKey = '';
+          let colorStart: string | undefined = undefined;
+          let colorEnd: string | undefined = undefined;
 
           if (item.icon && item.icon.startsWith('file://')) {
             // 自定义图片：使用 memory:// 协议
@@ -387,6 +392,27 @@ export default class EntryAbility extends UIAbility {
             }
 
             if (!iconKey) {
+              iconKey = item.name?.charAt(0).toUpperCase() || '?';
+            }
+          } else if (item.recordType === 'warranty') {
+            // 保修图标处理
+            // 优先使用 category 作为图标查找依据，因为 name 可能是用户自定义的
+            let warrantyName = item.name || '';
+            if (item.category && WARRANTY_ICON_MAP_NAMES[item.category]) {
+              warrantyName = item.category;
+            } else if (item.subCategory && WARRANTY_ICON_MAP_NAMES[item.subCategory]) {
+              warrantyName = item.subCategory;
+            }
+
+            const theme = WARRANTY_THEME_MAP[warrantyName] || 'blue';
+            const colors = getWarrantyThemeColors(theme);
+            colorStart = colors[0];
+            colorEnd = colors[1];
+
+            const svgPath = WARRANTY_ICON_MAP_NAMES[warrantyName];
+            if (svgPath) {
+              iconKey = `rawfile:${svgPath}`;
+            } else {
               iconKey = item.name?.charAt(0).toUpperCase() || '?';
             }
           } else if (item.icon && (item.icon.startsWith('http://') || item.icon.startsWith('https://'))) {
@@ -471,6 +497,8 @@ export default class EntryAbility extends UIAbility {
           }
 
           cardItem.icon = iconKey;
+          cardItem.colorStart = colorStart;
+          cardItem.colorEnd = colorEnd;
 
           let priceStr = `${item.currency === 'USD' ? '$' : '¥'}${item.price}`;
           if (!isGroupBuy && !isWarranty) {

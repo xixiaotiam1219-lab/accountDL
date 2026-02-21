@@ -9,6 +9,7 @@ import { PreferenceUtil } from '../utils/PreferenceUtil';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
 import { resourceManager } from '@kit.LocalizationKit';
+import { WARRANTY_ICON_MAP_NAMES, WARRANTY_THEME_MAP, getWarrantyThemeColors } from '../utils/WarrantyConstants';
 
 const TAG: string = 'EntryFormAbility';
 const DOMAIN_NUMBER: number = 0xFF00;
@@ -23,6 +24,8 @@ class CardItemData {
   fullDate: string = '';
   isGroupBuy: boolean = false;
   isWarranty: boolean = false;
+  colorStart?: string;
+  colorEnd?: string;
   originalItem: string = '';
 }
 
@@ -260,11 +263,33 @@ export default class EntryFormAbility extends FormExtensionAbility {
                   const statusStr = days < 0 ? '过保' : '在保';
                   // 保修卡片无论是否为 Lifetime，只要 recordType 是 warranty 就显示保修到期
                   obj.content = `${statusStr}:${dateStr}`;
+
+                  // 预计算保修视觉 (解决跨模块隔离)
+                  // 优先使用 category 作为图标查找依据，因为 name 可能是用户自定义的
+                  let warrantyName = item.name || '';
+                  if (item.category && WARRANTY_ICON_MAP_NAMES[item.category]) {
+                    warrantyName = item.category;
+                  } else if (item.subCategory && WARRANTY_ICON_MAP_NAMES[item.subCategory]) {
+                    warrantyName = item.subCategory;
+                  }
+
+                  const theme = WARRANTY_THEME_MAP[warrantyName] || 'blue';
+                  const colors = getWarrantyThemeColors(theme);
+                  obj.colorStart = colors[0];
+                  obj.colorEnd = colors[1];
+                  
+                  // 转换为 rawfile 路径
+                  const svgPath = WARRANTY_ICON_MAP_NAMES[warrantyName];
+                  if (svgPath) {
+                    iconKey = `rawfile:${svgPath}`;
+                  }
                 } else {
                   obj.content = isLifetime ? `永久买断` : `到期:${dateStr}`;
                 }
 
-                obj.icon = iconKey;
+                if (!obj.icon) {
+                  obj.icon = iconKey;
+                }
                 // 普通订阅和保修在剩余3天内标红；团购券如果是未使用且剩余3天内也标红
                 if (isGroupBuy) {
                   obj.isExpiring = item.usageStatus === 'unused' && days <= 3;
