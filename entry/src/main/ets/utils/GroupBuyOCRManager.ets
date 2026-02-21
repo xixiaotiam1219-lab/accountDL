@@ -135,27 +135,40 @@ export class GroupBuyOCRManager {
     hilog.info(0x0000, TAG, 'Searching for Project Name...');
     let bestMatchName = '';
     
-    // Strategy: Find all brackets 【...】
-    // Note: The input text might have newlines inside brackets if we are unlucky, 
-    // but lines array is split. We should use the raw `text` for regex matching.
-    const allMatches = text.matchAll(/【([\s\S]*?)】/g);
-    for (const m of allMatches) {
-        let content = m[1];
-        // Clean content
-        content = content.replace(/[\r\n]/g, '').trim();
-        
-        // Filter out instructions/warnings
-        if (content.includes('取餐') || content.includes('注意') || content.includes('提醒') || 
-            content.includes('正确') || content.includes('暂停营业') || content.includes('使用限制')) {
-           continue; 
+    // Strategy: Line-based scan to find Project Name
+    // Prioritize lines with Brackets 【】 as they often denote Item Name or Specs
+    // We scan line by line to avoid multi-line regex issues (e.g. unclosed brackets in noise lines consuming valid text)
+    for (const line of lines) {
+        const cleanLine = line.trim();
+        // Filter noise - Aggressive filtering for common UI elements and instructions
+        if (cleanLine.length < 2) continue;
+        if (cleanLine.includes('提醒') || cleanLine.includes('须知') || cleanLine.includes('步骤') || 
+            cleanLine.includes('方式') || cleanLine.includes('取餐') || cleanLine.includes('门店') || 
+            cleanLine.includes('券号') || cleanLine.includes('订单') || cleanLine.includes('有效期') || 
+            cleanLine.includes('营业') || cleanLine.includes('复制') || cleanLine.includes('距离') || 
+            cleanLine.includes('详情') || cleanLine.includes('退款') || cleanLine.includes('客服') ||
+            cleanLine.includes('实付') || cleanLine.includes('原价') || cleanLine.includes('折扣') ||
+            cleanLine.includes('更多') || cleanLine.includes('申请') || cleanLine.includes('再来') ||
+            cleanLine.includes('自助') || cleanLine.includes('验证') || cleanLine.includes('美团') ||
+            cleanLine.includes('抖音')) {
+            continue;
         }
-        
-        // Filter if it looks like a SKU or small tag
-        if (content.length < 2) continue;
-        
-        // Use this as the name
-        bestMatchName = content;
-        break; // Use the first valid one, usually the top one is the main title
+
+        // Check for brackets
+        const bracketMatch = cleanLine.match(/【([\s\S]*?)】/);
+        if (bracketMatch) {
+            // Check if the content inside bracket is "Noise"
+            const content = bracketMatch[1];
+             if (content.includes('取餐') || content.includes('注意') || content.includes('提醒') || 
+                content.includes('正确') || content.includes('暂停营业') || content.includes('使用限制')) {
+               continue; 
+            }
+            
+            // Found a valid bracket line
+            // Use the whole line as the name (e.g. "派对四重奏【达人专属】"), not just the content inside brackets
+            bestMatchName = cleanLine;
+            break;
+        }
     }
     
     if (bestMatchName) {

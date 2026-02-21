@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="ledGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="50%" stop-color="#D946EF" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </linearGradient>
+    <filter id="shadowSpeaker" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  <rect x="35" y="20" width="50" height="80" rx="8" fill="#1E293B" filter="url(#shadowSpeaker)"/>
+  <ellipse cx="60" cy="24" rx="20" ry="6" fill="#334155"/>
+  <circle cx="60" cy="24" r="2" fill="#94A3B8"/>
+  <rect x="35" y="35" width="50" height="3" fill="url(#ledGrad)"/>
+  <g fill="#334155">
+    <circle cx="45" cy="55" r="1.5"/><circle cx="55" cy="55" r="1.5"/><circle cx="65" cy="55" r="1.5"/><circle cx="75" cy="55" r="1.5"/>
+    <circle cx="45" cy="65" r="1.5"/><circle cx="55" cy="65" r="1.5"/><circle cx="65" cy="65" r="1.5"/><circle cx="75" cy="65" r="1.5"/>
+    <circle cx="45" cy="75" r="1.5"/><circle cx="55" cy="75" r="1.5"/><circle cx="65" cy="75" r="1.5"/><circle cx="75" cy="75" r="1.5"/>
+    <circle cx="45" cy="85" r="1.5"/><circle cx="55" cy="85" r="1.5"/><circle cx="65" cy="85" r="1.5"/><circle cx="75" cy="85" r="1.5"/>
+  </g>
+</svg>

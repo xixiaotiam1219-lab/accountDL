@@ -1,5 +1,4 @@
-import { webview } from '@kit.ArkWeb';
-import { HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
+import {  HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
 import { LengthMetrics } from '@kit.ArkUI';
 import { deviceInfo } from '@kit.BasicServicesKit';
 
@@ -415,7 +414,6 @@ export struct OpenSourceLicenseView {
     .backgroundColor($r('app.color.page_background'))
   }
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100&&this.isHdsTabsEnabled) {
       HdsNavDestination() {
         this.OpenSourceLicenseBuilder()
       }
@@ -428,20 +426,8 @@ export struct OpenSourceLicenseView {
         },
       })
       .backgroundColor($r('app.color.page_background'))
-    } else {
-      HdsNavDestination() {
-        this.OpenSourceLicenseBuilder()
-      }
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: {
-            mainTitle: '开源许可'
-          }
-        },
-      })
-      .backgroundColor($r('app.color.page_background'))
-    }
+
+
   }
 }
 

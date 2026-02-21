@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="screenGradTV" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#8B5CF6" />
+    </linearGradient>
+    <filter id="shadowTV" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  <rect x="52" y="20" width="16" height="8" rx="2" fill="#1E293B"/>
+  <circle cx="60" cy="24" r="2" fill="#10B981"/>
+  <rect x="5" y="28" width="110" height="60" rx="4" fill="#1E293B" filter="url(#shadowTV)"/>
+  <rect x="8" y="31" width="104" height="54" rx="2" fill="url(#screenGradTV)"/>
+  <rect x="15" y="40" width="40" height="25" rx="3" fill="#ffffff" fill-opacity="0.2"/>
+  <rect x="60" y="40" width="20" height="10" rx="2" fill="#ffffff" fill-opacity="0.2"/>
+  <rect x="85" y="40" width="20" height="10" rx="2" fill="#ffffff" fill-opacity="0.2"/>
+  <rect x="60" y="55" width="45" height="10" rx="2" fill="#ffffff" fill-opacity="0.2"/>
+  <rect x="5" y="90" width="110" height="6" rx="2" fill="#334155" filter="url(#shadowTV)"/>
+  <path d="M 40 96 L 35 105 L 40 105 Z" fill="#475569"/>
+  <path d="M 80 96 L 85 105 L 80 105 Z" fill="#475569"/>
+</svg>

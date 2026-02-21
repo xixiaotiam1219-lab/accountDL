@@ -1,6 +1,6 @@
 import { webview } from '@kit.ArkWeb';
 import { ConfigurationConstant, common } from '@kit.AbilityKit';
-import { HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
+import {  HdsNavDestination, ScrollEffectType, HdsNavigationTitleBarOptions, HdsNavigationTitleBarStyle } from '@kit.UIDesignKit';
 import { LengthMetrics } from '@kit.ArkUI';
 import { deviceInfo } from '@kit.BasicServicesKit';
 
@@ -48,49 +48,26 @@ export struct WebViewPage {
     .backgroundColor($r('app.color.page_background'))
   }
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100&&this.isHdsTabsEnabled) {
-      HdsNavDestination() {
-        this.WebBuilder()
-      }
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        enableComponentSafeArea: true,
-        content: {
-          title: {
-            mainTitle: this.title
-          }
-        }
-      })
-      .backgroundColor($r('app.color.page_background'))
-      .onBackPressed(() => {
-        if (this.controller.accessStep(-1)) {
-          this.controller.backward();
-          return true;
-        }
-        return false;
-      })
-    } else {
-      HdsNavDestination() {
-        this.WebBuilder()
-      }
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        enableComponentSafeArea: true,
-        content: {
-          title: {
-            mainTitle: this.title
-          }
-        },
-      })
-      .backgroundColor($r('app.color.page_background'))
-      .onBackPressed(() => {
-        if (this.controller.accessStep(-1)) {
-          this.controller.backward();
-          return true;
-        }
-        return false;
-      })
+    HdsNavDestination() {
+      this.WebBuilder()
     }
+    .titleBar({
+      avoidLayoutSafeArea: true,
+      enableComponentSafeArea: true,
+      content: {
+        title: {
+          mainTitle: this.title
+        }
+      },
+    } as HdsNavigationTitleBarOptions)
+    .backgroundColor($r('app.color.page_background'))
+    .onBackPressed(() => {
+      if (this.controller.accessStep(-1)) {
+        this.controller.backward();
+        return true;
+      }
+      return false;
+    })
   }
 }
 

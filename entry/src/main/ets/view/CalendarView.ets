@@ -446,7 +446,8 @@ export struct CalendarView {
 
   getItemPriceInfo(item: SubscriptionModel): string {
     if (item.recordType === 'warranty') {
-      return '保修到期';
+      const days = DateUtil.getDaysUntil(item.nextBillingDate);
+      return days < 0 ? '已过保' : '在保中';
     }
     let info = `¥${item.price.toFixed(2)}`;
     if (item.recordType === 'groupBuy') {
@@ -466,7 +467,8 @@ export struct CalendarView {
     if (item.recordType === 'groupBuy') {
       return '团购';
     } else if (item.recordType === 'warranty') {
-      return '保修';
+      const days = DateUtil.getDaysUntil(item.nextBillingDate);
+      return days < 0 ? '过保' : '在保';
     }
     switch (item.billingCycle) {
       case 'Monthly':
@@ -1611,7 +1613,7 @@ export struct CalendarView {
     .backgroundColor(Color.Transparent)
   }
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled ) {
+
       HdsNavDestination() {
           this.CalendarBuilder()
       }
@@ -1635,35 +1637,9 @@ export struct CalendarView {
               } as HdsNavigationMenuItemOptions,
             ]
           }
-        }
+        },
       })
-    } else {
-      HdsNavDestination() {
-        this.CalendarBuilder()
-      }
-      .hideBackButton(true)
-      .hideTitleBar(false)
-      .backgroundColor(Color.Transparent)
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: { mainTitle: '订阅日历' },
-          menu: {
-            value: [
-              {
-                content: {
-                  label: '提醒管理',
-                  icon: $r('sys.symbol.questionmark_circle'),
-                  action: (): void => {
-                    this.showHelpPopup = !this.showHelpPopup
-                  }
-                }
-              } as HdsNavigationMenuItemOptions,
-            ]
-          }
-        }
-      })
-    }
+
   }
   // Helper: Parse usage time text to day indices (0=Sun, 1=Mon...6=Sat)
   parseUsageDays(usageTime: string): number[] {

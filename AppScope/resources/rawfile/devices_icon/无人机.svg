@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="camGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#06B6D4" />
+    </linearGradient>
+    <filter id="shadowDrone" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  <line x1="45" y1="45" x2="25" y2="25" stroke="#334155" stroke-width="6" stroke-linecap="round" filter="url(#shadowDrone)"/>
+  <line x1="75" y1="45" x2="95" y2="25" stroke="#334155" stroke-width="6" stroke-linecap="round" filter="url(#shadowDrone)"/>
+  <line x1="45" y1="75" x2="25" y2="95" stroke="#334155" stroke-width="6" stroke-linecap="round" filter="url(#shadowDrone)"/>
+  <line x1="75" y1="75" x2="95" y2="95" stroke="#334155" stroke-width="6" stroke-linecap="round" filter="url(#shadowDrone)"/>
+  <circle cx="25" cy="25" r="5" fill="#475569"/>
+  <circle cx="95" cy="25" r="5" fill="#475569"/>
+  <circle cx="25" cy="95" r="5" fill="#475569"/>
+  <circle cx="95" cy="95" r="5" fill="#475569"/>
+  <ellipse cx="25" cy="25" rx="15" ry="3" fill="#94A3B8" opacity="0.6"/>
+  <ellipse cx="95" cy="25" rx="15" ry="3" fill="#94A3B8" opacity="0.6"/>
+  <ellipse cx="25" cy="95" rx="15" ry="3" fill="#94A3B8" opacity="0.6"/>
+  <ellipse cx="95" cy="95" rx="15" ry="3" fill="#94A3B8" opacity="0.6"/>
+  <rect x="40" y="40" width="40" height="40" rx="10" fill="#1E293B" filter="url(#shadowDrone)"/>
+  <circle cx="60" cy="50" r="4" fill="#334155"/>
+  <circle cx="60" cy="60" r="4" fill="#334155"/>
+  <rect x="52" y="80" width="16" height="12" rx="4" fill="url(#camGrad)"/>
+  <circle cx="60" cy="86" r="3" fill="#0F172A"/>
+</svg>

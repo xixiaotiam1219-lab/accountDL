@@ -149,7 +149,6 @@ export struct ReminderSetupPanel {
 
   @Builder navDestination(name: string) {
     if (name === 'ReminderDetails') {
-      if (deviceInfo.distributionOSApiVersion >= 60100&&this.isHdsTabsEnabled) {
         HdsNavDestination() {
           if (this.activeItem) {
             Column() {
@@ -374,232 +373,7 @@ export struct ReminderSetupPanel {
           this.isSetupVisible = false;
           return true;
         })
-      } else {
-        HdsNavDestination() {
-          if (this.activeItem) {
-            Column() {
-              // Card Container for Settings
-              Column() {
-                // Days Selection Section
-                Text('提醒日期')
-                  .fontSize(14)
-                  .fontColor($r('app.color.text_secondary'))
-                  .width('100%')
-                  .margin({ bottom: 12 })
 
-                Row() {
-                  Text(`提前 ${this.selectedDays} 天`)
-                    .fontSize(15)
-                    .fontColor(this.getThemeColor())
-                    .fontWeight(FontWeight.Medium)
-                  Blank()
-                  SymbolGlyph($r('sys.symbol.chevron_right'))
-                    .fontSize(18)
-                    .fontColor([$r('app.color.text_hint')])
-                }
-                .width('100%')
-                .height(48)
-                .padding({ left: 16, right: 12 })
-                .backgroundColor($r('app.color.tag_bg'))
-                .borderRadius(14)
-                .margin({ bottom: 16 })
-                .onClick(() => {
-                  TextPickerDialog.show({
-                    range: this.reminderDaysOptions,
-                    selected: this.reminderDaysOptions.indexOf(this.selectedDays.toString()),
-                    onAccept: (value: TextPickerResult) => {
-                      this.selectedDays = parseInt(value.value as string);
-                    }
-                  })
-                })
-
-                // Time Selection Section
-                Text('提醒时间')
-                  .fontSize(14)
-                  .fontColor($r('app.color.text_secondary'))
-                  .width('100%')
-                  .margin({ bottom: 8 })
-
-                TimePicker({ selected: this.selectedTime })
-                  .useMilitaryTime(true)
-                  .onChange((value: TimePickerResult) => {
-                    this.selectedTime.setHours(value.hour, value.minute);
-                  })
-                  .height(140)
-                  .margin({ bottom: 12 })
-                  .selectedTextStyle({ color: this.getThemeColor(), font: { size: '18fp', weight: FontWeight.Bold } })
-              }
-              .width('100%')
-              .padding(20)
-              .backgroundColor($r('app.color.card_background'))
-              .borderRadius(24)
-              .margin({ bottom: 24 })
-              .shadow({ radius: 30, color: 'rgba(0,0,0,0.08)', offsetY: 12 })
-
-              // Buttons Footer
-              Row() {
-                if (this.activeItem.reminderDaysBefore !== undefined) {
-                  Button('关闭提醒')
-                    .backgroundColor($r('app.color.tag_bg'))
-                    .fontColor(Color.Red)
-                    .fontSize(16)
-                    .height(50)
-                    .borderRadius(25)
-                    .margin({ right: 12 })
-                    .scale({ x: this.isRemovePressed ? 0.95 : 1, y: this.isRemovePressed ? 0.95 : 1 })
-                    .animation({
-                      duration: this.isAnimationEnabled ? 150 : 0,
-                      curve: curves.springMotion(this.animationResponse, this.animationDamping)
-                    })
-                    .visualEffect(new hdsEffect.HdsEffectBuilder()
-                      .pointLight({
-                        sourceType: this.removeLight,
-                        illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-                      })
-                      .buildEffect())
-                    .onTouch((event: TouchEvent) => {
-                      if (event.type === TouchType.Down) {
-                        if (this.isAnimationEnabled) {
-                          this.isRemovePressed = true;
-                          if (this.isPointLightEnabled) {
-                            this.removeLight = hdsEffect.PointLightSourceType.BRIGHT;
-                          }
-                        }
-                      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                        this.isRemovePressed = false;
-                        this.removeLight = hdsEffect.PointLightSourceType.NONE;
-                      }
-                    })
-                    .onClick(() => {
-                      if (this.activeItem) {
-                        this.onRemove(this.activeItem);
-                      }
-                    })
-                }
-
-                Button('保存设置')
-                  .layoutWeight(1)
-                  .height(50)
-                  .linearGradient(this.isNewYearTheme ? {
-                    angle: 135,
-                    colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
-                  } : (this.showVipTheme ? {
-                    angle: 135,
-                    colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
-                  } : {
-                    angle: 0,
-                    colors: [[$r('app.color.brand_color'), 0.0], [$r('app.color.brand_color'), 1.0]]
-                  }))
-                  .backgroundColor(Color.Transparent)
-                  .fontColor(this.getThemeTextColor())
-                  .fontSize(16)
-                  .fontWeight(FontWeight.Medium)
-                  .borderRadius(25)
-                  .shadow({
-                    radius: 10,
-                    color: this.isNewYearTheme ? '#40FF2400' : (this.showVipTheme ? '#40E6C07B' : '#40007AFF'),
-                    offsetY: 5
-                  })
-                  .scale({ x: this.isSavePressed ? 0.98 : 1, y: this.isSavePressed ? 0.98 : 1 })
-                  .animation({
-                    duration: this.isAnimationEnabled ? 150 : 0,
-                    curve: curves.springMotion(this.animationResponse, this.animationDamping)
-                  })
-                  .visualEffect(new hdsEffect.HdsEffectBuilder()
-                    .pointLight({
-                      sourceType: this.saveLight,
-                      illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-                    })
-                    .buildEffect())
-                  .onTouch((event: TouchEvent) => {
-                    if (event.type === TouchType.Down) {
-                      if (this.isAnimationEnabled && this.isPointLightEnabled) {
-                        this.isSavePressed = true;
-                        this.saveLight = hdsEffect.PointLightSourceType.BRIGHT;
-                      }
-                    } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                      this.isSavePressed = false;
-                      this.saveLight = hdsEffect.PointLightSourceType.NONE;
-                    }
-                  })
-                  .onClick(() => {
-                    if (!this.activeItem) {
-                      return;
-                    }
-
-                    // Validation
-                    const targetDate = new Date(this.activeItem.nextBillingDate);
-                    targetDate.setDate(targetDate.getDate() - this.selectedDays);
-                    targetDate.setHours(this.selectedTime.getHours(), this.selectedTime.getMinutes(), 0, 0);
-
-                    if (targetDate.getTime() < new Date().getTime()) {
-                      promptAction.showToast({ message: '设置的提醒时间已过期，请调整' });
-                      return;
-                    }
-
-                    const timeStr =
-                      `${this.selectedTime.getHours().toString().padStart(2, '0')}:${this.selectedTime.getMinutes()
-                        .toString()
-                        .padStart(2, '0')}`;
-                    this.onSave(this.activeItem, this.selectedDays, timeStr);
-                  })
-              }
-              .width('100%')
-              .alignItems(VerticalAlign.Bottom)
-              .layoutWeight(1)
-              .justifyContent(FlexAlign.End)
-            }
-            .width('100%')
-            .height('100%')
-            .padding({
-              left: 24,
-              right: 24,
-              bottom: 32,
-              top: 84
-            }) // Adjusted for Safe Area
-            .opacity(this.isDetailVisible ? 1 : 0)
-            .translate({ y: this.isDetailVisible ? 0 : 20 })
-            .animation({
-              duration: this.isAnimationEnabled ? this.animationDuration : 0,
-              curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) :
-                Curve.Linear
-            })
-            .onAppear(() => {
-              if (this.isAnimationEnabled) {
-                setTimeout(() => {
-                  this.isDetailVisible = true;
-                }, 50);
-              } else {
-                this.isDetailVisible = true;
-              }
-            })
-
-          }
-        }
-        .titleBar({
-          content: {
-            title: { mainTitle: this.activeItem ? this.activeItem.name : '设置提醒' },
-            menu: {
-              value: [
-                {
-                  content: {
-                    icon: $r('sys.symbol.xmark'),
-                    action: () => {
-                      this.onCancel();
-                    }
-                  }
-                }
-              ]
-            }
-          },
-        })
-        .titleMode(HdsNavDestinationTitleMode.MODAL)
-        .onBackPressed(() => {
-          this.navStack.pop();
-          this.isSetupVisible = false;
-          return true;
-        })
-      }
     }
   }
   @Builder reminderBuilder(){
@@ -674,7 +448,6 @@ export struct ReminderSetupPanel {
   }
   @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100&&this.isHdsTabsEnabled) {
       HdsNavigation(this.navStack) {
           this.reminderBuilder()
       }
@@ -704,37 +477,8 @@ export struct ReminderSetupPanel {
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
       .width('100%')
       .height('100%')
-    } else {
-      HdsNavigation(this.navStack) {
-        this.reminderBuilder()
-      }
-      .backgroundColor(Color.Transparent)
-      .titleBar({
-        content: {
-          title: { mainTitle: "提醒管理" },
-          menu: {
-            value: [
-              {
-                content: {
-                  icon: $r('sys.symbol.xmark'),
-                  action: () => {
-                    this.onCancel();
-                  }
-                }
-              }
-            ]
-          }
-        },
-      })
-      .titleMode(HdsNavigationTitleMode.MODAL)
-      .navDestination(this.navDestination)
-      .mode(NavigationMode.Stack)
-      .hideBackButton(true)
-      .backgroundColor($r('app.color.page_background'))
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-      .width('100%')
-      .height('100%')
-    }
+
+
   }
 
 }

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="consoleLed" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8B5CF6" />
+      <stop offset="50%" stop-color="#06B6D4" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+    <filter id="shadowConsole" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  <rect x="35" y="98" width="50" height="6" rx="2" fill="#0F172A" filter="url(#shadowConsole)"/>
+  
+  <rect x="40" y="20" width="40" height="80" rx="4" fill="#1E293B" filter="url(#shadowConsole)"/>
+  
+  <path d="M 40 24 L 80 24 L 80 20 A 4 4 0 0 0 76 16 L 44 16 A 4 4 0 0 0 40 20 Z" fill="#334155"/>
+  <line x1="45" y1="20" x2="75" y2="20" stroke="#0F172A" stroke-width="1.5" stroke-linecap="round"/>
+  
+  <rect x="45" y="35" width="2" height="25" rx="1" fill="#0F172A"/>
+  
+  <rect x="70" y="28" width="2" height="65" rx="1" fill="url(#consoleLed)"/>
+  
+  <circle cx="46" cy="75" r="1.5" fill="#94A3B8"/>
+  <circle cx="46" cy="85" r="2" fill="#334155"/>
+</svg>

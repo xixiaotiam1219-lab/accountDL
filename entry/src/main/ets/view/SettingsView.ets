@@ -1580,7 +1580,7 @@ export struct SettingsView {
                 Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
               }
 
-              if (this.isHdsTabsSupported) {
+              if (deviceInfo.distributionOSApiVersion >= 60100) {
                 // 1.6.5 HDS Tabs (API 23 Features)
                 Row() {
                   Column() {
@@ -2150,36 +2150,20 @@ export struct SettingsView {
   }
 
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100 &&this.isHdsTabsEnabled == true) {
-      HdsNavDestination() {
-        this.SettingBuilder()
-      }
-      .hideBackButton(true)
-      .hideTitleBar(false)
-      .backgroundColor(Color.Transparent)
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: { mainTitle: '我的' },
-          menu: { value: [] }
-        },
-
-      })
-    } else {
-      HdsNavDestination() {
-        this.SettingBuilder()
-      }
-      .hideBackButton(true)
-      .hideTitleBar(false)
-      .backgroundColor(Color.Transparent)
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: { mainTitle: '我的' },
-          menu: { value: [] }
-        },
-      })
+    HdsNavDestination() {
+      this.SettingBuilder()
     }
+    .hideBackButton(true)
+    .hideTitleBar(false)
+    .backgroundColor(Color.Transparent)
+    .titleBar({
+      avoidLayoutSafeArea: true,
+      content: {
+        title: { mainTitle: '我的' },
+        menu: { value: [] }
+      },
+
+    })
   }
 
   @Builder

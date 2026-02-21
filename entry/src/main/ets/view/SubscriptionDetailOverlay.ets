@@ -82,7 +82,10 @@ export struct SubscriptionDetailOverlay {
       case 'Indefinite':
         return '不定';
       default:
-        if (this.data.recordType === 'warranty') return '保修';
+        if (this.data.recordType === 'warranty') {
+          const days = DateUtil.getDaysUntil(this.data.nextBillingDate);
+          return days < 0 ? '过保' : '在保';
+        }
         return '';
     }
   }
@@ -159,7 +162,7 @@ export struct SubscriptionDetailOverlay {
                     (this.data.platform === 'meituan' ? '美团' :
                       (this.data.platform === 'dianping' ? '大众点评' : '抖音'))) :
                   (this.data.recordType === 'warranty' ?
-                    ((this.data.brand || '保修期') + (this.data.purchaseChannel ? ` · ${this.data.purchaseChannel}` : '')) :
+                    (((DateUtil.getDaysUntil(this.data.nextBillingDate) < 0 ? '过保' : '在保')) + (this.data.brand ? ` · ${this.data.brand}` : '') + (this.data.purchaseChannel ? ` · ${this.data.purchaseChannel}` : '')) :
                     (this.getBillingCycleShortText() + (this.data.category ? ` · ${this.data.category}` : ''))))
                   .fontSize(14)
                   .fontColor($r('app.color.text_secondary'))
@@ -322,7 +325,7 @@ export struct SubscriptionDetailOverlay {
 
                   // 保修到期日
                   Row() {
-                    Text('保修到期')
+                    Text('到期状态')
                       .fontSize(14)
                       .fontColor($r('app.color.text_secondary'))
                     Blank()
@@ -342,8 +345,8 @@ export struct SubscriptionDetailOverlay {
                       .fontSize(14)
                       .fontColor($r('app.color.text_secondary'))
                     Blank()
-                    Text(DateUtil.getDaysUntil(this.data.nextBillingDate) < 0 ? '已过保修期' :
-                      `${DateUtil.getDaysUntil(this.data.nextBillingDate) + 1} 天`)
+                    Text(DateUtil.getDaysUntil(this.data.nextBillingDate) < 0 ? '过保' :
+                      `在保 (剩 ${DateUtil.getDaysUntil(this.data.nextBillingDate) + 1} 天)`)
                       .fontSize(16)
                       .fontWeight(FontWeight.Medium)
                       .fontColor(DateUtil.getDaysUntil(this.data.nextBillingDate) < 0 ? '#F44336' :

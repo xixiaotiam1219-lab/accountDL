@@ -47,7 +47,7 @@ struct MonthlyReportPage {
   }
 }
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100&&this.isHdsTabsEnabled) {
+
       HdsNavDestination() {
         this.MonthlyReportBuilder()
       }
@@ -58,21 +58,8 @@ struct MonthlyReportPage {
             mainTitle: '月度报告'
           }
         },
+
       })
       .backgroundColor($r('app.color.page_background'))
-    } else {
-      HdsNavDestination() {
-        this.MonthlyReportBuilder()
-      }
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: {
-            mainTitle: '月度报告'
-          }
-        }
-      })
-      .backgroundColor($r('app.color.page_background'))
-    }
   }
 }

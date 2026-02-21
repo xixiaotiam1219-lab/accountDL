@@ -6,11 +6,11 @@ import { image } from '@kit.ImageKit';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs, fileUri } from '@kit.CoreFileKit';
 import { ImageUtils } from '../utils/ImageUtils';
-import { BusinessError } from '@kit.BasicServicesKit';
+import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
-import { hdsEffect } from '@kit.UIDesignKit';
-import { curves } from '@kit.ArkUI';
+import { hdsEffect, HdsNavigation, HdsNavigationTitleMode, ScrollEffectType } from '@kit.UIDesignKit';
+import { curves, LengthMetrics } from '@kit.ArkUI';
 import { BackgroundWatermark } from './BackgroundWatermark';
 
 interface ReportItem {
@@ -39,6 +39,7 @@ const REPORT_List_ID = 'REPORT_SCROLL_ID';
 export struct MonthlyReportSheet {
   @Prop subscriptions: SubscriptionModel[] = [];
   @State reportData: ReportSummary | null = null;
+  private navStack: NavPathStack = new NavPathStack();
   @Prop showCloseButton: boolean = false;
   onClose: () => void = () => {};
 
@@ -49,6 +50,15 @@ export struct MonthlyReportSheet {
   private listComponentWidth: number = 0;
   private listComponentHeight: number = 0;
   private curYOffset: number = 0;
+  @Builder SnapshotOverlay() {
+    if (this.componentMaskImage) {
+      Image(this.componentMaskImage)
+        .width('100%')
+        .height('100%')
+        .syncLoad(true)
+        .backgroundColor($r('app.color.page_background'))
+    }
+  }
 
   getGroupBuyIcon(sub: SubscriptionModel): string {
     if (sub.platform === 'meituan') return 'resource:meituan_logo';
@@ -153,6 +163,18 @@ export struct MonthlyReportSheet {
           }
         }
         totalMonthlyItems += monthlyCost;
+      } else if (sub.recordType === 'warranty') {
+          // 保修记录：通常是一次性支出，按购买日期 (startDate) 判断是否计入本月
+          const startDate = new Date(sub.startDate || 0);
+          const isCurrentMonth = startDate.getFullYear() === new Date().getFullYear() && 
+                                 startDate.getMonth() === new Date().getMonth();
+          if (isCurrentMonth) {
+            monthlyCost = Number(sub.price);
+            totalMonthlyItems += monthlyCost;
+          } else {
+            // 非本月购买的保修，不计入月度支出
+            return;
+          }
       } else if (sub.billingCycle === 'Lifetime' || sub.billingCycle === 'Indefinite') {
         const billingDate = new Date(sub.nextBillingDate);
         const isCurrentMonth = billingDate.getFullYear() === new Date().getFullYear() && 
@@ -208,6 +230,10 @@ export struct MonthlyReportSheet {
   getItemInfo(sub: SubscriptionModel): string {
     if (sub.recordType === 'groupBuy') {
       return (sub.subCategory ? `团购券 · ${sub.subCategory}` : '团购券');
+    }
+
+    if (sub.recordType === 'warranty') {
+      return (sub.brand ? `保修 · ${sub.brand}` : '保修');
     }
 
     let cycleText = '';
@@ -634,7 +660,7 @@ export struct MonthlyReportSheet {
                          .fontWeight(FontWeight.Bold)
                                                        .fontColor($r('app.color.text_primary'))
 
-                      Text(item.sub.billingCycle === 'Lifetime' || item.sub.billingCycle === 'Indefinite' || item.sub.recordType === 'groupBuy' ? '一次性' : '/月')
+                      Text(item.sub.recordType === 'warranty' ? '一次性' : (item.sub.billingCycle === 'Lifetime' || item.sub.billingCycle === 'Indefinite' || item.sub.recordType === 'groupBuy' ? '一次性' : '/月'))
                          .fontSize(11)
                                                         .fontColor($r('app.color.text_secondary'))
 
@@ -696,128 +722,23 @@ export struct MonthlyReportSheet {
       }
       .width('100%')
   }
-
-  build() {
-    Stack() {
-      // 0. Overlay Mask (to hide header/button during snapshot scrolling)
-      if (this.componentMaskImage) {
-        Image(this.componentMaskImage)
-          .width('100%')
-          .height('100%')
-          .syncLoad(true) // Force sync load to prevent flash
-          .zIndex(999)
-          .backgroundColor($r('app.color.page_background'))
-      }
-
-      // 1. Main Content (Scrollable)
+  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
+  @Builder MonthlyBuilder(){
+    if (this.reportData) {
       Scroll(this.scroller) {
-        Stack() {
-          // Global Background & Watermark Coordination
-          // BackgroundWatermark()
-
-          Column() {
-           if (this.reportData) {
-              Row() {
-                Column() {
-                  Text('订阅月报')
-                    .fontSize(24)
-                    .fontWeight(FontWeight.Bold)
-                                                   .fontColor($r('app.color.text_primary'))
-
-                  Text(new Date().getMonth() + 1 + " 月 · 预估")
-                    .fontSize(14)
-                                                   .fontColor($r('app.color.text_secondary'))
-
-                    .margin({ top: 4 })
-                }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-                
-                // Only show buttons if NOT snapshotting
-                if (!this.isSnapshotting) {
-                  Row({ space: 8 }) {
-                    // Share Button
-                    Button({ type: ButtonType.Circle, stateEffect: true }) {
-                      SymbolGlyph($r('sys.symbol.share'))
-                        .fontSize(24)
-                        .fontColor([$r('app.color.text_primary')])
-                    }
-                    .width(44)
-                    .height(44)
-                    .backgroundColor(Color.Transparent)
-                    .visualEffect(new hdsEffect.HdsEffectBuilder()
-                      .pointLight({
-                        sourceType: this.shareLight,
-                        illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-                      })
-                      .buildEffect())
-                    .scale({ x: this.isSharePressed ? 0.9 : 1, y: this.isSharePressed ? 0.9 : 1 })
-                    .onTouch((event: TouchEvent) => {
-                      if (event.type === TouchType.Down) {
-                        if (this.isAnimationEnabled && this.isPointLightEnabled) {
-                            this.isSharePressed = true;
-                            this.shareLight = hdsEffect.PointLightSourceType.BRIGHT;
-                        }
-                      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                        this.isSharePressed = false;
-                        this.shareLight = hdsEffect.PointLightSourceType.NONE;
-                      }
-                    })
-                    .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-                    .onClick(() => {
-                      this.startSnapshot();
-                    })
-
-                    if (this.showCloseButton) {
-                      Button({ type: ButtonType.Circle, stateEffect: true }) {
-                        SymbolGlyph($r('sys.symbol.xmark'))
-                          .fontSize(24)
-                                                      .fontColor([$r('app.color.text_secondary')])
-                      }
-                      .width(44)
-                      .height(44)
-                      .backgroundColor(Color.Transparent)
-                      .visualEffect(new hdsEffect.HdsEffectBuilder()
-                        .pointLight({
-                          sourceType: this.closeLight,
-                          illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-                        })
-                        .buildEffect())
-                      .scale({ x: this.isClosePressed ? 0.9 : 1, y: this.isClosePressed ? 0.9 : 1 })
-                      .onTouch((event: TouchEvent) => {
-                        if (event.type === TouchType.Down) {
-                          if (this.isAnimationEnabled && this.isPointLightEnabled) {
-                              this.isClosePressed = true;
-                              this.closeLight = hdsEffect.PointLightSourceType.BRIGHT;
-                          }
-                        } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-                          this.isClosePressed = false;
-                          this.closeLight = hdsEffect.PointLightSourceType.NONE;
-                        }
-                      })
-                      .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-                      .onClick(() => {
-                        this.onClose();
-                      })
-                    }
-                  }
-                }
-              }
-              .width('100%')
-              .padding({ left: 4, right: 4 })
-              .margin({ bottom: 20 })
-              
-              this.ReportContent(this.reportData)
-           } else {
-              LoadingProgress().width(48).height(48).color($r('app.color.brand_color'))
-           }
+        Column() {
+          // 额外顶部留白，以便内容在滚动时进入标题栏模糊区
+          Column().height(64).width('100%') 
+          
+          this.ReportContent(this.reportData)
         }
-        .width('100%')
-        .padding(16)
-        }
+        .padding({ bottom: 40, left: 16, right: 16 })
       }
-      .scrollBar(BarState.Off)
+      .id(REPORT_List_ID)
+      .width('100%')
       .height('100%')
-      .align(Alignment.Top)
-      .id(REPORT_List_ID) // Important for snapshot
+      .edgeEffect(EdgeEffect.Spring)
+      .scrollBar(BarState.Off)
       .onDidScroll(() => {
         this.curYOffset = this.scroller.currentOffset().yOffset;
       })
@@ -825,9 +746,52 @@ export struct MonthlyReportSheet {
         this.listComponentWidth = newValue.width as number;
         this.listComponentHeight = newValue.height as number;
       })
+      .overlay(this.SnapshotOverlay())
+    } else {
+      Column() {
+        LoadingProgress().width(48).height(48).color($r('app.color.brand_color'))
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
     }
+  }
+
+  build() {
+    HdsNavigation(this.navStack) {
+      this.MonthlyBuilder()
+    }
+    .backgroundColor($r('app.color.page_background'))
+    .titleBar({
+      content: {
+        title: { mainTitle: '订阅月报' },
+        menu: {
+          value: [
+            {
+              content: {
+                icon: $r('sys.symbol.share'),
+                action: () => {
+                  this.startSnapshot();
+                }
+              }
+            },
+            {
+              content: {
+                icon: $r('sys.symbol.xmark'),
+                action: () => {
+                  this.onClose();
+                }
+              }
+            }
+          ]
+        }
+      },
+
+    })
+    .titleMode(HdsNavigationTitleMode.MODAL)
+    .mode(NavigationMode.Stack)
+    .hideBackButton(true)
     .width('100%')
     .height('100%')
-    .backgroundColor($r('app.color.page_background'))
   }
 }

@@ -2,7 +2,7 @@
  * 会员服务识别配置库
  * 针对不同的会员服务定制识别规则
  */
-
+import { WARRANTY_ICON_MAP } from '../view/WarrantyCategorySheet';
 export interface MemberServiceConfig {
   // 服务名称（用于匹配）
   name: string;
@@ -27,6 +27,8 @@ export interface MemberServiceConfig {
   // 可选的二级分类列表（用于 UI 下拉选择）
   validSubCategories?: string[];
 }
+
+
 
 /**
  * 会员服务配置库
@@ -336,6 +338,7 @@ export const MEMBER_SERVICES: MemberServiceConfig[] = [
   {
     name: '美团',
     aliases: ['美团外卖', '美团跑腿', '神券', '美团神券', '膨胀', '美团会员'],
+    icon: 'resource:meituan_logo',
     renewKeywords: [],
     discountKeywords: [],
     category: '生活服务'
@@ -419,6 +422,13 @@ export const MEMBER_SERVICES: MemberServiceConfig[] = [
     discountKeywords: [],
     category: '效率办公',
     validSubCategories: ['VIP 会员', 'SVIP 会员', '行测会员']
+  },
+  // ===== 支付/金融类 =====
+  {
+    name: '抖音支付',
+    aliases: ['抖音', '抖支付', '抖音月付'],
+    icon: 'resource:douyin_logo',
+    category: '生活服务'
   }
 ];
 
@@ -627,6 +637,33 @@ export function matchMemberService(text: string): MemberServiceConfig | undefine
   return bestMatch;
 }
 
+/**
+ * 根据物品名称推断保修分类
+ */
+export function matchWarrantyCategory(name: string): string {
+  if (!name) return '其他物品';
+  
+  const lowerName = name.toLowerCase();
+  
+  const mapping: Record<string, string[]> = {
+    '电子产品': ['手机', '平板', '电脑', '笔记本', '耳机', '相机', 'iphone', 'ipad', 'mac', 'watch', '手表', 'vr', 'tws', '耳机盒'],
+    '家用电器': ['冰箱', '洗衣机', '空调', '电视', '显示器', '微波炉', '洗碗机', '抽油烟机', '风扇', '电饭煲', '吹风机', '空气炸锅', '净化器', '扫地机'],
+    '数码配件': ['移动电源', '数据线', '充电器', '鼠标', '键盘', '显卡', '内存', '硬盘', '路由器', '充电宝', '手写笔', '云台'],
+    '家居生活': ['沙发', '柜', '桌', '灯', '净水器', '吸尘器', '扫地机', '滤芯'],
+    '运动户外': ['自行车', '鞋', '包', '滑板', '帐篷'],
+    '办公用品': ['打印机', '投影仪', '墨盒'],
+  };
+
+  const categories = Object.keys(mapping);
+  for (const category of categories) {
+    if (mapping[category].some(keyword => lowerName.includes(keyword))) {
+      return category;
+    }
+  }
+
+  return '其他物品';
+}
+
 
 /**
  * 本地图标资源映射表
@@ -648,6 +685,12 @@ export function resolveIcon(icon: string): Resource | string {
     const key = icon.split(':')[1];
     return ICON_MAP[key] || icon;
   }
+  
+  if (icon && icon.startsWith('warranty_icon:')) {
+    const name = icon.split(':')[1];
+    return WARRANTY_ICON_MAP[name] || icon;
+  }
+
   return icon;
 }
 

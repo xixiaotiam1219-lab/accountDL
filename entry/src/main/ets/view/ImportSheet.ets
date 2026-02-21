@@ -3,12 +3,16 @@ import { CustomIconItem } from '../utils/HarmonyShareManager';
 import { DateUtil } from '../utils/DateUtil';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
 import { SubscriptionIcon } from './SubscriptionIcon';
-import { hdsEffect } from '@kit.UIDesignKit';
+import { hdsEffect, HdsNavigation, HdsNavigationTitleMode, ScrollEffectType } from '@kit.UIDesignKit';
+import { curves, LengthMetrics } from '@kit.ArkUI';
 import { LocalIconManager } from '../utils/LocalIconManager';
 import { util, buffer } from '@kit.ArkTS';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { deviceInfo } from '@kit.BasicServicesKit';
+
+const TITLE_BAR_HEIGHT_MINI: number = 76;
 
 @Observed
 export class ImportItem {
@@ -102,10 +106,20 @@ struct ImportSheetItem {
 
           // 第二行：续费状态 · 分类
           Row({ space: 4 }) {
-            Text(this.item.data.isAutoRenewal !== false ? '自动续费' : '到期停止')
-              .fontSize(11)
-              .fontColor(this.item.data.isAutoRenewal !== false ? $r('app.color.success_color') : $r('app.color.text_secondary'))
-            
+            if (this.item.data.recordType === 'warranty') {
+              Text(this.item.data.brand || '保修')
+                .fontSize(11)
+                .fontColor($r('app.color.text_secondary'))
+            } else if (this.item.data.recordType === 'groupBuy') {
+              Text(this.item.data.merchantName || '团购')
+                .fontSize(11)
+                .fontColor($r('app.color.text_secondary'))
+            } else {
+              Text(this.item.data.isAutoRenewal !== false ? '自动续费' : '到期停止')
+                .fontSize(11)
+                .fontColor(this.item.data.isAutoRenewal !== false ? $r('app.color.success_color') : $r('app.color.text_secondary'))
+            }
+
             Text('·')
               .fontSize(11)
               .fontColor($r('app.color.text_secondary'))
@@ -210,6 +224,7 @@ struct ImportSheetItem {
 export struct ImportSheet {
   @Link isShow: boolean;
   @Link @Watch('onDataChange') importData: SubscriptionModel[];
+  private navStack: NavPathStack = new NavPathStack();
   onImport: () => void = (): void => {};
   onCancel: () => void = (): void => {};
   @State items: ImportItem[] = [];
@@ -222,6 +237,8 @@ export struct ImportSheet {
   @StorageLink('isPointLightEnabled') isPointLightEnabled: boolean = true;
   @State pressedIndex: number = -1;
   @StorageLink('importFileContent') importFileContent: string = ''; // 确保注入此属性以便恢复图标库
+  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
+  @StorageLink('statusBarHeight') statusBarHeight: number = 0;
 
   async onDataChange(): Promise<void> {
     // 只有在数据真正为空或第一次加载时才显示全屏Loading，减少切换闪烁
@@ -252,6 +269,13 @@ export struct ImportSheet {
     // 并行分析所有项，显著提升速度
     const promises = this.importData.map(async (item: SubscriptionModel): Promise<ImportItem> => {
       // 0. Auto-Calibration: Ensure start date is valid
+      if (!item.recordType) {
+        if (item.brand) {
+          item.recordType = 'warranty';
+        } else if (item.merchantName || item.couponCode) {
+          item.recordType = 'groupBuy';
+        }
+      }
       this.calibrateStartDate(item);
 
       // --- 核心改进：在预览阶段就执行图标修复 ---
@@ -259,7 +283,13 @@ export struct ImportSheet {
         // 对于 builtin://、旧路径或失效链接，直接尝试通过库找回
         const info = await iconManager.getAppInfo(item.name);
         if (info && info.icon) {
-          item.icon = info.icon; // 提前修正路径以便预览显示
+          // 策略调整：如果是精确匹配，直接使用；如果是模糊匹配，仅在原图标无效或为空时使用
+          if (info.name === item.name) {
+            item.icon = info.icon;
+          } else if (!item.icon || item.icon.startsWith('builtin://') || item.icon.startsWith('app.media.')) {
+            // 模糊匹配结果仅作为兜底
+            item.icon = info.icon;
+          }
         } else if (item.icon && item.icon.startsWith('app.media.')) {
           if (item.icon.includes('meituan')) item.icon = 'resource:meituan_logo';
           else if (item.icon.includes('douyin')) item.icon = 'resource:douyin_logo';
@@ -340,6 +370,12 @@ export struct ImportSheet {
     // 简单处理：月付-1月，年付-1年
     const startDate = new Date(nextBilling);
 
+    if (item.recordType === 'warranty') {
+      // 保修记录缺失开始时间，默认为当前时间 (避免被误设为过期时间)
+      item.startDate = new Date().getTime();
+      return;
+    }
+
     switch (billingCycle) {
       case 'Monthly':
         startDate.setMonth(startDate.getMonth() - 1);
@@ -389,36 +425,7 @@ export struct ImportSheet {
   }
 
   build() {
-    Column() {
-      // Header
-      Row() {
-        Column() {
-          Text('导入订阅数据')
-            .fontSize(24)
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.text_primary'))
-
-          Text(this.isLoading ? '正在分析数据...' : `共检测到 ${this.items.length} 条数据`)
-            .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
-            .margin({ top: 4 })
-        }
-        .alignItems(HorizontalAlign.Start)
-
-        Blank()
-
-        Button('取消')
-          .fontSize(14)
-          .fontColor($r('app.color.text_secondary'))
-          .backgroundColor(Color.Transparent)
-          .onClick(() => {
-            this.isShow = false;
-            this.onCancel();
-          })
-      }
-      .width('100%')
-      .padding({ top: 24, bottom: 20, left: 16, right: 16 })
-
+    HdsNavigation(this.navStack) {
       if (this.isLoading) {
         Column() {
           Stack() {
@@ -429,10 +436,17 @@ export struct ImportSheet {
           }
         }
         .width('100%')
-        .layoutWeight(1)
+        .height('100%')
         .justifyContent(FlexAlign.Center)
       } else {
         List() {
+          ListItem() {
+            Column() {
+              Blank()
+                .height(TITLE_BAR_HEIGHT_MINI)
+            }
+          }
+
           // Select All Header
           ListItem() {
             Row() {
@@ -488,47 +502,72 @@ export struct ImportSheet {
         }
         .width('100%')
         .layoutWeight(1)
-        .padding({ left: 16, right: 16 })
+        .padding({ left: 16, right: 16, top: 0, bottom: 80 }) 
         .edgeEffect(EdgeEffect.Spring)
-      }
+        .scrollBar(BarState.Off)
 
-      // Footer Actions
-      Column() {
-        Button(`导入 (${this.items.filter((i: ImportItem) => i.isSelected).length})`)
-          .width('100%')
-          .height(48)
-          .linearGradient(this.isNewYearTheme ? {
-            angle: 135,
-            colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
-          } : (this.showVipTheme ? {
-            angle: 135,
-            colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
-          } : {
-            angle: 135,
-            colors: [[$r('app.color.brand_gradient_start'), 0.0], [$r('app.color.brand_gradient_end'), 1.0]]
-          }))
-          .fontColor(this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White))
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .borderRadius(24)
-          .shadow({
-            radius: 20,
-            color: this.isNewYearTheme ? '#40FF2400' : (this.showVipTheme ? '#40E6C07B' : '#40007AFF'),
-            offsetY: 8
-          })
-          .enabled(this.items.some((i: ImportItem) => i.isSelected))
-          .opacity(this.items.some((i: ImportItem) => i.isSelected) ? 1 : 0.5)
-          .onClick(() => {
-            this.handleImport();
-          })
+        // Footer Actions
+        Column() {
+          Button(`导入 (${this.items.filter((i: ImportItem) => i.isSelected).length})`)
+            .width('100%')
+            .height(48)
+            .linearGradient({
+              angle: 135,
+              colors: [
+                [this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold_start') : $r('app.color.brand_gradient_start')), 0.0],
+                [this.isNewYearTheme ? $r('app.color.new_year_red_end') : (this.showVipTheme ? $r('app.color.vip_gold_end') : $r('app.color.brand_gradient_end')), 1.0]
+              ]
+            })
+            .fontColor(this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White))
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .borderRadius(24)
+            .shadow({
+              radius: 20,
+              color: this.isNewYearTheme ? '#40FF2400' : (this.showVipTheme ? '#40E6C07B' : '#40007AFF'),
+              offsetY: 8
+            })
+            .enabled(this.items.some((i: ImportItem) => i.isSelected))
+            .opacity(this.items.some((i: ImportItem) => i.isSelected) ? 1 : 0.5)
+            .onClick(() => {
+              this.handleImport();
+            })
+        }
+        .padding(16)
+        .width('100%')
+        .backgroundColor(Color.Transparent)
+        .position({ x: 0, y: '100%' })
+        .translate({ y: -80 }) // Floating footer to allow content scroll behind
       }
-      .padding(16)
-      .width('100%')
-      .backgroundColor(Color.Transparent)
     }
+    .backgroundColor($r('app.color.page_background'))
+    .titleBar({
+      content: {
+        title: { 
+          mainTitle: '导入订阅数据',
+          subTitle: this.isLoading ? '正在分析数据...' : `共检测到 ${this.items.length} 条数据`
+        },
+        menu: {
+          value: [
+            {
+              content: {
+                icon: $r('sys.symbol.xmark'),
+                action: () => {
+                  this.isShow = false;
+                  this.onCancel();
+                }
+              }
+            }
+          ]
+        }
+      },
+
+    })
+    .titleMode(HdsNavigationTitleMode.MODAL)
+    .mode(NavigationMode.Stack)
+    .hideBackButton(true)
     .width('100%')
     .height('100%')
-    .backgroundColor($r('app.color.page_background'))
   }
 
   async handleImport(): Promise<void> {

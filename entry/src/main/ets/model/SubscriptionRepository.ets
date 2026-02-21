@@ -8,6 +8,7 @@ import { DateUtil } from '../utils/DateUtil';
 import { PreferenceUtil } from '../utils/PreferenceUtil';
 import { LocalNotificationManager } from '../manager/LocalNotificationManager';
 import { util } from '@kit.ArkTS';
+import { WARRANTY_ICON_MAP_NAMES, WARRANTY_THEME_MAP, getWarrantyThemeColors } from '../utils/WarrantyConstants';
 
 const STORE_CONFIG: relationalStore.StoreConfig = {
   name: 'SubscriptionTracker.db',
@@ -82,10 +83,16 @@ export interface MinimalCardItem {
 }
 
 class SnapshotItem {
+  id: string = '';
   title: string = '';
   content: string = '';
   icon: string = '';
+  colorStart?: string;
+  colorEnd?: string;
   isExpiring: boolean = false;
+  isLifetime: boolean = false;
+  isGroupBuy: boolean = false;
+  isWarranty: boolean = false;
   originalItem: string = '';
 }
 
@@ -759,6 +766,26 @@ export class SubscriptionRepository {
            snapshotItem.title = item.name || '未知保修';
            // 保修卡片无论是否设为 Lifetime，只要到期日有效就显示到期日
            snapshotItem.content = `保修:${dateStr}`;
+           
+           // 预计算保修视觉 (解决跨模块隔离)
+           // 优先使用 category 作为图标查找依据，因为 name 可能是用户自定义的
+           let warrantyName = item.name || '';
+           if (item.category && WARRANTY_ICON_MAP_NAMES[item.category]) {
+             warrantyName = item.category;
+           } else if (item.subCategory && WARRANTY_ICON_MAP_NAMES[item.subCategory]) {
+             warrantyName = item.subCategory;
+           }
+
+           const theme = WARRANTY_THEME_MAP[warrantyName] || 'blue';
+           const colors = getWarrantyThemeColors(theme);
+           snapshotItem.colorStart = colors[0];
+           snapshotItem.colorEnd = colors[1];
+           
+           // 转换为 rawfile 路径
+           const svgPath = WARRANTY_ICON_MAP_NAMES[warrantyName];
+           if (svgPath) {
+             snapshotItem.icon = `rawfile:${svgPath}`;
+           }
         } else if (isLifetime) {
            snapshotItem.title = item.name || '未知订阅';
            snapshotItem.content = `永久买断`;
@@ -767,7 +794,14 @@ export class SubscriptionRepository {
            snapshotItem.content = `到期:${dateStr}`;
         }
         
-        snapshotItem.icon = iconKey;
+        if (!snapshotItem.icon) {
+          snapshotItem.icon = iconKey;
+        }
+        snapshotItem.id = item.uuid || item.id?.toString() || '';
+        snapshotItem.isLifetime = isLifetime;
+        snapshotItem.isGroupBuy = isGroupBuy;
+        snapshotItem.isWarranty = isWarranty;
+
         // 普通订阅和保修在剩余3天内标红；团购券如果是未使用且剩余3天内也标红
         if (isGroupBuy) {
             snapshotItem.isExpiring = item.usageStatus === 'unused' && days <= 3;

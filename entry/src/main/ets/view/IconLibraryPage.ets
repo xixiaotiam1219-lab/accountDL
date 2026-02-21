@@ -752,7 +752,6 @@ export struct IconLibraryPage {
     }
   }
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100&&this.isHdsTabsEnabled) {
       HdsNavDestination() {
         this.IconBuilder()
       }
@@ -831,86 +830,6 @@ export struct IconLibraryPage {
           },
         } as HdsNavigationTitleBarOptions)
       .backgroundColor($r('app.color.page_background'))
-    } else {
-      HdsNavDestination() {
-        this.IconBuilder()
-      }
-      .bindToScrollable([this.scroller])
-      .titleBar(this.isSelectionMode ? {
-        avoidLayoutSafeArea: true,
-        content: {
-          title: {
-            mainTitle: '已选 ' + this.selectedIconNames.length.toString()
-          },
-          menu: {
-            value: [
-              {
-                content: {
-                  label: '删除',
-                  icon: $r('sys.symbol.trash'),
-                  action: (): void => {
-                    this.deleteSelectedIcons();
-                  }
-                }
-              } as HdsNavigationMenuItemOptions,
-              {
-                content: {
-                  label: '取消',
-                  action: (): void => {
-                    this.isSelectionMode = false;
-                    this.selectedIconNames = [];
-                  }
-                }
-              } as HdsNavigationMenuItemOptions
-            ]
-          }
-        },
 
-      } as HdsNavigationTitleBarOptions :
-        {
-          avoidLayoutSafeArea: true,
-          content: {
-            title: {
-              mainTitle: '图标库'
-            },
-            bottomBuilder: {
-              builder: (): void => this.BottomBuilder(),
-              height: 96
-            },
-            menu: {
-              value: [
-                {
-                  content: {
-                    label: '帮助',
-                    icon: $r('sys.symbol.questionmark_circle'),
-                    action: (): void => {
-                      this.showHelpSheet = true;
-                    }
-                  }
-                } as HdsNavigationMenuItemOptions,
-                {
-                  content: {
-                    label: '添加',
-                    icon: $r('sys.symbol.plus_circle'),
-                    action: (): void => {
-                      this.addSingleIcon();
-                    }
-                  }
-                } as HdsNavigationMenuItemOptions,
-                {
-                  content: {
-                    label: '导入图标包',
-                    icon: $r('sys.symbol.square_and_arrow_down'),
-                    action: (): void => {
-                      this.importIconPack();
-                    }
-                  }
-                } as HdsNavigationMenuItemOptions
-              ]
-            }
-          },
-        } as HdsNavigationTitleBarOptions)
-      .backgroundColor($r('app.color.page_background'))
-    }
   }
 }

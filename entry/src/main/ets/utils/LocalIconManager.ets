@@ -3,6 +3,7 @@ import { util } from '@kit.ArkTS';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { zlib } from '@kit.BasicServicesKit';
 import { JSON as ArkJSON } from '@kit.ArkTS'; // Use ArkTS JSON util if needed, or standard JSON
+import { hilog } from '@kit.PerformanceAnalysisKit';
 
 export interface AppData {
   c: string; // category
@@ -85,12 +86,15 @@ export class LocalIconManager {
 
         // Try to load built-in icons
         try {
+          hilog.info(0x0000, 'LocalIconManager', 'Loading app_data.json from rawfile...');
           const fileData = await resourceManager.getRawFileContent('app_data.json');
           const textDecoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
           const jsonString = textDecoder.decodeWithStream(fileData);
           this.appDataMap = JSON.parse(jsonString) as Record<string, AppData>;
+          hilog.info(0x0000, 'LocalIconManager', `Loaded ${Object.keys(this.appDataMap).length} builtin apps`);
         } catch (e) {
-          console.error('LocalIconManager: Failed to load built-in app_data.json', JSON.stringify(e));
+          hilog.error(0x0000, 'LocalIconManager', `Failed to load app_data.json: ${JSON.stringify(e)}`);
+          // Try alternative root if fail? Usually AppScope is at root
         }
 
         // Load custom icons
@@ -748,6 +752,18 @@ export class LocalIconManager {
     if (!this.isLoaded || !appName) {
       return null;
     }
+
+    // 优先精确匹配
+    if (this.appDataMap[appName]) {
+      const data = this.appDataMap[appName];
+      return {
+        name: appName,
+        icon: await this.resolveIconPath(data),
+        category: data.c,
+        isCustom: data.isCustom
+      };
+    }
+
     const result = this.searchInternal(appName);
     return result ? {
       name: result.key,
@@ -788,9 +804,15 @@ export class LocalIconManager {
 
     const topMatches = matches.slice(0, limit);
     for (const key of topMatches) {
-      const info = await this.getAppInfo(key);
-      if (info) {
-        results.push(info);
+      // 直接使用 key 获取数据，避免 getAppInfo 中的模糊搜索导致匹配到错误的短名称应用
+      const data = this.appDataMap[key];
+      if (data) {
+        results.push({
+          name: key,
+          icon: await this.resolveIconPath(data),
+          category: data.c,
+          isCustom: data.isCustom
+        });
       }
     }
     return results;
@@ -799,18 +821,38 @@ export class LocalIconManager {
 
   private searchInternal(keyword: string): SearchResult | null {
     let bestMatch: SearchResult | null = null;
-    let shortestKeyLength = Infinity;
+    let bestMatchScore = -1; // Higher score is better
     const lowerKeyword = keyword.toLowerCase();
 
     const keys = Object.keys(this.appDataMap);
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i];
       const lowerKey = key.toLowerCase();
-      if (lowerKey.includes(lowerKeyword) || lowerKeyword.includes(lowerKey)) {
-        if (key.length < shortestKeyLength) {
-          shortestKeyLength = key.length;
-          bestMatch = { key: key, data: this.appDataMap[key] };
-        }
+
+      // 1. Exact match (Highest priority)
+      if (lowerKey === lowerKeyword) {
+        return { key: key, data: this.appDataMap[key] };
+      }
+
+      let score = -1;
+
+      // 2. Keyword contains Key (e.g. input "QQ音乐" contains "QQ")
+      // Prefer LONGER key (more specific)
+      if (lowerKeyword.includes(lowerKey)) {
+        // Base score 1000, plus length (longer is better)
+        score = 1000 + lowerKey.length;
+      }
+      // 3. Key contains Keyword (e.g. input "QQ" contained in "QQ音乐")
+      // Prefer SHORTER key (closer to input)
+      else if (lowerKey.includes(lowerKeyword)) {
+        // Base score 0, minus length (shorter is better, so less penalty)
+        // We use 500 - length to keep it positive but below type 2
+        score = 500 - lowerKey.length;
+      }
+
+      if (score > bestMatchScore) {
+        bestMatchScore = score;
+        bestMatch = { key: key, data: this.appDataMap[key] };
       }
     }
     return bestMatch;

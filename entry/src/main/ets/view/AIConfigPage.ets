@@ -409,21 +409,6 @@ export struct AIConfigPage {
     .backgroundColor(Color.Transparent)
   }
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100&&this.isHdsTabsEnabled) {
-      HdsNavDestination() {
-        this.AIBuilder()
-      }
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: {
-            mainTitle: '图像识别配置'
-          },
-
-        }
-      })
-      .backgroundColor($r('app.color.page_background'))
-    } else {
       HdsNavDestination() {
         this.AIBuilder()
       }
@@ -435,9 +420,10 @@ export struct AIConfigPage {
           },
 
         },
+
       })
       .backgroundColor($r('app.color.page_background'))
-    }
+
 
   }
 

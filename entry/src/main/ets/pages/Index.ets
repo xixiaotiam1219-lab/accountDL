@@ -1165,7 +1165,18 @@ struct Index {
   }
 
   onBackPress(): boolean | void {
-    // 0. 如果详情页显示，优先关闭详情页
+    // 0. 如果查询结果浮层显示，优先关闭它
+    if (this.isQueryResultsVisible) {
+      animateTo({
+        duration: this.isAnimationEnabled ? this.animationDuration : 0,
+        curve: Curve.EaseOut
+      }, () => {
+        this.isQueryResultsVisible = false;
+      })
+      return true;
+    }
+
+    // 1. 如果详情页显示，优先关闭详情页
     if (this.isDetailVisible) {
       AppStorage.setOrCreate('isDetailClosing', true);
       animateTo({

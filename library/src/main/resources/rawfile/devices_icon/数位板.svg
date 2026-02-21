@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="padGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#A855F7" />
+    </linearGradient>
+    <filter id="shadowPad" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  <rect x="10" y="30" width="100" height="60" rx="4" fill="#1E293B" filter="url(#shadowPad)"/>
+  <rect x="15" y="35" width="15" height="50" rx="2" fill="#334155"/>
+  <circle cx="22.5" cy="45" r="4" fill="#475569"/>
+  <circle cx="22.5" cy="60" r="4" fill="#475569"/>
+  <circle cx="22.5" cy="75" r="4" fill="#475569"/>
+  <rect x="35" y="35" width="70" height="50" rx="2" fill="url(#padGrad)"/>
+  <path d="M 60 70 L 90 40 L 95 45 L 65 75 Z" fill="#F43F5E" filter="url(#shadowPad)"/>
+  <path d="M 60 70 L 55 75 L 65 75 Z" fill="#E11D48"/>
+</svg>

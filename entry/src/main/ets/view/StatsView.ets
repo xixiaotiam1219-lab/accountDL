@@ -10,7 +10,7 @@ import { resolveIcon } from '../utils/MemberServiceConfig';
 import { LoginSheet } from './LoginSheet';
 import { MonthlyReportSheet } from './MonthlyReportSheet';
 import { SubscriptionIcon } from './SubscriptionIcon';
-import { hdsEffect, HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
+import { hdsEffect, HdsNavDestination, ScrollEffectType, HdsNavigationTitleBarOptions, HdsNavigationTitleBarStyle } from '@kit.UIDesignKit';
 
 interface RankingItem {
   sub: SubscriptionModel;
@@ -28,6 +28,13 @@ class MonthLabel {
 }
 
 const TITLE_BAR_HEIGHT_MINI: number = 56;
+
+interface GeneratedObjectLiteralInterface_2 {
+  enableScrollEffect: boolean;
+  scrollEffectType: ScrollEffectType;
+  blurEffectiveStartOffset: LengthMetrics;
+  blurEffectiveEndOffset: LengthMetrics;
+}
 
 @Component
 export struct StatsView {
@@ -1232,17 +1239,8 @@ export struct StatsView {
   .width('100%').height('100%').backgroundColor(Color.Transparent)
 }
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) {
-      HdsNavDestination() {
-        this.StatsBuilder()
-      }
-      .hideBackButton(true).hideTitleBar(false).backgroundColor(Color.Transparent)
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: { mainTitle: '统计分析' },
-        }
-      })
+    HdsNavDestination() {
+      this.StatsBuilder()
 
       Column()
         .bindSheet($$this.showReport, this.ReportSheetBuilder(), {
@@ -1250,42 +1248,6 @@ export struct StatsView {
           backgroundColor: $r('app.color.page_background'),
           dragBar: true,
           showClose: true,
-          title: { title: '月度预估报告' },
-          onDisappear: () => {
-            this.showReport = false
-          },
-          preferType: SheetType.BOTTOM
-        })
-      Column()
-        .bindSheet($$this.showLoginSheet, this.LoginSheetBuilder(), {
-          detents: [SheetSize.MEDIUM],
-          backgroundColor: $r('app.color.page_background'),
-          showClose: true,
-          preferType: SheetType.BOTTOM,
-          title: { title: '登录', subtitle: '使用华为账号登录' },
-          onDisappear: () => {
-            this.showLoginSheet = false
-          }
-        })
-    } else {
-      HdsNavDestination() {
-        this.StatsBuilder()
-      }
-      .hideBackButton(true).hideTitleBar(false).backgroundColor(Color.Transparent)
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: { mainTitle: '统计分析' },
-        }
-      })
-
-      Column()
-        .bindSheet($$this.showReport, this.ReportSheetBuilder(), {
-          height: SheetSize.LARGE,
-          backgroundColor: $r('app.color.page_background'),
-          dragBar: true,
-          showClose: true,
-          title: { title: '月度预估报告' },
           onDisappear: () => {
             this.showReport = false
           },
@@ -1303,6 +1265,15 @@ export struct StatsView {
           }
         })
     }
+    .hideBackButton(true).hideTitleBar(false).backgroundColor(Color.Transparent)
+    .titleBar({
+      avoidLayoutSafeArea: true,
+
+      content: {
+        title: { mainTitle: '统计分析' },
+      }
+    } as HdsNavigationTitleBarOptions)
+
 
 
   }

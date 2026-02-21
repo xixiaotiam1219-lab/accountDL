@@ -10,7 +10,10 @@ import { EVENT_SYNC_COMPLETED, EVENT_DATA_CHANGED, GlobalBus } from '../utils/Gl
 import { LoginSheet } from './LoginSheet';
 import { SubscriptionIcon } from './SubscriptionIcon';
 import { PreferenceUtil } from '../utils/PreferenceUtil';
-import { hdsEffect, HdsNavDestination, HdsNavigationMenuItemOptions,
+import { hdsEffect, HdsNavDestination,
+  HdsNavigation,
+  HdsNavigationMenuItemOptions,
+  HdsNavigationTitleMode,
   ScrollEffectType } from '@kit.UIDesignKit';
 import { FunctionComponent, FunctionController } from '@kit.AgentFrameworkKit';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -40,6 +43,7 @@ const TITLE_BAR_HEIGHT_MINI: number = 56;
 @Component
 export struct HomeView {
   @Consume('pageStack') pageStack: NavPathStack;
+  private navStack: NavPathStack = new NavPathStack();
   @StorageLink('isOnline') isOnline: boolean = true;
 
   // Agent Props
@@ -98,6 +102,7 @@ export struct HomeView {
   @StorageLink('homeCurrentTab') currentTab: 'all' | 'subscription' | 'groupBuy' | 'warranty' = 'all'; // 全部/订阅/团购/保修切换
   @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
   @StorageLink('smartHandMode') smartHandMode: 'left' | 'right' | 'center' = 'center';
+  @StorageLink('statusBarHeight') statusBarHeight: number = 0;
   
   // Tab 交互增强相关
   @State indicatorWidth: number = 0;
@@ -433,10 +438,10 @@ export struct HomeView {
 
   getUpcomingRenewals(): SubscriptionModel[] {
     return this.subscriptions.filter((item: SubscriptionModel) => {
-      // 永久项目无自动续费提醒，“不定周期”如果有到期日则提醒
-      // 如果关闭了自动续费，也不提示近期续费
-      if (item.billingCycle === 'Lifetime') return false;
-      if (item.isAutoRenewal === false) return false;
+      // 永久项目（非保修非团购）无自动续费提醒，“不定周期”如果有到期日则提醒
+      // 如果关闭了自动续费（且非保修非团购），也不提示近期续费
+      if (item.billingCycle === 'Lifetime' && item.recordType !== 'warranty' && item.recordType !== 'groupBuy') return false;
+      if (item.isAutoRenewal === false && item.recordType !== 'warranty' && item.recordType !== 'groupBuy') return false;
 
       const days = DateUtil.getDaysUntil(item.nextBillingDate);
       return days >= 0 && days <= 3;
@@ -753,9 +758,9 @@ export struct HomeView {
                 .margin({ right: 6 })
 
               Text() {
-                Span(this.getUpcomingRenewals()[0].recordType === 'groupBuy' ? '团购券 ' : '服务 ')
+                Span(this.getUpcomingRenewals()[0].recordType === 'groupBuy' ? '团购券 ' : (this.getUpcomingRenewals()[0].recordType === 'warranty' ? '保修 ' : '服务 '))
                 Span(`${this.getUpcomingRenewals()[0].name}`)
-                Span(` 等 ${this.getUpcomingRenewals().length} 项近期${this.getUpcomingRenewals()[0].recordType === 'groupBuy' ? '过期' : '续费'}`)
+                Span(` 等 ${this.getUpcomingRenewals().length} 项近期${(this.getUpcomingRenewals()[0].recordType === 'groupBuy' || this.getUpcomingRenewals()[0].recordType === 'warranty') ? '过期' : '续费'}`)
               }
               .fontColor(this.isNewYearTheme ? $r('app.color.new_year_text_on_red') : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White))
               .fontSize(13).fontWeight(FontWeight.Medium)
@@ -872,89 +877,106 @@ export struct HomeView {
     .padding(32)
   }
 
+  @Builder SyncGuideBuilder() {
+    Scroll() {
+      Column({ space: 24 }) {
+        // 场景1：碰一碰
+        Column({ space: 12 }) {
+          Column() {
+            Text("方式一：碰一碰").fontSize(16).fontWeight(FontWeight.Bold)
+            Text("只需碰一碰，可直接向别的设备或好友分享记得订阅的订阅信息等，还可以连续触碰多个设备，轻松实现多人分享。").fontSize(14).fontColor($r('app.color.text_secondary')).margin({ top: 4 })
+          }.alignItems(HorizontalAlign.Start).width('100%')
+          Video({
+            src: $rawfile('touch.mp4'),
+            controller: new VideoController()
+          })
+            .width('100%')
+            .height(180)
+            .objectFit(ImageFit.Contain)
+            .autoPlay(true)
+            .loop(true)
+            .controls(false)
+            .borderRadius(16)
+            .backgroundColor('#0A000000')
+        }
+
+        // 场景2：一抓一放
+        Column({ space: 12 }) {
+          Column() {
+            Text("方式二：隔空传送").fontSize(16).fontWeight(FontWeight.Bold)
+            Text("在屏幕前做出“抓取”动作，移到另一台设备上方“放开,即可直接向别的设备或好友分享《记得订阅》的订阅信息”。").fontSize(14).fontColor($r('app.color.text_secondary')).margin({ top: 4 })
+          }.alignItems(HorizontalAlign.Start).width('100%')
+          Video({
+            src: $rawfile('Swing_share.mp4'),
+            controller: new VideoController()
+          })
+            .width('100%')
+            .height(180)
+            .objectFit(ImageFit.Contain)
+            .autoPlay(true)
+            .loop(true)
+            .controls(false)
+            .borderRadius(16)
+            .backgroundColor('#0A000000')
+        }
+
+        Text("Tips：该功能需要两台设备均处于亮屏解锁状态，且双方均已安装最新版本的《记得订阅》并开启华为分享。此功能要求双方手机为 HarmonyOS 5 及以上版本，多人分享需发送端设备支持 HarmonyOS 6 及以上版本。")
+          .fontSize(12).fontColor($r('app.color.text_secondary')).textAlign(TextAlign.Start).width('100%').margin({ top: 12 })
+      }.padding({ left: 20, right: 20, bottom: 40, top: 64 }) // Add top padding for immersive title
+    }
+    .edgeEffect(EdgeEffect.Spring)
+    .scrollBar(BarState.Off)
+  }
+
   @Builder SyncGuideSheet() {
     Column() {
+        HdsNavigation(this.navStack) {
+          this.SyncGuideBuilder()
+        }
+        .backgroundColor(Color.Transparent)
+        .titleBar({
+          content: {
+            title: { mainTitle: '多端同步指南' },
+            menu: {
+              value: [
+                {
+                  content: {
+                    icon: $r('sys.symbol.xmark'),
+                    action: () => {
+                      this.showSyncGuide = false;
+                    }
+                  }
+                }
+              ]
+            }
+          },
 
+        })
+        .titleMode(HdsNavigationTitleMode.MODAL)
+        .mode(NavigationMode.Stack)
+        .hideBackButton(true)
+        .backgroundColor($r('app.color.page_background'))
+        .borderRadius({ topLeft: 24, topRight: 24 })
+        .width('100%')
+        .height('100%')
 
-      Scroll() {
-        Column({ space: 24 }) {
-          // 场景1：碰一碰
-          Column({ space: 12 }) {
-            Column() {
-              Text("方式一：碰一碰").fontSize(16).fontWeight(FontWeight.Bold)
-              Text("只需碰一碰，可直接向别的设备或好友分享记得订阅的订阅信息等，还可以连续触碰多个设备，轻松实现多人分享。").fontSize(14).fontColor($r('app.color.text_secondary')).margin({ top: 4 })
-            }.alignItems(HorizontalAlign.Start).width('100%')
-            Video({
-              src: $rawfile('touch.mp4'),
-              controller: new VideoController()
-            })
-              .width('100%')
-              .height(180)
-              .objectFit(ImageFit.Contain)
-              .autoPlay(true)
-              .loop(true)
-              .controls(false)
-              .borderRadius(16)
-              .backgroundColor('#0A000000')
-          }
-
-          // 场景2：一抓一放
-          Column({ space: 12 }) {
-            Column() {
-              Text("方式二：隔空传送").fontSize(16).fontWeight(FontWeight.Bold)
-              Text("在屏幕前做出“抓取”动作，移到另一台设备上方“放开,即可直接向别的设备或好友分享《记得订阅》的订阅信息”。").fontSize(14).fontColor($r('app.color.text_secondary')).margin({ top: 4 })
-            }.alignItems(HorizontalAlign.Start).width('100%')
-            Video({
-              src: $rawfile('Swing_share.mp4'),
-              controller: new VideoController()
-            })
-              .width('100%')
-              .height(180)
-              .objectFit(ImageFit.Contain)
-              .autoPlay(true)
-              .loop(true)
-              .controls(false)
-              .borderRadius(16)
-              .backgroundColor('#0A000000')
-          }
-
-          Text("Tips：该功能需要两台设备均处于亮屏解锁状态，且双方均已安装最新版本的《记得订阅》并开启华为分享。此功能要求双方手机为 HarmonyOS 5 及以上版本，多人分享需发送端设备支持 HarmonyOS 6 及以上版本。")
-            .fontSize(12).fontColor($r('app.color.text_secondary')).textAlign(TextAlign.Start).width('100%').margin({ top: 12 })
-        }.padding({ left: 20, right: 20, bottom: 40 })
-      }
     }
-    .backgroundColor($r('app.color.page_background'))
+    .width('100%')
+    .height('100%')
   }
 
   @Builder UpcomingRenewalsSheet() {
-    Column() {
-      // Handle Bar
-      Row()
-        .width(40)
-        .height(4)
-        .backgroundColor($r('app.color.text_secondary'))
-        .opacity(0.2)
-        .borderRadius(2)
-        .margin({ top: 8, bottom: 20 })
+    HdsNavigation(this.navStack) {
+      List() {
+        ListItem() {
+          Column() {
+            Blank()
+              .height(TITLE_BAR_HEIGHT_MINI + this.getUIContext().px2vp(this.statusBarHeight))
+          }
+        }
 
-      // Title
-      Column() {
-        Text('近期到期订阅')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.text_primary'))
-        Text('以下订阅即将到期')
-          .fontSize(14)
-          .fontColor($r('app.color.text_secondary'))
-          .margin({ top: 2 })
-      }
-      .width('100%')
-      .alignItems(HorizontalAlign.Start)
-      .padding({ left: 16, right: 16, bottom: 16 })
-
-      Scroll() {
-        Column() {
-          ForEach(this.getUpcomingRenewals(), (item: SubscriptionModel, idx: number) => {
+        ForEach(this.getUpcomingRenewals(), (item: SubscriptionModel, idx: number) => {
+          ListItem() {
             Column() {
               Row() {
                 SubscriptionIcon({
@@ -999,7 +1021,6 @@ export struct HomeView {
                       .fontColor(this.isNewYearTheme ? $r('app.color.new_year_text_on_red') : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White))
                       .onClick(() => {
                         if (item.recordType === 'groupBuy') {
-                          // 团购券核销逻辑：标记为已使用，并更新最后修改时间
                           item.usageStatus = 'used';
                           item.realUsageTime = new Date().getTime();
                           item.lastModified = new Date().getTime();
@@ -1024,19 +1045,16 @@ export struct HomeView {
               duration: this.isAnimationEnabled ? this.animationDuration : 0,
               curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
             })
-          }, (item: SubscriptionModel) => item.uuid + '_' + item.icon)
-        }
-        .width('100%')
+          }
+        }, (item: SubscriptionModel) => item.uuid + '_' + item.icon)
       }
       .scrollBar(BarState.Off)
       .width('100%')
       .padding({ left: 16, right: 16, bottom: 24 })
       .edgeEffect(EdgeEffect.Spring)
-      // 限制最大高度，避免列表过长时占满全屏
-      .constraintSize({ maxHeight: '75%' })
+      .constraintSize({ maxHeight: '70%' }) // 稍微减小比例以确保 FIT_CONTENT 表现更自然
       .onAppear(() => {
         if (this.isAnimationEnabled) {
-          // Reset state first to ensure animation triggers if reopened
           this.isUpcomingItemsVisible = false;
           setTimeout(() => {
             this.isUpcomingItemsVisible = true;
@@ -1049,6 +1067,30 @@ export struct HomeView {
         this.isUpcomingItemsVisible = false;
       })
     }
+    .titleBar({
+      content: {
+        title: { 
+          mainTitle: '近期到期订阅',
+          subTitle: '以下订阅即将到期'
+        },
+        menu: {
+          value: [
+            {
+              content: {
+                icon: $r('sys.symbol.xmark'),
+                action: () => {
+                  this.showUpcomingSheet = false;
+                }
+              }
+            }
+          ]
+        }
+      },
+
+    })
+    .titleMode(HdsNavigationTitleMode.MODAL)
+    .mode(NavigationMode.Stack)
+    .hideBackButton(true)
     .backgroundColor($r('app.color.page_background'))
   }
 
@@ -1262,7 +1304,7 @@ export struct HomeView {
           },
           options: {
             title: '', // Icon only
-            queryText: '介绍一下你自己'
+            queryText: ''
           },
           controller: this.controller
         })
@@ -1694,7 +1736,7 @@ export struct HomeView {
 
       Column()
         .bindSheet($$this.showUpcomingSheet, this.UpcomingRenewalsSheet(), {
-          detents: [SheetSize.FIT_CONTENT],
+          detents: [SheetSize.MEDIUM],
           backgroundColor: $r('app.color.page_background'),
           showClose: true,
           preferType: SheetType.BOTTOM
@@ -1703,13 +1745,12 @@ export struct HomeView {
         .bindSheet($$this.showSyncGuide, this.SyncGuideSheet(), {
           detents: [SheetSize.FIT_CONTENT],
           backgroundColor: $r('app.color.page_background'),
-          showClose: true,
+          showClose: false,
           preferType: SheetType.BOTTOM,
-          title: { title: '近场同步/分享订阅数据' }
         })
       Column()
         .bindSheet($$this.showReminderSheet, this.ReminderSheetBuilder(), {
-          detents: [550],
+          detents:  [SheetSize.MEDIUM],
           backgroundColor: $r('app.color.page_background'),
           preferType: SheetType.BOTTOM,
           showClose: false,
@@ -1720,7 +1761,6 @@ export struct HomeView {
   }
 
   build() {
-    if (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) {
       HdsNavDestination() {
         this.homeBuilder()
       }
@@ -1774,64 +1814,8 @@ export struct HomeView {
             ]
           }
         },
-
       })
-    } else {
-      HdsNavDestination() {
-        this.homeBuilder()
-      }
-      .hideBackButton(true)
-      .hideTitleBar(false)
-      .backgroundColor(Color.Transparent)
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: { mainTitle: '订阅概览' },
-          stackBuilder: (): void => this.AgentStackBuilder(),
-          menu: {
-            value: [
-              {
-                content: {
-                  label: '提醒管理',
-                  icon: $r('sys.symbol.bell'),
-                  action: (): void => {
-                    getContext(this).eventHub.emit('openReminderSheet');
-                  }
-                }
-              } as HdsNavigationMenuItemOptions,
 
-              {
-                content: {
-                  label: '分享',
-                  icon: $r('sys.symbol.share'),
-                  action: (): void => {
-                    if (!this.isLoggedIn) {
-                      if (this.isWide && this.isSplitViewEnabled) {
-                        this.pageStack.removeByName('Login');
-                        this.pageStack.pushPathByName('Login', null);
-                      } else {
-                        if (this.isAnimationEnabled) {
-                          animateTo({
-                            duration: this.animationDuration,
-                            curve: curves.springMotion(this.animationResponse, this.animationDamping)
-                          }, () => {
-                            this.showLoginSheet = true;
-                          });
-                        } else {
-                          this.showLoginSheet = true;
-                        }
-                      }
-                      return;
-                    }
-                    HarmonyShareManager.getInstance().activeShare();
-                  }
-                }
-              } as HdsNavigationMenuItemOptions
-            ]
-          }
-        }
-      })
-    }
   }
 
   @State showReminderSheet: boolean = false;
