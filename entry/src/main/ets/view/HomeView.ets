@@ -16,8 +16,6 @@ import { hdsEffect, hdsMaterial, HdsNavDestination,
   HdsNavigationTitleMode,
   ScrollEffectType } from '@kit.UIDesignKit';
 import { FunctionComponent, FunctionController } from '@kit.AgentFrameworkKit';
-import { BusinessError } from '@kit.BasicServicesKit';
-
 import { ReminderSetupPanel } from './ReminderSetupPanel';
 import { LocalIconManager } from '../utils/LocalIconManager';
 import { HarmonyShareManager } from '../utils/HarmonyShareManager';
@@ -419,7 +417,15 @@ export struct HomeView {
             return;
           }
         }
-        if (DateUtil.isSameMonth(new Date(sub.nextBillingDate), now)) {
+
+        let targetDate: Date;
+        if (sub.recordType === 'groupBuy') {
+          targetDate = sub.realUsageTime ? new Date(sub.realUsageTime) : new Date(sub.nextBillingDate);
+        } else {
+          targetDate = new Date(sub.nextBillingDate);
+        }
+
+        if (DateUtil.isSameMonth(targetDate, now)) {
           total += sub.price;
         }
         return;
@@ -438,6 +444,16 @@ export struct HomeView {
 
   getUpcomingRenewals(): SubscriptionModel[] {
     return this.subscriptions.filter((item: SubscriptionModel) => {
+      // 团购券：已使用或已过期的不再提醒
+      if (item.recordType === 'groupBuy' && (item.usageStatus === 'used' || item.usageStatus === 'expired')) {
+        return false;
+      }
+
+      // 忽略已点击“我知道了”的项目（直到下一次续费日更新）
+      if (item.lastIgnoredBillingDate && item.lastIgnoredBillingDate === item.nextBillingDate) {
+        return false;
+      }
+
       // 永久项目（非保修非团购）无自动续费提醒，“不定周期”如果有到期日则提醒
       // 如果关闭了自动续费（且非保修非团购），也不提示近期续费
       if (item.billingCycle === 'Lifetime' && item.recordType !== 'warranty' && item.recordType !== 'groupBuy') return false;
@@ -492,6 +508,14 @@ export struct HomeView {
   }
 
 
+
+  async ignoreReminder(item: SubscriptionModel) {
+    item.lastIgnoredBillingDate = item.nextBillingDate;
+    item.lastModified = new Date().getTime();
+    await SubscriptionRepository.getInstance().update(item);
+    this.loadLocalData();
+    prompt.showToast({ message: '本期将不再提醒' });
+  }
 
   getSortOrderText(): string {
     switch (this.sortOrder) {
@@ -621,7 +645,22 @@ export struct HomeView {
     this.subscriptions.forEach(sub => {
       // 永久/不定/团购项目仅在购买当月计入支出（全额）
       if (sub.billingCycle === 'Lifetime' || sub.billingCycle === 'Indefinite' || sub.recordType === 'groupBuy') {
-        if (DateUtil.isSameMonth(new Date(sub.nextBillingDate), now)) {
+        // 处理团购退款逻辑
+        if (sub.recordType === 'groupBuy') {
+          const days = DateUtil.getDaysUntil(sub.nextBillingDate);
+          if (sub.usageStatus === 'expired' || (sub.usageStatus !== 'used' && days < 0)) {
+            return;
+          }
+        }
+
+        let targetDate: Date;
+        if (sub.recordType === 'groupBuy') {
+          targetDate = sub.realUsageTime ? new Date(sub.realUsageTime) : new Date(sub.nextBillingDate);
+        } else {
+          targetDate = new Date(sub.nextBillingDate);
+        }
+
+        if (DateUtil.isSameMonth(targetDate, now)) {
           total += sub.price;
         }
         return;
@@ -1009,11 +1048,15 @@ export struct HomeView {
                 Column() {
                   Text(DateUtil.formatDate(item.nextBillingDate)).fontSize(12).fontColor($r('app.color.text_secondary')).margin({ bottom: 4 })
                   Row({ space: 8 }) {
-                    Button({ type: ButtonType.Normal, stateEffect: true }) {
-                      SymbolGlyph($r('sys.symbol.trash')).fontSize(16).fontColor([Color.Red])
-                    }
-                    .width(36).height(28).backgroundColor($r('app.color.page_background')).borderRadius(14)
-                    .onClick(() => { this.deleteSubscription(item); })
+                    Button('我知道了')
+                      .fontSize(12)
+                      .height(28)
+                      .backgroundColor($r('app.color.page_background'))
+                      .fontColor($r('app.color.text_secondary'))
+                      .border({ width: 1, color: $r('app.color.divider_color') })
+                      .onClick(() => {
+                        this.ignoreReminder(item);
+                      })
 
                     Button(item.recordType === 'groupBuy' ? '已使用' : '已续费')
                       .fontSize(12)
@@ -1433,7 +1476,77 @@ export struct HomeView {
                 .translate({ y: this.animStep1 ? 0 : 50 })
 
                 Row() {
-                  Text("订阅列表").fontSize(20).fontWeight(FontWeight.Bold).fontColor($r('app.color.text_primary'))
+                  // 订阅/团购/保修分类切换 (高阶滑动拦截器)
+                  Scroll(this.tabScroller) {
+                    Stack({ alignContent: Alignment.TopStart }) {
+                      // 1. 滑动胶囊指示器 (底层)
+                      if (this.indicatorWidth > 0) {
+                        Column()
+                          .width(this.indicatorWidth)
+                          .height(28)
+                          .borderRadius(14)
+                          .linearGradient(this.isNewYearTheme ? {
+                            angle: 135,
+                            colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
+                          } : (this.showVipTheme ? {
+                            angle: 135,
+                            colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
+                          } : {
+                            angle: 0,
+                            colors: [[$r('app.color.brand_color'), 0.0], [$r('app.color.brand_color'), 1.0]]
+                          }))
+                          .position({ x: this.indicatorX, y: 0 })
+                          .shadow(this.showVipTheme || this.isNewYearTheme ? {
+                            radius: 10,
+                            color: 'rgba(0,0,0,0.1)',
+                            offsetX: 0,
+                            offsetY: 2
+                          } : undefined)
+                      }
+
+                      // 2. 文字选项层 (顶层)
+                      Row({ space: 8 }) {
+                        ForEach(this.categories, (item: TabCategory) => {
+                          Text(item.name)
+                            .fontSize(14)
+                            .fontWeight(this.currentTab === item.id ? FontWeight.Bold : FontWeight.Normal)
+                            .fontColor(this.currentTab === item.id ?
+                              (this.isNewYearTheme ? '#FFD700' :
+                                (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
+                              $r('app.color.text_secondary'))
+                            .padding({ left: 16, right: 16, top: 4, bottom: 4 })
+                            .onAreaChange((oldValue: Area, newValue: Area) => {
+                              // 精确记录该分类项的 x 坐标和宽度
+                              const x = newValue.position.x as number;
+                              const w = newValue.width as number;
+                              this.tabAreaMap.set(item.id, { x: x, width: w });
+                              
+                              // 初始化时设置默认指示器位置
+                              if (this.currentTab === item.id && this.indicatorWidth === 0) {
+                                this.indicatorX = x;
+                                this.indicatorWidth = w;
+                              }
+                            })
+                            .onClick(() => {
+                              if (this.currentTab !== item.id) {
+                                animateTo({ duration: 300, curve: Curve.EaseInOut }, () => {
+                                  this.currentTab = item.id as 'all' | 'subscription' | 'groupBuy' | 'warranty';
+                                });
+                                this.updateIndicator(item.id);
+                                this.centerSelectedTab(item.id);
+                              }
+                            })
+                        }, (item: TabCategory) => item.id)
+                      }
+                      .height(28)
+                    }
+                    .padding(4)
+                  }
+                  .scrollable(ScrollDirection.Horizontal)
+                   .scrollBar(BarState.Off)
+                   .edgeEffect(EdgeEffect.Spring) // 弹性滑动手感更好
+                   .margin({ right: 12 })
+
                   Blank()
 
                   // Sort Menu

@@ -182,6 +182,7 @@ export struct AddSubscription {
     this.ocrLifetimePrice = '';
     this.paymentMethod = '其他支付方式';
     this.quantity = 1;
+    this.isAutoRenewal = (this.recordType === 'subscription'); // 团购/保修默认不开启自动续费
     this.usageStatus = 'unused';
     this.realUsageTime = undefined;
     // 保修/保质期字段
@@ -2061,6 +2062,14 @@ export struct AddSubscription {
                         TextPickerDialog.show({
                           range: this.reminderDaysOptions,
                           selected: this.reminderDaysOptions.indexOf(this.reminderDaysBefore.toString()),
+                          selectedTextStyle: {
+                            color: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                              (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                          },
+                          acceptButtonStyle: {
+                            fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                              (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                          },
                           onAccept: (value: TextPickerResult) => {
                             this.reminderDaysBefore = parseInt(value.value as string);
                           }
@@ -2106,6 +2115,14 @@ export struct AddSubscription {
 
                         TimePickerDialog.show({
                           selected: selectedDate,
+                          selectedTextStyle: {
+                            color: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                              (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                          },
+                          acceptButtonStyle: {
+                            fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                              (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                          },
                           onAccept: (value: TimePickerResult) => {
                             const h = value.hour.toString().padStart(2, '0');
                             const m = value.minute.toString().padStart(2, '0');
@@ -2131,15 +2148,9 @@ export struct AddSubscription {
             .opacity(this.animStep2 ? 1 : 0)
             .translate({ y: this.animStep2 ? 0 : 20 })
             .margin({ bottom: 32 })
-            .visualEffect(new hdsEffect.HdsEffectBuilder()
-              .pointLight({
-                sourceType: (this.isAnimationEnabled && this.isPointLightEnabled &&
-                  (this.isMerchantPressed || this.isCouponPressed || this.isPlatformPressed ||
-                  this.isNamePressed)) ? hdsEffect.PointLightSourceType.BRIGHT :
-                  hdsEffect.PointLightSourceType.NONE,
-                illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-              })
-              .buildEffect())
+            .borderRadius(24)
+            .shadow({ radius: 20, color: '#08000000', offsetY: 4 })
+            .width('90%')
             .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).animation({
               duration: this.isAnimationEnabled ? undefined : 0,
               curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) :
@@ -2678,6 +2689,14 @@ export struct AddSubscription {
                         TextPickerDialog.show({
                           range: this.reminderDaysOptions,
                           selected: this.reminderDaysOptions.indexOf(this.reminderDaysBefore.toString()),
+                          selectedTextStyle: {
+                            color: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                              (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                          },
+                          acceptButtonStyle: {
+                            fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                              (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                          },
                           onAccept: (value: TextPickerResult) => {
                             this.reminderDaysBefore = parseInt(value.value as string);
                           }
@@ -2726,6 +2745,14 @@ export struct AddSubscription {
 
                         TimePickerDialog.show({
                           selected: selectedDate,
+                          selectedTextStyle: {
+                            color: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                              (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                          },
+                          acceptButtonStyle: {
+                            fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                              (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                          },
                           onAccept: (value: TimePickerResult) => {
                             const h = value.hour.toString().padStart(2, '0');
                             const m = value.minute.toString().padStart(2, '0');
@@ -2775,11 +2802,11 @@ export struct AddSubscription {
                   // 编辑提示角标 - 移至左下角或右上角，避免与右下角的团购标识重合
                   Stack({ alignContent: Alignment.Center }) {
                     Circle()
-                      .width(18)
-                      .height(18)
-                      .fill(this.isNewYearTheme ? $r('app.color.new_year_text_on_red') :
-                        (this.showVipTheme ? $r('app.color.vip_text_on_gold') : $r('app.color.brand_color')))
-                    SymbolGlyph($r('sys.symbol.pencil_line'))
+                      .width(20)
+                      .height(20)
+                      .fill(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                        (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                    SymbolGlyph($r('sys.symbol.square_and_pencil'))
                       .fontSize(10)
                       .fontColor([Color.White])
                   }
@@ -3295,19 +3322,20 @@ export struct AddSubscription {
                         }
 
                         const now = new Date();
-                        // 如果没有识别到日期，根据周期设置默认日期
-                        if (!this.ocrExpireDate && this.editId === -1) {
+                        // 如果没有识别到日期且是新建模式，且是普通订阅，据周期设置默认日期
+                        if (!this.ocrExpireDate && this.editId === -1 && this.recordType === 'subscription') {
+                          const target = new Date();
                           if (value === 'Monthly') {
-                            now.setMonth(now.getMonth() + 1);
-                            this.nextBillingDate = now;
+                            target.setMonth(target.getMonth() + 1);
+                            this.nextBillingDate = target;
                           } else if (value === 'Quarterly') {
-                            now.setMonth(now.getMonth() + 3);
-                            this.nextBillingDate = now;
+                            target.setMonth(target.getMonth() + 3);
+                            this.nextBillingDate = target;
                           } else if (value === 'Yearly') {
-                            now.setFullYear(now.getFullYear() + 1);
-                            this.nextBillingDate = now;
+                            target.setFullYear(target.getFullYear() + 1);
+                            this.nextBillingDate = target;
                           } else if (value === 'Lifetime' || value === 'Indefinite') {
-                            this.nextBillingDate = now;
+                            this.nextBillingDate = target;
                           }
                         }
 
@@ -3784,6 +3812,14 @@ export struct AddSubscription {
                           TextPickerDialog.show({
                             range: this.reminderDaysOptions,
                             selected: this.reminderDaysOptions.indexOf(this.reminderDaysBefore.toString()),
+                            selectedTextStyle: {
+                              color: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                                (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                            },
+                            acceptButtonStyle: {
+                              fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                                (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                            },
                             onAccept: (value: TextPickerResult) => {
                               this.reminderDaysBefore = parseInt(value.value as string);
                             }
@@ -3832,6 +3868,14 @@ export struct AddSubscription {
 
                           TimePickerDialog.show({
                             selected: selectedDate,
+                            selectedTextStyle: {
+                              color: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                                (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                            },
+                            acceptButtonStyle: {
+                              fontColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                                (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))
+                            },
                             onAccept: (value: TimePickerResult) => {
                               const h = value.hour.toString().padStart(2, '0');
                               const m = value.minute.toString().padStart(2, '0');
@@ -3851,17 +3895,6 @@ export struct AddSubscription {
               .padding(20)
               .backgroundColor($r('app.color.card_background'))
               .borderRadius(24)
-              .visualEffect(new hdsEffect.HdsEffectBuilder()
-                .pointLight({
-                  sourceType: (this.isAnimationEnabled && this.isPointLightEnabled &&
-                    (this.isCategoryPressed || this.isDatePressed || this.isReminderDaysPressed ||
-                    this.isReminderTimePressed || this.pressedCycleValue !== '' || this.isDeletePressed ||
-                    this.isCancelPressed || this.isSavePressed)) ? hdsEffect.PointLightSourceType.BRIGHT :
-                    hdsEffect.PointLightSourceType.NONE,
-                  illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-                })
-                .buildEffect())
-
               .width('90%')
               .shadow({ radius: 20, color: '#08000000', offsetY: 4 })
             }
@@ -4155,8 +4188,8 @@ export struct AddSubscription {
         avoidLayoutSafeArea: true,
         content: {
           title: {
-            mainTitle: this.editId !== -1 ? (this.recordType === 'groupBuy' ? "编辑团购" : "编辑服务") :
-              (this.recordType === 'groupBuy' ? "添加团购" : "添加服务")
+            mainTitle: this.editId !== -1 ? (this.recordType === 'groupBuy' ? "编辑团购" : (this.recordType === 'warranty' ? "编辑保修" : "编辑服务")) :
+              (this.recordType === 'groupBuy' ? "添加团购" : (this.recordType === 'warranty' ? "添加保修" : "添加服务"))
           },
           menu: {
             value: [
@@ -5035,6 +5068,11 @@ export struct AddSubscription {
                this.nextBillingDate = new Date(result.date);
                this.ocrExpireDate = DateUtil.formatDate(this.nextBillingDate);
                this.startDate = new Date();
+            } else {
+               // 团购券未识别到日期时，保持今日，不自动加一个月
+               this.nextBillingDate = new Date();
+               this.startDate = new Date();
+               this.ocrExpireDate = '';
             }
             return; // Skip subscription logic
          }
@@ -5213,11 +5251,14 @@ export struct AddSubscription {
     else if (cycle === 'Quarterly') current = DateUtil.safeSubtractMonth(current, 3);
     else if (cycle === 'Yearly') current = DateUtil.safeSubtractYear(current, 1);
     else {
-      // Lifetime/Warranty：到期日前推一年，若推算结果仍在今天之后（保修期超过一年），则用今天
-      const oneYearBefore = DateUtil.safeSubtractYear(new Date(endDate), 1);
+      // Lifetime/Warranty/GroupBuy：如果没有计费周期，默认开始日期为今天
+      // 除非到期日已经在过去，则设为到期日
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      return oneYearBefore <= today ? oneYearBefore : today;
+      const end = new Date(endDate);
+      end.setHours(0, 0, 0, 0);
+      
+      return end < today ? new Date(end) : new Date(today);
     }
 
     // 持续回溯：只要当前计算出的开始日期还在未来，就继续往前推

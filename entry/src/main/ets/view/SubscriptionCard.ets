@@ -203,7 +203,7 @@ export struct SubscriptionCard {
                   if (this.data.recordType === 'groupBuy') {
                     // 团购券状态显示
                     Text(this.data.usageStatus === 'used' ? '已使用' : this.data.usageStatus === 'expired' ? '已过期' :
-                      (DateUtil.getDaysUntil(this.data.nextBillingDate) === 0 ? '今日到期' : `剩 ${DateUtil.getDaysUntil(this.data.nextBillingDate)} 天`))
+                      (DateUtil.getDaysUntil(this.data.nextBillingDate) < 0 ? '已过期' : (DateUtil.getDaysUntil(this.data.nextBillingDate) === 0 ? '今日到期' : `剩 ${DateUtil.getDaysUntil(this.data.nextBillingDate)} 天`)))
                       .fontSize(11)
                       .fontWeight(FontWeight.Medium)
                       .fontColor(this.getUsageStatusColor())
@@ -226,7 +226,7 @@ export struct SubscriptionCard {
                         .margin({ right: 4 })
                     }
 
-                    Text(`${this.data.isAutoRenewal !== false ? '自动 · ' : ''}${DateUtil.getDaysUntil(this.data.nextBillingDate) === 0 ? '今日到期' : `剩 ${DateUtil.getDaysUntil(this.data.nextBillingDate)} 天`}`)
+                    Text(`${this.data.isAutoRenewal !== false ? '自动 · ' : ''}${DateUtil.getDaysUntil(this.data.nextBillingDate) < 0 ? '已过期' : (DateUtil.getDaysUntil(this.data.nextBillingDate) === 0 ? '今日到期' : `剩 ${DateUtil.getDaysUntil(this.data.nextBillingDate)} 天`)}`)
                       .fontSize(11)
                       .fontWeight(FontWeight.Medium)
                       .fontColor(DateUtil.getDaysUntil(this.data.nextBillingDate) <= 3

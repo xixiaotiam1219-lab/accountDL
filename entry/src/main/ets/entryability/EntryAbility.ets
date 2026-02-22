@@ -1,4 +1,4 @@
-import { AbilityConstant, ConfigurationConstant, UIAbility, Want, Configuration } from '@kit.AbilityKit';
+import { AbilityConstant, ConfigurationConstant, UIAbility, Want, Configuration, common } from '@kit.AbilityKit';
 import { commonEventManager } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window, display, promptAction } from '@kit.ArkUI';
@@ -23,7 +23,6 @@ import { util, url } from '@kit.ArkTS';
 import { WARRANTY_ICON_MAP_NAMES, WARRANTY_THEME_MAP, getWarrantyThemeColors } from '../utils/WarrantyConstants';
 
 const DOMAIN = 0x0000;
-
 export default class EntryAbility extends UIAbility {
   private commonSubscribers: commonEventManager.CommonEventSubscriber[] = [];
   private pendingImportWant: Want | null = null;
@@ -38,6 +37,8 @@ export default class EntryAbility extends UIAbility {
 
     // Initialize Navigation Stack globally
     AppStorage.setOrCreate('pageStack', new NavPathStack());
+    AppStorage.setOrCreate('tabBarVisible', true); // 默认显示
+    AppStorage.setOrCreate('currentIndex', 0); // 默认首页
 
     // Initialize PreferenceUtil and Load Session
     PreferenceUtil.getInstance().loadPreference(this.context).then(() => {
@@ -58,9 +59,19 @@ export default class EntryAbility extends UIAbility {
         if (isLoggedIn) {
           hilog.info(DOMAIN, 'testTag', 'User logged in, checking account status and triggering auto-sync on launch');
 
+          PreferenceUtil.getInstance().get('lastLoginTime', 0).then((time: Object) => {
+            hilog.info(DOMAIN, 'testTag', `User logged in, last login: ${time as number}`);
+          });
+
           // 校验系统华为账号状态
           AccountMonitor.getInstance().checkAccountStatusOnLaunch().then(() => {
-            // Local logic only
+            // 尝试静默登录以刷新 Session 和 Token
+            HuaweiAuthManager.getInstance().login(true).then(() => {
+              SubscriptionRepository.getInstance().syncWithCloud();
+            }).catch((err: BusinessError) => {
+              // 仅记录日志，不打扰用户
+              hilog.warn(DOMAIN, 'testTag', `Silent login failed on launch: ${err.message}`);
+            });
           });
         }
 
@@ -107,6 +118,7 @@ export default class EntryAbility extends UIAbility {
       PreferenceUtil.getInstance().loadWatermarkOffset();
       PreferenceUtil.getInstance().loadSmartGestureEnabled(); // Async load
       PreferenceUtil.getInstance().loadAppLockSettingsSync(this.context);
+      PreferenceUtil.getInstance().loadNewYearWatermarkEnabled();
     });
 
     // Starters
@@ -479,7 +491,7 @@ export default class EntryAbility extends UIAbility {
           cardItem.isLifetime = isLifetime;
 
           if (isGroupBuy) {
-            const statusText: string = item.usageStatus === 'used' ? '已使用' : (item.usageStatus === 'expired' ? '已过期' : `剩 ${DateUtil.getDaysUntil(item.nextBillingDate)} 天`);
+            const statusText: string = item.usageStatus === 'used' ? '已使用' : (item.usageStatus === 'expired' ? '已过期' : (DateUtil.getDaysUntil(item.nextBillingDate) < 0 ? '已过期' : `剩 ${DateUtil.getDaysUntil(item.nextBillingDate)} 天`));
             cardItem.content = item.merchantName ? `${item.merchantName} | ${statusText}` : statusText;
           } else if (isWarranty) {
             const days = DateUtil.getDaysUntil(item.nextBillingDate);
@@ -608,6 +620,60 @@ export default class EntryAbility extends UIAbility {
     // 关键修正：同步加载 HDS Tabs 状态 (API 23 Features)
     PreferenceUtil.getInstance().loadHdsTabsEnabledSync(this.context);
 
+    // 设置窗口全屏布局（底部沉浸式需要此设置）
+    let windowClass: window.Window = windowStage.getMainWindowSync();
+    let isLayoutFullScreen = true;
+    windowClass.setWindowLayoutFullScreen(isLayoutFullScreen).then(() => {
+      hilog.info(DOMAIN, 'testTag', 'Succeeded in setting the window layout to full-screen mode.');
+
+      // 获取顶部状态栏高度（用于UI避让）
+      let topType = window.AvoidAreaType.TYPE_SYSTEM;
+      let topAvoidArea = windowClass.getWindowAvoidArea(topType);
+      let topRectHeight = topAvoidArea.topRect.height;
+      AppStorage.setOrCreate('topRectHeight', topRectHeight);
+      AppStorage.setOrCreate('statusBarHeight', topRectHeight);
+      hilog.info(DOMAIN, 'testTag', `Top status bar height: ${topRectHeight}px`);
+
+      // 预计算 isWide 状态，防止启动时的布局跳变
+      try {
+        const displayClass = display.getDefaultDisplaySync();
+        // 修正：使用 getWindowProperties().windowRect.width 计算宽度
+        // 注意：display.getDefaultDisplaySync() 获取的是物理屏幕信息，densityPixels 是屏幕密度
+        // windowRect.width 是 px 单位，需要除以 densityPixels 转换为 vp
+        // 但是 getWindowProperties().windowRect.width 也是 px
+        // 此处逻辑需确保单位转换正确
+        const widthVp = windowClass.getWindowProperties().windowRect.width / displayClass.densityPixels;
+        const isWide = widthVp >= 600;
+        AppStorage.setOrCreate('isWide', isWide);
+        hilog.info(DOMAIN, 'testTag', `Pre-calculated isWide: ${isWide} (widthVp: ${widthVp})`);
+      } catch (e) {
+        hilog.error(DOMAIN, 'testTag', `Failed to calculate isWide: ${e}`);
+      }
+
+      // 获取底部导航区域高度
+      let bottomType = window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR;
+      let bottomAvoidArea = windowClass.getWindowAvoidArea(bottomType);
+      let bottomRectHeight = bottomAvoidArea.bottomRect.height;
+      AppStorage.setOrCreate('bottomRectHeight', bottomRectHeight);
+      hilog.info(DOMAIN, 'testTag', `Bottom navigation indicator height: ${bottomRectHeight}px`);
+
+      // 注册监听函数，动态获取避让区域数据
+      windowClass.on('avoidAreaChange', (data) => {
+        if (data.type === window.AvoidAreaType.TYPE_SYSTEM) {
+          let topRectHeight = data.area.topRect.height;
+          AppStorage.setOrCreate('topRectHeight', topRectHeight);
+          AppStorage.setOrCreate('statusBarHeight', topRectHeight);
+          hilog.info(DOMAIN, 'testTag', `Top avoid area changed: ${topRectHeight}px`);
+        } else if (data.type == window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR) {
+          let bottomRectHeight = data.area.bottomRect.height;
+          AppStorage.setOrCreate('bottomRectHeight', bottomRectHeight);
+          hilog.info(DOMAIN, 'testTag', `Bottom avoid area changed: ${bottomRectHeight}px`);
+        }
+      });
+    }).catch((err: BusinessError) => {
+      hilog.error(DOMAIN, 'testTag', `Failed to set the window layout to full-screen mode. Code is ${err.code}, message is ${err.message}`);
+    });
+
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {
         hilog.error(DOMAIN, 'testTag', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
@@ -615,60 +681,16 @@ export default class EntryAbility extends UIAbility {
       }
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
 
+      // Check for updates silently
+      setTimeout(() => {
+        UpdateManager.getInstance().checkUpdate(this.context as common.UIAbilityContext, true);
+      }, 2000); // Delay check to prioritize startup rendering
+
       // 延迟处理导入数据，确保 promptAction 弹出层可用
       if (this.pendingImportWant) {
         this.handleImportFile(this.pendingImportWant);
         this.pendingImportWant = null; // 处理完即清空
       }
-
-      // 设置窗口全屏布局（底部沉浸式需要此设置）
-      let windowClass: window.Window = windowStage.getMainWindowSync();
-      let isLayoutFullScreen = true;
-      windowClass.setWindowLayoutFullScreen(isLayoutFullScreen).then(() => {
-        hilog.info(DOMAIN, 'testTag', 'Succeeded in setting the window layout to full-screen mode.');
-
-        // 获取顶部状态栏高度（用于UI避让）
-        let topType = window.AvoidAreaType.TYPE_SYSTEM;
-        let topAvoidArea = windowClass.getWindowAvoidArea(topType);
-        let topRectHeight = topAvoidArea.topRect.height;
-        AppStorage.setOrCreate('topRectHeight', topRectHeight);
-        AppStorage.setOrCreate('statusBarHeight', topRectHeight);
-        hilog.info(DOMAIN, 'testTag', `Top status bar height: ${topRectHeight}px`);
-
-        // 预计算 isWide 状态，防止启动时的布局跳变
-        try {
-          const displayClass = display.getDefaultDisplaySync();
-          const widthVp = windowClass.getWindowProperties().windowRect.width / displayClass.densityPixels;
-          const isWide = widthVp >= 600;
-          AppStorage.setOrCreate('isWide', isWide);
-          hilog.info(DOMAIN, 'testTag', `Pre-calculated isWide: ${isWide} (widthVp: ${widthVp})`);
-        } catch (e) {
-          hilog.error(DOMAIN, 'testTag', `Failed to calculate isWide: ${e}`);
-        }
-
-        // 获取底部导航区域高度
-        let bottomType = window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR;
-        let bottomAvoidArea = windowClass.getWindowAvoidArea(bottomType);
-        let bottomRectHeight = bottomAvoidArea.bottomRect.height;
-        AppStorage.setOrCreate('bottomRectHeight', bottomRectHeight);
-        hilog.info(DOMAIN, 'testTag', `Bottom navigation indicator height: ${bottomRectHeight}px`);
-
-        // 注册监听函数，动态获取避让区域数据
-        windowClass.on('avoidAreaChange', (data) => {
-          if (data.type === window.AvoidAreaType.TYPE_SYSTEM) {
-            let topRectHeight = data.area.topRect.height;
-            AppStorage.setOrCreate('topRectHeight', topRectHeight);
-            AppStorage.setOrCreate('statusBarHeight', topRectHeight);
-            hilog.info(DOMAIN, 'testTag', `Top avoid area changed: ${topRectHeight}px`);
-          } else if (data.type == window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR) {
-            let bottomRectHeight = data.area.bottomRect.height;
-            AppStorage.setOrCreate('bottomRectHeight', bottomRectHeight);
-            hilog.info(DOMAIN, 'testTag', `Bottom avoid area changed: ${bottomRectHeight}px`);
-          }
-        });
-      }).catch((err: BusinessError) => {
-        hilog.error(DOMAIN, 'testTag', `Failed to set the window layout to full-screen mode. Code is ${err.code}, message is ${err.message}`);
-      });
 
       // 请求通知授权
       notificationManager.requestEnableNotification(this.context).then(() => {

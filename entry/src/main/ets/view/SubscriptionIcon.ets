@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { resolveIcon } from '../utils/MemberServiceConfig';
 import { WARRANTY_THEME_MAP, WarrantyColorTheme, getWarrantyThemeColors } from '../utils/WarrantyConstants';
+import { LocalIconManager } from '../utils/LocalIconManager';
 
 @Component
 export struct SubscriptionIcon {
@@ -21,15 +22,17 @@ export struct SubscriptionIcon {
   // State to handle resource resolution status
   @State resolvedResource: Resource | null = null;
   @State isResourceResolved: boolean = false;
+  @State resolvedBuiltinPath: string = '';
 
   aboutToAppear() {
     this.onIconChange();
   }
 
-  onIconChange() {
+  async onIconChange() {
     this.loadFailed = false;
     this.isResourceResolved = false;
     this.resolvedResource = null;
+    this.resolvedBuiltinPath = '';
 
     if (this.icon && (this.icon.startsWith('resource:') || this.icon.startsWith('warranty_icon:'))) {
       const result = resolveIcon(this.icon);
@@ -37,6 +40,24 @@ export struct SubscriptionIcon {
       if (typeof result !== 'string') {
         this.resolvedResource = result;
         this.isResourceResolved = true;
+      }
+    } else if (this.icon && this.icon.startsWith('builtin://')) {
+      const appName = this.icon.substring(10).replace('.png', '');
+      let appInfo = await LocalIconManager.getInstance().getAppInfo(appName);
+      
+      // If exact match fails for builtin parsing, fall back to fuzzy search
+      if (!appInfo) {
+        const fuzzyResults = await LocalIconManager.getInstance().searchApps(appName, 1);
+        if (fuzzyResults && fuzzyResults.length > 0) {
+          appInfo = fuzzyResults[0];
+        }
+      }
+
+      if (appInfo && appInfo.icon) {
+        this.resolvedBuiltinPath = appInfo.icon;
+        this.loadFailed = false; // 重置错误状态以触发重绘
+      } else {
+        this.loadFailed = true;
       }
     }
   }
@@ -58,9 +79,7 @@ export struct SubscriptionIcon {
     if (!this.icon) return '';
     
     if (this.icon.startsWith('builtin://')) {
-      const filename = this.icon.substring(10); // "builtin://".length
-      const context = getContext(this) as common.UIAbilityContext;
-      return `file://${context.filesDir}/local_icons/${filename}`;
+      return this.resolvedBuiltinPath; // Use the dynamically retrieved path from LocalIconManager
     }
     
     // 如果是 file://, http://, data: 等原生支持的路径，直接返回
@@ -95,7 +114,8 @@ export struct SubscriptionIcon {
         } else if (this.icon) {
           if (this.icon.startsWith('file://') || this.icon.startsWith('http') || this.icon.startsWith('data:') || this.icon.startsWith('builtin://')) {
             // Image Type (Local File, Network, or Builtin Preview)
-            if (!this.loadFailed) {
+            // 只有当非 builtin，或者 builtin 且已解析出真实路径时，才渲染 Image 组件，防止触发空 url 报错
+            if (!this.loadFailed && (!this.icon.startsWith('builtin://') || this.resolvedBuiltinPath)) {
               Image(this.getDisplayIcon())
                 .width('102%') // Slightly scale up
                 .height('102%')

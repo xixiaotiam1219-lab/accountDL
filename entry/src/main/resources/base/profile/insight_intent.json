@@ -47,6 +47,20 @@
                 {
                     "name": "purchaseDate",
                     "type": "string"
+                },
+                {
+                    "name": "isAutoRenewal",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
                 }
             ]
         },
@@ -110,6 +124,16 @@
                     "name": "quantity",
                     "type": "string"
                 }
+            ],
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
+                }
             ]
         },
         {
@@ -156,6 +180,16 @@
                     "name": "category",
                     "type": "string"
                 }
+            ],
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
+                }
             ]
         },
         {
@@ -166,7 +200,7 @@
             "uiAbility": {
                 "ability": "EntryAbility",
                 "executeMode": [
-                    "foreground"
+                    "background"
                 ]
             },
             "inputParams": [
@@ -177,24 +211,24 @@
                 {
                     "name": "timeRange",
                     "type": "string"
+                },
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "brand",
+                    "type": "string"
                 }
             ],
             "outputParams": [
                 {
-                    "name": "resultText",
-                    "type": "string"
-                },
-                {
-                    "name": "count",
+                    "name": "code",
                     "type": "number"
                 },
                 {
-                    "name": "totalAmount",
-                    "type": "string"
-                },
-                {
-                    "name": "records",
-                    "type": "string"
+                    "name": "result",
+                    "type": "object"
                 }
             ]
         },
@@ -206,21 +240,23 @@
             "uiAbility": {
                 "ability": "EntryAbility",
                 "executeMode": [
-                    "foreground"
+                    "background"
                 ]
             },
+            "inputParams": [
+                {
+                    "name": "timeRange",
+                    "type": "string"
+                }
+            ],
             "outputParams": [
                 {
-                    "name": "resultText",
-                    "type": "string"
-                },
-                {
-                    "name": "count",
+                    "name": "code",
                     "type": "number"
                 },
                 {
-                    "name": "items",
-                    "type": "string"
+                    "name": "result",
+                    "type": "object"
                 }
             ]
         },
@@ -232,7 +268,7 @@
             "uiAbility": {
                 "ability": "EntryAbility",
                 "executeMode": [
-                    "foreground"
+                    "background"
                 ]
             },
             "inputParams": [
@@ -247,8 +283,12 @@
             ],
             "outputParams": [
                 {
-                    "name": "resultText",
-                    "type": "string"
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
                 }
             ]
         },
@@ -260,7 +300,7 @@
             "uiAbility": {
                 "ability": "EntryAbility",
                 "executeMode": [
-                    "foreground"
+                    "background"
                 ]
             },
             "inputParams": [
@@ -271,8 +311,12 @@
             ],
             "outputParams": [
                 {
-                    "name": "resultText",
-                    "type": "string"
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
                 }
             ]
         },
@@ -284,19 +328,55 @@
             "uiAbility": {
                 "ability": "EntryAbility",
                 "executeMode": [
-                    "foreground"
+                    "background"
                 ]
             },
             "inputParams": [
                 {
                     "name": "productName",
                     "type": "string"
+                },
+                {
+                    "name": "timeRange",
+                    "type": "string"
                 }
             ],
             "outputParams": [
                 {
-                    "name": "resultText",
-                    "type": "string"
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
+                }
+            ]
+        },
+        {
+            "intentName": "CheckLogin",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object",
+                    "property": [
+                        {
+                            "name": "resultCode",
+                            "type": "boolean"
+                        }
+                    ]
                 }
             ]
         }

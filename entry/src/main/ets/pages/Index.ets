@@ -1,5 +1,6 @@
 import { PasswordLockPage } from '../view/PasswordLockPage';
 import { HomeView } from '../view/HomeView';
+import { SubscriptionDetailOverlay } from '../view/SubscriptionDetailOverlay';
 import { SettingsView } from '../view/SettingsView';
 import { StatsView } from '../view/StatsView';
 import { CalendarView } from '../view/CalendarView';
@@ -10,10 +11,12 @@ import { HuaweiAuthManager } from '../utils/HuaweiAuthManager';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
 import { display, mediaquery, promptAction, curves } from '@kit.ArkUI';
 import { UpdateManager } from '../utils/UpdateManager';
-import { hdsEffect, HdsNavigation, HdsNavigationTitleBarOptions, HdsNavigationMenuItemOptions, HdsNavigationTitleMode, HdsNavigationAttribute,
-  HdsTabs } from '@kit.UIDesignKit';
-import { SubscriptionDetailOverlay } from '../view/SubscriptionDetailOverlay';
-import { QueryResultsOverlay } from '../view/QueryResultsOverlay';
+import { hdsEffect, hdsMaterial, HdsNavigation, HdsNavigationTitleBarOptions, HdsNavigationMenuItemOptions, HdsNavigationTitleMode, HdsNavigationAttribute,
+  HdsTabs,
+  HdsTabsController,
+  HdsTabsAttribute,
+  HdsBarStyle,
+  bleedIconStyle } from '@kit.UIDesignKit';
 import { SubscriptionModel } from '../model/SubscriptionModel';
 import { preferences } from '@kit.ArkData';
 import { PreferenceUtil, MembershipInfo } from '../utils/PreferenceUtil';
@@ -26,6 +29,7 @@ import { window } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { WebViewParam } from '../view/WebViewPage';
 import { AddMenuSheet } from '../view/AddMenuSheet';
+import { commonEventManager, deviceInfo } from '@kit.BasicServicesKit';
 
 interface Scale {
   x: number;
@@ -49,20 +53,65 @@ struct Index {
   @StorageLink('isNewYearTheme') isNewYearTheme: boolean = false;
   @StorageLink('currentColorMode') @Watch('onConfigChange') currentColorMode: number = 0;
   private listener = mediaquery.matchMediaSync('(width >= 600vp)');
-  @State currentIndex: number = 0;
+  // Track the current tab mode (4 tabs or 5 tabs) to handle transitions
+  private is4Tabs: boolean = true;
+
+  @StorageLink('currentIndex') currentIndex: number = 0;
   @State showLoginSheet: boolean = false;
-  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
+  @StorageLink('isHdsTabsEnabled') @Watch('onHdsTabsChange') isHdsTabsEnabled: boolean = true;
   @StorageLink('targetAction') @Watch('onTargetActionChange') targetAction: string = '';
-  @State tabBarVisible: boolean = true; // Tab 栏可见性
-  @StorageLink('animationDuration') animationDuration: number = 300;
+  @StorageLink('hdsTabLightSource') hdsTabLightSource: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.BRIGHT;
+
+  onTabBarVisibleChange() {
+    if (this.isPointLightEnabled) {
+      if (this.tabBarVisible) {
+        animateTo({ duration: 400, curve: Curve.FastOutSlowIn }, () => {
+          this.hdsTabLightSource = hdsEffect.PointLightSourceType.BRIGHT;
+          // 移除 addButtonLightSource，保持加号按钮初始熄灭
+        });
+      } else {
+        animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
+          this.hdsTabLightSource = hdsEffect.PointLightSourceType.NONE;
+          this.addButtonLightSource = hdsEffect.PointLightSourceType.NONE;
+        });
+      }
+    } else {
+      this.hdsTabLightSource = hdsEffect.PointLightSourceType.NONE;
+      this.addButtonLightSource = hdsEffect.PointLightSourceType.NONE;
+    }
+  }
+
+  onHdsTabsChange() {
+    // Re-sync currentIndex when HdsTabs toggle changes to avoid index mismatch
+    // HdsTabs uses 5 tabs when split view is disabled (index 2 is Add)
+    // Regular Tabs uses 4 tabs (Add is floating)
+    // IMPORTANT: Wait for next tick to ensure state is stable before switching index
+    setTimeout(() => {
+      if (this.isHdsTabsEnabled) {
+        // Switching TO HdsTabs
+        // Let checkTabModeTransition handle the logic and state update based on current layout
+        this.checkTabModeTransition();
+      } else {
+        // Switching FROM HdsTabs TO CustomTabs (always 4 tabs)
+        // If we were in 5-tabs mode, we need to adjust 5 -> 4
+        if (!this.is4Tabs) {
+           if (this.currentIndex === 3) this.currentIndex = 2;
+           else if (this.currentIndex === 4) this.currentIndex = 3;
+           this.is4Tabs = true;
+        }
+      }
+    }, 0);
+  }
+  @StorageLink('tabBarVisible') @Watch('onTabBarVisibleChange') tabBarVisible: boolean = true; // Tab 栏可见性
+  @StorageLink('animationDuration') animationDuration: number = 0;
+
   @StorageLink('animationResponse') animationResponse: number = 0.6;
   @StorageLink('animationDamping') animationDamping: number = 0.5;
   @StorageLink('isAnimationEnabled') isAnimationEnabled: boolean = true;
-  @StorageLink('isPointLightEnabled') isPointLightEnabled: boolean = true;
+  @StorageLink('isPointLightEnabled') @Watch('onTabBarVisibleChange') isPointLightEnabled: boolean = true;
 
   // 全局详情页状态
   @StorageLink('isDetailVisible') isDetailVisible: boolean = false;
-  @StorageLink('isQueryResultsVisible') isQueryResultsVisible: boolean = false;
   @StorageLink('detailSubscriptionData') detailData: SubscriptionModel | undefined = undefined;
   @StorageLink('isSplitViewEnabled') @Watch('onSplitViewChange') isSplitViewEnabled: boolean = false;
   @State placeholderOpacity: number = 0;
@@ -79,6 +128,7 @@ struct Index {
   @State showImportSheet: boolean = false;
   @State localImportSubs: SubscriptionModel[] = [];
   @State isInternalRedirect: boolean = false; // 标记是否为内部跳转，防止 onChange 误关闭详情页
+  @State hdsBarStyle: HdsBarStyle = HdsBarStyle.COLLAPSE; // HdsTabs 状态：展开或折叠
 
   // 标题栏状态
   @State rotateAngle: number = 0;
@@ -116,20 +166,8 @@ struct Index {
 
           // 1. 切换 Tab 和清空堆栈
           if (this.currentIndex !== 0) {
-            if (this.isAnimationEnabled) {
-              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
-                this.currentIndex = 0;
-                this.indicatorScale = { x: 1.25, y: 0.8 } as Scale;
-              })
-              setTimeout(() => {
-                animateTo({ duration: 400, curve: curves.springMotion() }, () => {
-                  this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
-                })
-              }, 150)
-            } else {
-              this.currentIndex = 0;
-              this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
-            }
+            this.currentIndex = 0;
+            this.indicatorScale = { x: 1.0, y: 1.0 } as Scale;
             this.tabsController.changeIndex(0);
           }
           if (this.pageStack.size() > 0) {
@@ -210,14 +248,17 @@ struct Index {
         AppStorage.setOrCreate('isWide', this.isWide);
       }
 
-      // 优化：不再使用异步 load，直接从 AppStorage 获取或同步判定
+      // 优化：不再使用异步 load，直接从 AppStorage 获取
       // EntryAbility 已经同步 load 过 preference 到 AppStorage 了
-      const prefEnabled = AppStorage.get<boolean>('isSplitViewEnabled') ?? false;
+      let prefEnabled = AppStorage.get<boolean>('isSplitViewEnabled');
+      
+      // Fallback to false if still undefined
+      const isSplitEnabled = prefEnabled ?? false;
 
       if (this.isWide) {
-        if (prefEnabled && !this.isSplitViewEnabled) {
+        if (isSplitEnabled && !this.isSplitViewEnabled) {
           this.isSplitViewEnabled = true;
-        } else if (!prefEnabled && this.isSplitViewEnabled) {
+        } else if (!isSplitEnabled && this.isSplitViewEnabled) {
           this.isSplitViewEnabled = false;
         }
       } else {
@@ -228,6 +269,7 @@ struct Index {
 
       // 状态同步后，立即刷新占位图可见性
       this.updatePlaceholderVisibility();
+      this.checkTabModeTransition();
     } catch (e) {
       hilog.error(0x0000, 'Index', `refreshWideStatus failed: ${JSON.stringify(e)}`);
     }
@@ -240,18 +282,9 @@ struct Index {
   }
 
   aboutToAppear() {
-    // Check App Lock - 修正：优先使用 AppStorage 同步获取的状态，防止异步加载导致的启动跳变
+    // Check App Lock - 修正：优先使用 AppStorage 同步获取的状态，全局配置已在 EntryAbility 中读取
     const hasLock = AppStorage.get<boolean>('hasAppLock');
-    if (hasLock !== undefined) {
-      this.isLocked = hasLock;
-    } else {
-      // Fallback: 兜底异步加载
-      PreferenceUtil.getInstance().getAppLockPassword().then(password => {
-        if (password) {
-          this.isLocked = true;
-        }
-      });
-    }
+    this.isLocked = hasLock ?? false;
 
     // Initialize pageStack handle for others
     if (!AppStorage.get<NavPathStack>('pageStack')) {
@@ -269,30 +302,23 @@ struct Index {
       windowClass.on('windowSizeChange', (size: window.Size) => {
         hilog.info(0x0000, 'Index', `windowSizeChange: ${size.width}x${size.height}`);
         this.refreshWideStatus();
+        
+        // 当屏幕尺寸发生变化（如展开/折叠）时，强制重新读取一次平行视界配置
+        // 确保配置能及时生效，而不需要点击触发
+        PreferenceUtil.getInstance().loadSplitViewEnabled().then((enabled) => {
+           if (this.isWide) {
+             this.isSplitViewEnabled = enabled;
+           }
+        });
       });
     } catch (e) {}
 
     // 0. 会员状态已在 EntryAbility 中预加载，此处只需检查过期并移除遮罩
-
-    // Load Split Navigation preference
-    PreferenceUtil.getInstance().get('isWide', false).then((val: preferences.ValueType) => {
-      const isWideVal = val as boolean;
-      if (isWideVal) {
-        this.isWide = isWideVal;
-      }
-    });
+    
     // Initialize memory with saved state
     this.refreshWideStatus(); // 首次加载时同步物理状态
-    // Load New Year Watermark Preference
-    PreferenceUtil.getInstance().loadNewYearWatermarkEnabled();
-
-    this.isWide = this.listener.matches;
-    AppStorage.setOrCreate('isWide', this.isWide);
-
-    // Check for updates silently
-    setTimeout(() => {
-      UpdateManager.getInstance().checkUpdate(getContext(this) as common.UIAbilityContext, true);
-    }, 2000); // Delay check to prioritize startup rendering
+    
+    // Check for updates silently 被挪至 EntryAbility.ets
 
     // 定期检查 pageStack 大小，更新 Tab 栏可见性和占位界面
     // 注册导航拦截器，监听页面跳转
@@ -307,18 +333,7 @@ struct Index {
       this.onTargetActionChange();
     }
 
-    // 如果此前的状态是已登录，则自动尝试静默登录以刷新 Session
-    if (this.isLoggedIn) {
-      PreferenceUtil.getInstance().get('lastLoginTime', 0).then((time: Object) => {
-        hilog.info(0x0000, 'Index', `User logged in, last login: ${time as number}`);
-      });
-      HuaweiAuthManager.getInstance().login(true).then(() => {
-        SubscriptionRepository.getInstance().syncWithCloud();
-
-      }).catch((err: BusinessError) => {
-        // 仅记录日志，不打扰用户，也不退出登录（此时 AccountMonitor 已经处理过是否退出的逻辑了）
-      });
-    }
+    // 注意：原本的云端自动静默登录与数据同步逻辑，现已移动至 EntryAbility.ets 处理
 
     // Initialize Smart Gesture
     if (this.isSmartGestureEnabled) {
@@ -332,6 +347,9 @@ struct Index {
 
     // 检查协议更新
     this.checkUserAgreementUpdate();
+
+    // 初始同步一次点光源状态，防止启动时的状态真空期
+    this.onTabBarVisibleChange();
   }
 
   /**
@@ -497,26 +515,66 @@ struct Index {
     }
   }
 
-  updateTabBarVisibility() {
+  updateTabBarVisibility(): void {
     // Unified TabBar visibility logic:
     // Hide TabBar when stack is not empty, UNLESS we are in split-screen mode on a wide screen.
     setTimeout(() => {
+      let visible = true;
       if (this.isWide && this.isSplitViewEnabled) {
-        // Split-view mode: TabBar (Side Navigation) stays visible
-        this.tabBarVisible = true;
+        visible = true;
       } else {
-        // Phone mode OR Tablet without Split-view: Hide TabBar on sub-pages
-        this.tabBarVisible = this.pageStack.size() === 0;
+        visible = this.pageStack.size() === 0;
       }
+      this.tabBarVisible = visible;
     }, 0);
   }
 
-  onSplitViewChange() {
+  onSplitViewChange(): void {
     this.updatePlaceholderVisibility();
     this.updateTabBarVisibility();
+    this.checkTabModeTransition();
   }
 
-  onAddClick() {
+  checkTabModeTransition() {
+    // Only applies if HdsTabs is enabled. Custom Tabs always use 4 tabs.
+    if (!this.isHdsTabsEnabled) {
+      this.is4Tabs = true; // Reset state for custom tabs
+      return;
+    }
+    
+    // Determine current mode
+    // 4 Tabs: Split View Enabled OR Narrow Screen
+    // 5 Tabs: Split View Disabled AND Wide Screen
+    const currentIs4Tabs = this.isSplitViewEnabled || !this.isWide;
+    
+    if (this.is4Tabs !== currentIs4Tabs) {
+      hilog.info(0x0000, 'Index', `Tab Mode Transition: ${this.is4Tabs ? '4 -> 5' : '5 -> 4'}`);
+      
+      if (this.is4Tabs && !currentIs4Tabs) {
+        // 4 -> 5 Transition (Add button inserted at index 2)
+        // Original: 0, 1, 2(Stats), 3(Settings)
+        // New: 0, 1, 2(Add), 3(Stats), 4(Settings)
+        if (this.currentIndex === 2) {
+          this.currentIndex = 3;
+        } else if (this.currentIndex === 3) {
+          this.currentIndex = 4;
+        }
+      } else if (!this.is4Tabs && currentIs4Tabs) {
+        // 5 -> 4 Transition (Add button removed from index 2)
+        // Original: 0, 1, 2(Add), 3(Stats), 4(Settings)
+        // New: 0, 1, 2(Stats), 3(Settings)
+        if (this.currentIndex === 3) {
+          this.currentIndex = 2;
+        } else if (this.currentIndex === 4) {
+          this.currentIndex = 3;
+        }
+      }
+      
+      this.is4Tabs = currentIs4Tabs;
+    }
+  }
+
+  onAddClick(): void {
     if (!this.isLoggedIn) {
       if (this.isWide && this.isSplitViewEnabled) {
         this.pageStack.removeByName('Login');
@@ -533,60 +591,97 @@ struct Index {
 
   @State addButtonScale: number = 1.0;
   @State addButtonAngle: number = 0;
-  @State addButtonLightSource: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
-  private tabsController: TabsController = new TabsController();
+  @StorageLink('addButtonLightSource') addButtonLightSource: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE; // 初始为 NONE
+  private tabsController: HdsTabsController = new HdsTabsController();
 
-  @Builder TabBuilder(index: number, name: string, icon: Resource) {
-    if (index === 2) {
-      // 中间的 "添加" 按钮 (Rudder Style)
-      Column() {
-        Column() {
-          SymbolGlyph($r('sys.symbol.plus'))
-            .fontSize(28)
-            .fontWeight(FontWeight.Bold)
-            .fontColor([Color.White])
-        }
-        .width(56)
-        .height(56)
-        .borderRadius(28)
-        .backgroundColor($r('app.color.brand_color'))
-        .justifyContent(FlexAlign.Center)
-        .shadow({ radius: 10, color: '#40007AFF', offsetY: 6 })
-        .margin({ bottom: 20 }) // Make it protrude upwards
-        .scale({ x: this.addButtonScale, y: this.addButtonScale })
-        .onClick(() => {
-          animateTo({ duration: 50, curve: Curve.Sharp }, () => {
-            this.addButtonScale = 0.8;
-          });
-          setTimeout(() => {
-            animateTo({ duration: 300, curve: Curve.FastOutSlowIn }, () => {
-              this.addButtonScale = 1.0;
-            });
-            this.onAddClick();
-          }, 50);
-        })
-      }
-      .width('100%')
-      .height('100%')
-      .justifyContent(FlexAlign.End)
-      .hitTestBehavior(HitTestMode.Transparent)
-    } else {
-      // 普通 Tab - unused in custom bar but kept for reference
-      TabBarItem({
-        index: index,
-        currentIndex: this.currentIndex,
-        name: name,
-        icon: icon,
-        onSelect: () => {
-          this.currentIndex = index;
-          this.tabsController.changeIndex(index);
-        }
-      })
-    }
+  getIndicatorId(): string {
+    return 'tab_indicator_' + (this.isHdsTabsEnabled ? (this.is4Tabs ? 'hds4' : 'hds5') : 'custom');
   }
 
-  @Builder AddMenuSheetBuilder() {
+  @Builder
+  HdsTabBuilder(index: number, name: string, icon: Resource, selectedIcon?: Resource) {
+    Stack({ alignContent: Alignment.Center }) {
+      // 选中背景圈
+      if (this.currentIndex === index) {
+        Column()
+          .width(64)
+          .height(46)
+          .borderRadius(40)
+          .backgroundColor(this.isNewYearTheme ? 'rgba(230, 0, 0, 0.1)' : (this.showVipTheme ? 'rgba(255, 215, 0, 0.1)' : 'rgba(10, 89, 247, 0.1)'))
+          .visualEffect(new hdsEffect.HdsEffectBuilder()
+            .pointLight({
+              sourceType: this.hdsTabLightSource,
+              illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+            })
+            .buildEffect())
+          .geometryTransition(this.getIndicatorId())
+      }
+
+      Column() {
+        SymbolGlyph(this.currentIndex === index && selectedIcon ? selectedIcon : icon)
+          .fontSize(22)
+          .fontColor([this.currentIndex === index ? (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))) : $r('app.color.text_secondary')])
+          .fontWeight(this.currentIndex === index ? FontWeight.Bold : FontWeight.Normal)
+          .scale({ x: this.currentIndex === index ? 1.08 : 1.0, y: this.currentIndex === index ? 1.08 : 1.0 })
+          .animation({ duration: 300, curve: Curve.EaseOut })
+        Text(name)
+          .fontSize(10)
+          .margin({ top: 4 })
+          .fontColor(this.currentIndex === index ? (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))) : $r('app.color.text_secondary'))
+          .fontWeight(this.currentIndex === index ? FontWeight.Medium : FontWeight.Normal)
+          .animation({ duration: 300, curve: Curve.EaseOut })
+      }
+      .justifyContent(FlexAlign.Center)
+    }
+    .width('100%')
+    .height('100%')
+  }
+
+  // 包装构建器，解决 tabBar 传参时的语法和 Context 问题
+  @Builder TabBar0() { this.HdsTabBuilder(0, '首页', $r('sys.symbol.house'), $r('sys.symbol.house_fill')) }
+  @Builder TabBar1() { this.HdsTabBuilder(1, '日历', $r('sys.symbol.calendar'), $r('sys.symbol.calendar_fill')) }
+  @Builder TabBarStats() { this.HdsTabBuilder((this.isSplitViewEnabled || !this.isWide) ? 2 : 3, '统计', $r('sys.symbol.square_grid_2x2'), $r('sys.symbol.square_fill_grid_2x2')) }
+  @Builder TabBarSettings() { this.HdsTabBuilder((this.isSplitViewEnabled || !this.isWide) ? 3 : 4, '我的', $r('sys.symbol.person'), $r('sys.symbol.person_fill')) }
+
+  @Builder TabBarAdd() {
+    Column() {
+      Stack({ alignContent: Alignment.Center }) {
+        SymbolGlyph($r('sys.symbol.plus'))
+          .fontSize(24)
+          .fontColor([this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
+          .fontWeight(FontWeight.Bold)
+      }
+      .width(40)
+      .height(40)
+      .borderRadius(20)
+    }
+    .justifyContent(FlexAlign.Center)
+    .width('100%')
+    .height('100%')
+    .onClick(() => {
+      this.onAddClick();
+    })
+    .hitTestBehavior(HitTestMode.Block) // Block touch propagation to prevent HdsTabs switch
+  }
+
+  @Builder
+  AddMenuSheetBuilder() {
     AddMenuSheet()
+  }
+
+  @Builder
+  MiniBarBuilder() {
+    Stack({ alignContent: Alignment.Center }) {
+      SymbolGlyph($r('sys.symbol.plus'))
+        .fontSize(24)
+        .fontColor([this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
+        .fontWeight(FontWeight.Bold)
+    }
+    .width('100%')
+    .height('100%')
+    .onClick(() => {
+      this.onAddClick();
+    })
   }
 
   @Builder CustomFloatingTabBar() {
@@ -619,6 +714,7 @@ struct Index {
           currentIndex: this.currentIndex,
           name: '首页',
           icon: $r('sys.symbol.house'),
+          selectedIcon: $r('sys.symbol.house_fill'),
           indicatorScale: this.indicatorScale,
           isCompact: this.smartHandMode !== 'center',
           onSelect: () => {
@@ -645,6 +741,7 @@ struct Index {
           currentIndex: this.currentIndex,
           name: '日历',
           icon: $r('sys.symbol.calendar'),
+          selectedIcon: $r('sys.symbol.calendar_fill'),
           indicatorScale: this.indicatorScale,
           isCompact: this.smartHandMode !== 'center',
           onSelect: () => {
@@ -698,7 +795,7 @@ struct Index {
                 animateTo({ duration: 100, curve: Curve.Sharp }, () => {
                   this.addButtonScale = 0.8;
                 });
-                this.addButtonLightSource = hdsEffect.PointLightSourceType.SOFT;
+                this.addButtonLightSource = hdsEffect.PointLightSourceType.BRIGHT;
               }
             } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
               animateTo({ duration: 400, curve: Curve.Friction }, () => {
@@ -738,6 +835,7 @@ struct Index {
           currentIndex: this.currentIndex,
           name: '统计',
           icon: $r('sys.symbol.square_grid_2x2'),
+          selectedIcon: $r('sys.symbol.square_fill_grid_2x2'),
           indicatorScale: this.indicatorScale,
           isCompact: this.smartHandMode !== 'center',
           onSelect: () => {
@@ -764,6 +862,7 @@ struct Index {
           currentIndex: this.currentIndex,
           name: '我的',
           icon: $r('sys.symbol.person'),
+          selectedIcon: $r('sys.symbol.person_fill'),
           showRedDot: this.hasNewVersion,
           indicatorScale: this.indicatorScale,
           isCompact: this.smartHandMode !== 'center',
@@ -956,19 +1055,14 @@ struct Index {
       mainTitle = '我的';
     }
 
-    // Construct object step-by-step to avoid untyped object literal errors
-    let title: Record<string, Object> = { 'mainTitle': mainTitle };
-    let content: Record<string, Object> = {
-      'title': title,
-      'stackBuilder': (): void => this.TitleBarOverlayBuilder()
-    };
-    let options: Record<string, Object> = {
-      'avoidLayoutSafeArea': true,
-      'enableComponentSafeArea': false,
-      'content': content
-    };
-
-    return options as Object as HdsNavigationTitleBarOptions;
+    return {
+      avoidLayoutSafeArea: true,
+      enableComponentSafeArea: false,
+      content: {
+        title: { mainTitle: mainTitle },
+        stackBuilder: (): void => this.TitleBarOverlayBuilder()
+      }
+    } as HdsNavigationTitleBarOptions;
   }
 
   @Builder NavigationBuilder(name: string, param: Object) {
@@ -1007,28 +1101,213 @@ struct Index {
         Row() {
           // --- Main Content Area ---
           HdsNavigation(this.pageStack) {
-            Tabs({ barPosition: BarPosition.End, index: this.currentIndex, controller: this.tabsController }) {
-              TabContent() { HomeView({ isVisible: this.currentIndex === 0 }) }.tabBar(null).backgroundColor(Color.Transparent)
-              TabContent() { CalendarView({ isVisible: this.currentIndex === 1 }) }.tabBar(null).backgroundColor(Color.Transparent)
-              TabContent() { StatsView({ isVisible: this.currentIndex === 2 }) }.tabBar(null).backgroundColor(Color.Transparent)
-              TabContent() { SettingsView({ isVisible: this.currentIndex === 3 }) }.tabBar(null).backgroundColor(Color.Transparent)
-            }
-            .backgroundColor(Color.Transparent)
-            .barHeight(0)
-            .scrollable(false)
-            .onAppear(() => {
-              // 状态同步已经在 refreshWideStatus 中处理，无需在此重复异步读取
-            })
-            .animationDuration(this.animationDuration)
-            .onChange((index: number) => {
-              this.currentIndex = index;
-              // 只有非内部跳转时，才在切换 Tab 时自动关闭详情页
-              if (!this.isInternalRedirect && this.isDetailVisible) {
-                this.isDetailVisible = false;
+            if (this.isHdsTabsEnabled) {
+              if (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) {
+                // Determine 4 Tabs Mode (Split View / Wide Screen OR Phone / Narrow Screen)
+                // Use 4 Tabs if:
+                // 1. Split View is enabled (Wide Screen with Sidebar)
+                // 2. Not Wide Screen (Phone Mode) - Default 4 Tabs behavior
+                if (this.isSplitViewEnabled || !this.isWide) {
+                  // --- 4 Tabs Mode ---
+                  HdsTabs({
+                    index: this.currentIndex,
+                    controller: this.tabsController,
+                    barPosition: BarPosition.End
+                  }) {
+                    TabContent() {
+                      HomeView({ isVisible: this.currentIndex === 0 })
+                    }
+                    .tabBar(this.TabBar0)
+                    .backgroundColor(Color.Transparent)
+
+                    TabContent() {
+                      CalendarView({ isVisible: this.currentIndex === 1 })
+                    }
+                    .tabBar(this.TabBar1)
+                    .backgroundColor(Color.Transparent)
+
+                    TabContent() {
+                      StatsView({ isVisible: this.currentIndex === 2 })
+                    }
+                    .tabBar(this.TabBarStats)
+                    .backgroundColor(Color.Transparent)
+
+                    TabContent() {
+                      SettingsView({ isVisible: this.currentIndex === 3 })
+                    }
+                    .tabBar(this.TabBarSettings)
+                    .backgroundColor(Color.Transparent)
+                  }
+                  .barPosition(BarPosition.End)
+                  .vertical(false)
+                  .barOverlap(true)
+                  .barBackgroundColor(Color.Transparent)
+                  .barFloatingStyle({
+                    barSideMargin: 24,
+                    barBottomMargin: this.getUIContext().px2vp(this.bottomRectHeight) + 8,
+                    adaptToHandedness: this.isSmartGestureEnabled && !this.isWide, // Enable single-hand mode only on narrow screens
+                    lightColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')),
+                    miniBar: {
+                      miniBarBuilder: () => {
+                        this.MiniBarBuilder()
+                      },
+                      miniBarStyle: this.hdsBarStyle,
+                      onBarStyleChange: (miniStyle: HdsBarStyle, tabStyle: HdsBarStyle, miniBarWidth: number,
+                        tabBarWidth: number,) => {
+                        this.hdsBarStyle = miniStyle;
+                      },
+                    },
+                    systemMaterialEffect: {
+                      materialType: hdsMaterial.MaterialType.IMMERSIVE,
+                      materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+                    }
+                  })
+                  .animationDuration(0)
+                  .scrollable(false)
+                  .onChange((index: number) => {
+                    const self = this;
+                    if (this.isAnimationEnabled) {
+                      animateTo({ duration: 300, curve: Curve.FastOutSlowIn }, () => {
+                        self.currentIndex = index;
+                      })
+                    } else {
+                      self.currentIndex = index;
+                    }
+                    if (!self.isInternalRedirect && self.isDetailVisible) {
+                      self.isDetailVisible = false;
+                    }
+                  })
+                  .width('100%')
+                  .height('100%')
+                  .key('hds_tabs_4') // Force unique key for 4-tabs mode
+                } else {
+                  // --- 5 Tabs Mode (Wide Screen without Split View) ---
+                  HdsTabs({
+                    index: this.currentIndex,
+                    controller: this.tabsController,
+                    barPosition: BarPosition.End
+                  }) {
+                    TabContent() {
+                      HomeView({ isVisible: this.currentIndex === 0 })
+                    }
+                    .tabBar(this.TabBar0)
+                    .backgroundColor(Color.Transparent)
+
+                    TabContent() {
+                      CalendarView({ isVisible: this.currentIndex === 1 })
+                    }
+                    .tabBar(this.TabBar1)
+                    .backgroundColor(Color.Transparent)
+
+                    TabContent() {
+                      // Placeholder for Add Button action
+                      Column().width('100%').height('100%')
+                    }
+                    .tabBar(this.TabBarAdd)
+                    .backgroundColor(Color.Transparent)
+
+                    TabContent() {
+                      StatsView({ isVisible: this.currentIndex === 3 })
+                    }
+                    .tabBar(this.TabBarStats)
+                    .backgroundColor(Color.Transparent)
+
+                    TabContent() {
+                      SettingsView({ isVisible: this.currentIndex === 4 })
+                    }
+                    .tabBar(this.TabBarSettings)
+                    .backgroundColor(Color.Transparent)
+                  }
+                  .barPosition(BarPosition.End)
+                  .vertical(false)
+                  .barOverlap(true)
+                  .barBackgroundColor(Color.Transparent)
+                  .barFloatingStyle({
+                    barSideMargin: 24,
+                    barBottomMargin: this.getUIContext().px2vp(this.bottomRectHeight) + 8,
+                    adaptToHandedness: this.isSmartGestureEnabled,
+                    lightColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')),
+                    // No miniBar in 5-tabs mode
+                    systemMaterialEffect: {
+                      materialType: hdsMaterial.MaterialType.IMMERSIVE,
+                      materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+                    }
+                  })
+                  .animationDuration(0)
+                  .scrollable(false)
+                  .onChange((index: number) => {
+                    const self = this;
+
+                    // Note: Index 2 click is now handled by onClick in TabBarAdd to prevent tab switch flicker.
+                    // However, if onChange still fires for index 2, we must ensure we don't get stuck there.
+                    if (index === 2) {
+                       self.onAddClick();
+                       // Fallback: If interception failed, force revert
+                       setTimeout(() => {
+                         self.tabsController.changeIndex(self.currentIndex);
+                       }, 0);
+                       return;
+                    }
+
+                    if (this.isAnimationEnabled) {
+                      animateTo({ duration: 300, curve: Curve.FastOutSlowIn }, () => {
+                        self.currentIndex = index;
+                      })
+                    } else {
+                      self.currentIndex = index;
+                    }
+                    if (!self.isInternalRedirect && self.isDetailVisible) {
+                      self.isDetailVisible = false;
+                    }
+                  })
+                  .width('100%')
+                  .height('100%')
+                  .key('hds_tabs_5') // Force unique key for 5-tabs mode
+                }
+              } else {
+                this.CustomFloatingTabBar()
               }
-            })
-            .width('100%')
-            .height('100%')
+            }
+          else {
+              Tabs({ barPosition: BarPosition.End, index: this.currentIndex, controller: this.tabsController }) {
+                TabContent() {
+                  HomeView({ isVisible: this.currentIndex === 0 })
+                }
+                .tabBar(null)
+                .backgroundColor(Color.Transparent)
+
+                TabContent() {
+                  CalendarView({ isVisible: this.currentIndex === 1 })
+                }
+                .tabBar(null)
+                .backgroundColor(Color.Transparent)
+
+                TabContent() {
+                  StatsView({ isVisible: this.currentIndex === 2 })
+                }
+                .tabBar(null)
+                .backgroundColor(Color.Transparent)
+
+                TabContent() {
+                  SettingsView({ isVisible: this.currentIndex === 3 })
+                }
+                .tabBar(null)
+                .backgroundColor(Color.Transparent)
+              }
+              .backgroundColor(Color.Transparent)
+              .barHeight(0)
+              .scrollable(false)
+              .animationDuration(this.animationDuration)
+              .onChange((index: number) => {
+                this.currentIndex = index;
+                // 只有非内部跳转时，才在切换 Tab 时自动关闭详情页
+                if (!this.isInternalRedirect && this.isDetailVisible) {
+                  this.isDetailVisible = false;
+                }
+              })
+              .width('100%')
+              .height('100%')
+            }
           }
           .navBarWidth('50%')
           .navDestination(this.NavigationBuilder)
@@ -1051,21 +1330,15 @@ struct Index {
           this.PlaceholderBuilder()
         }
 
-        // --- Floating TabBar (Always Visible) ---
-        this.CustomFloatingTabBar()
+        // --- Floating TabBar (Only visible when HdsTabs is disabled) ---
+        if (!this.isHdsTabsEnabled) {
+          this.CustomFloatingTabBar()
+        }
 
         // Global Detail Overlay
-        // 移除 currentIndex === 0 的限制，让它能在 Index 层面统一展示（反正跳转后已经在首页了）
-        // 详情页浮层 (全局)
         if (this.isDetailVisible && this.detailData) {
           SubscriptionDetailOverlay({ data: this.detailData })
             .zIndex(1000)
-        }
-
-        // 查询结果浮层 (全局)
-        if (this.isQueryResultsVisible) {
-          QueryResultsOverlay()
-            .zIndex(1001)
         }
       }
       .width('100%')
@@ -1165,17 +1438,6 @@ struct Index {
   }
 
   onBackPress(): boolean | void {
-    // 0. 如果查询结果浮层显示，优先关闭它
-    if (this.isQueryResultsVisible) {
-      animateTo({
-        duration: this.isAnimationEnabled ? this.animationDuration : 0,
-        curve: Curve.EaseOut
-      }, () => {
-        this.isQueryResultsVisible = false;
-      })
-      return true;
-    }
-
     // 1. 如果详情页显示，优先关闭详情页
     if (this.isDetailVisible) {
       AppStorage.setOrCreate('isDetailClosing', true);
@@ -1239,16 +1501,39 @@ struct TabBarItem {
   @Prop currentIndex: number;
   @Prop name: string;
   @Prop icon: Resource;
+  @Prop selectedIcon: Resource | undefined = undefined;
   @Prop showRedDot: boolean = false;
   onSelect: () => void = () => {};
   @State scaleVal: number = 1.0;
-  @StorageLink('isPointLightEnabled') isPointLightEnabled: boolean = true;
+  @StorageLink('isPointLightEnabled') @Watch('onVisibleChange') isPointLightEnabled: boolean = true;
   @StorageLink('isAnimationEnabled') isAnimationEnabled: boolean = true;
   @StorageLink('isVip') isVip: boolean = false;
   @StorageLink('showVipTheme') showVipTheme: boolean = true;
   @StorageLink('isNewYearTheme') isNewYearTheme: boolean = false;
   @Prop indicatorScale: Scale = { x: 1.0, y: 1.0 };
   @Prop isCompact: boolean = false;
+  @StorageLink('tabBarVisible') @Watch('onVisibleChange') tabBarVisible: boolean = true;
+  @State itemLightSource: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.BRIGHT;
+
+  onVisibleChange() {
+    if (this.isPointLightEnabled) {
+      if (this.tabBarVisible) {
+        animateTo({ duration: 400, curve: Curve.FastOutSlowIn }, () => {
+          this.itemLightSource = hdsEffect.PointLightSourceType.BRIGHT;
+        });
+      } else {
+        animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
+          this.itemLightSource = hdsEffect.PointLightSourceType.NONE;
+        });
+      }
+    } else {
+      this.itemLightSource = hdsEffect.PointLightSourceType.NONE;
+    }
+  }
+
+  aboutToAppear() {
+    this.onVisibleChange();
+  }
 
   build() {
     Column() {
@@ -1262,7 +1547,7 @@ struct TabBarItem {
               .width('100%')
               .height('100%')
               // 降低不透明度：0.12 -> 0.08，避免显脏
-              .backgroundColor(this.isNewYearTheme ? 'rgba(255, 215, 0, 0.1)' : (this.showVipTheme ? 'rgba(255, 215, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)'))
+              .backgroundColor(this.isNewYearTheme ? 'rgba(230, 0, 0, 0.1)' : (this.showVipTheme ? 'rgba(255, 215, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)'))
               .backgroundBlurStyle(BlurStyle.COMPONENT_THIN) // Thin 比 ULTRA_THIN 稍重一点，增强玻璃感
               .borderRadius(28)
 
@@ -1273,7 +1558,7 @@ struct TabBarItem {
               .border({
                 width: 0.5,
                 // 降低描边不透明度：0.3/0.4 -> 0.2，更隐形
-                color: this.isNewYearTheme ? 'rgba(255, 215, 0, 0.25)' : (this.showVipTheme ? 'rgba(255, 230, 200, 0.25)' : 'rgba(255, 255, 255, 0.2)'),
+                color: this.isNewYearTheme ? 'rgba(230, 0, 0, 0.25)' : (this.showVipTheme ? 'rgba(255, 230, 200, 0.25)' : 'rgba(255, 255, 255, 0.2)'),
                 radius: 28
               })
 
@@ -1295,12 +1580,12 @@ struct TabBarItem {
           .width('100%')
           .height('100%')
           .borderRadius(28)
-          // 4. 移除原有阴影，由 HDS SOFT 光效提供更自然的景深感，避免颜色叠加产生的“莫名光晕”
+          // 4. 移除原有阴影，由 HDS BRIGHT 光效提供更自然的景深感，避免颜色叠加产生的“莫名光晕”
           .hitTestBehavior(HitTestMode.Transparent)
-          .geometryTransition('tab_indicator')
+          .geometryTransition('tab_indicator_custom')
           .visualEffect(new hdsEffect.HdsEffectBuilder()
             .pointLight({
-              sourceType: this.isPointLightEnabled ? hdsEffect.PointLightSourceType.SOFT : hdsEffect.PointLightSourceType.NONE,
+              sourceType: this.itemLightSource,
               illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
             })
             .buildEffect())
@@ -1308,10 +1593,10 @@ struct TabBarItem {
         }
 
         Column() {
-          SymbolGlyph(this.icon)
+          SymbolGlyph(this.currentIndex === this.index && this.selectedIcon ? this.selectedIcon : this.icon)
             .fontSize(this.isCompact ? 18 : 22)
             .fontColor([this.currentIndex === this.index ? (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))) : $r('app.color.text_secondary')])
-            .scale({ x: (this.currentIndex === this.index ? 1.1 : 1.0) * this.scaleVal, y: (this.currentIndex === this.index ? 1.1 : 1.0) * this.scaleVal })
+            .scale({ x: (this.currentIndex === this.index ? 1.05 : 1.0) * this.scaleVal, y: (this.currentIndex === this.index ? 1.05 : 1.0) * this.scaleVal })
             .fontWeight(this.currentIndex === this.index ? FontWeight.Bold : FontWeight.Normal)
             .animation({ duration: 350, curve: curves.springMotion(0.4, 0.8) })
 

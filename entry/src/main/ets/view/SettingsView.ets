@@ -1580,37 +1580,33 @@ export struct SettingsView {
                 Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
               }
 
-              if (deviceInfo.distributionOSApiVersion >= 60100) {
-                // 1.6.5 HDS Tabs (API 23 Features)
-                Row() {
-                  Column() {
-                    Text("启用HarmonyOS6.1的界面风格")
-                      .fontSize(16)
-                      .fontWeight(FontWeight.Medium)
-                      .fontColor($r('app.color.text_primary'))
-                    Text("基于AP23+的风格界面和高级材质（实验功能）")
-                      .fontSize(12)
-                      .fontColor($r('app.color.text_secondary'))
-                      .margin({ top: 4 })
-                  }
-                  .alignItems(HorizontalAlign.Start)
-
-                  Blank()
-
-                  Toggle({ type: ToggleType.Switch, isOn: this.isHdsTabsEnabled })
-                    .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                    .onChange((value: boolean) => {
-                      PreferenceUtil.getInstance().saveHdsTabsEnabled(value);
-                    })
+              // 1.6.5 HDS Tabs (API 23 Features)
+              Row() {
+                Column() {
+                  Text("HarmonyOS 6.1界面风格")
+                    .fontSize(16)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor($r('app.color.text_primary'))
+                  Text("启用高级材质（会增加功耗）")
+                    .fontSize(12)
+                    .fontColor($r('app.color.text_secondary'))
+                    .margin({ top: 4 })
                 }
-                .width('100%')
-                .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-                .backgroundColor(Color.Transparent)
+                .alignItems(HorizontalAlign.Start)
 
-                Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
+                Blank()
+
+                Toggle({ type: ToggleType.Switch, isOn: this.isHdsTabsEnabled })
+                  .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                  .onChange((value: boolean) => {
+                    PreferenceUtil.getInstance().saveHdsTabsEnabled(value);
+                  })
               }
+              .width('100%')
+              .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+              .backgroundColor(Color.Transparent)
 
-
+              Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
 
               // 1.7 App Lock (Relocated & Rewritten)
               Row() {

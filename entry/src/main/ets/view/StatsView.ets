@@ -129,26 +129,31 @@ export struct StatsView {
       
       if (this.isAnimationEnabled) {
         // 第一梯队: 头部 + 概览
-        animateTo({ curve: springCurve }, () => {
-          this.animHeader = true;
-          this.animStep1 = true;
-        });
+        setTimeout(() => {
+          if (!this.isVisible) return;
+          animateTo({ curve: springCurve }, () => {
+            this.animHeader = true;
+            this.animStep1 = true;
+          });
+        }, 50);
         
         // 第二梯队: 趋势图 + 热力图
         setTimeout(() => {
+          if (!this.isVisible) return;
           animateTo({ curve: springCurve }, () => {
             this.animStep2 = true;
             this.animStepHeatmap = true;
           })
-        }, interval);
+        }, 50 + interval);
         
         // 第三梯队: 报告 + 排行
         setTimeout(() => {
+          if (!this.isVisible) return;
           animateTo({ curve: springCurve }, () => {
             this.animStep3 = true;
             this.animStep4 = true;
           })
-        }, interval * 2);
+        }, 50 + interval * 2);
       } else {
         this.animHeader = true;
         this.animStep1 = true;

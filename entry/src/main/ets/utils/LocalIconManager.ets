@@ -29,11 +29,13 @@ export class LocalIconManager {
   private static instance: LocalIconManager;
   private appDataMap: Record<string, AppData> = {};
   private isLoaded: boolean = false;
+  private isBuiltinLoaded: boolean = false;
   private initPromise: Promise<void> | null = null;
   private context: Context | null = null;
   private cacheDir: string = '';
   private customIconDir: string = '';
   private customConfigPath: string = '';
+  private cacheConfigPath: string = '';
 
   private constructor() {}
 
@@ -68,6 +70,11 @@ export class LocalIconManager {
   }
 
   public async init(context: Context): Promise<void> {
+    // 已经加载成功了，直接返回，绝对不再执行后续的高风险重新解析
+    if (this.isLoaded && this.isBuiltinLoaded && Object.keys(this.appDataMap).length > 0) {
+      return Promise.resolve();
+    }
+
     if (this.initPromise) {
       return this.initPromise;
     }
@@ -78,30 +85,104 @@ export class LocalIconManager {
         this.cacheDir = context.filesDir + '/icons';
         this.customIconDir = context.filesDir + '/imported_icons';
         this.customConfigPath = this.customIconDir + '/icon_index.json';
+        this.cacheConfigPath = this.cacheDir + '/builtin_app_data.json';
 
         this.ensureDir(this.cacheDir);
         this.ensureDir(this.customIconDir);
 
-        const resourceManager = context.resourceManager;
+        let resourceManager = context.resourceManager;
+        try {
+          if (context.getApplicationContext) {
+            const appCtx = context.getApplicationContext();
+            if (appCtx && appCtx.resourceManager) {
+              resourceManager = appCtx.resourceManager;
+            }
+          }
+        } catch (ctxErr) {
+          hilog.warn(0x0000, 'LocalIconManager', 'Failed to get ApplicationContext resourceManager, using default');
+        }
 
         // Try to load built-in icons
-        try {
-          hilog.info(0x0000, 'LocalIconManager', 'Loading app_data.json from rawfile...');
-          const fileData = await resourceManager.getRawFileContent('app_data.json');
-          const textDecoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
-          const jsonString = textDecoder.decodeWithStream(fileData);
-          this.appDataMap = JSON.parse(jsonString) as Record<string, AppData>;
-          hilog.info(0x0000, 'LocalIconManager', `Loaded ${Object.keys(this.appDataMap).length} builtin apps`);
-        } catch (e) {
-          hilog.error(0x0000, 'LocalIconManager', `Failed to load app_data.json: ${JSON.stringify(e)}`);
-          // Try alternative root if fail? Usually AppScope is at root
+        if (!this.isBuiltinLoaded) {
+          if (!resourceManager) {
+            try {
+              // 在后台意图 Context 中尝试强制获取本模块的上下文
+              const moduleContext = context.createModuleContext('entry');
+              if (moduleContext && moduleContext.resourceManager) {
+                resourceManager = moduleContext.resourceManager;
+                hilog.info(0x0000, 'LocalIconManager', 'Recovered resourceManager via createModuleContext');
+              }
+            } catch (moduleCtxErr) {
+               // Ignore
+            }
+          }
+
+          if (!resourceManager && this.exists(this.cacheConfigPath)) {
+            try {
+               hilog.info(0x0000, 'LocalIconManager', 'Reading builtin_app_data.json from cache due to missing resourceManager...');
+               const cachedContent = fs.readTextSync(this.cacheConfigPath);
+               const parsedData = JSON.parse(cachedContent) as Record<string, AppData>;
+               if (parsedData && Object.keys(parsedData).length > 0) {
+                 const parsedKeys = Object.keys(parsedData);
+                 for (let i = 0; i < parsedKeys.length; i++) {
+                   this.appDataMap[parsedKeys[i]] = parsedData[parsedKeys[i]];
+                 }
+                 this.isBuiltinLoaded = true;
+                 hilog.info(0x0000, 'LocalIconManager', `Loaded ${Object.keys(this.appDataMap).length} builtin apps from cache`);
+               }
+            } catch (cacheErr) {
+               hilog.error(0x0000, 'LocalIconManager', `Failed to read cached builtin config: ${(cacheErr as Error).message || JSON.stringify(cacheErr)}`);
+            }
+          }
+
+          if (!resourceManager && !this.isBuiltinLoaded) {
+            hilog.warn(0x0000, 'LocalIconManager', 'resourceManager and cached config are unavailable, skipping built-in icons load for now');
+          } else if (resourceManager && !this.isBuiltinLoaded) {
+            try {
+              hilog.info(0x0000, 'LocalIconManager', 'Loading app_data.json from rawfile...');
+              const fileData = await resourceManager.getRawFileContent('app_data.json');
+            const textDecoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
+            const jsonString = textDecoder.decodeWithStream(fileData);
+            const parsedData = JSON.parse(jsonString) as Record<string, AppData>;
+            
+            if (parsedData && Object.keys(parsedData).length > 0) {
+               const parsedKeys = Object.keys(parsedData);
+               for (let i = 0; i < parsedKeys.length; i++) {
+                 this.appDataMap[parsedKeys[i]] = parsedData[parsedKeys[i]];
+               }
+               this.isBuiltinLoaded = true;
+               hilog.info(0x0000, 'LocalIconManager', `Loaded ${Object.keys(this.appDataMap).length} builtin apps`);
+               
+               // 持久化到沙盒
+               try {
+                  const file = fs.openSync(this.cacheConfigPath, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+                  fs.writeSync(file.fd, jsonString);
+                  fs.fsyncSync(file.fd);
+                  fs.closeSync(file);
+               } catch (writeErr) {
+                  hilog.warn(0x0000, 'LocalIconManager', `Failed to persist app_data.json: ${(writeErr as Error).message || JSON.stringify(writeErr)}`);
+               }
+            } else {
+               hilog.error(0x0000, 'LocalIconManager', `Parsed app_data.json is empty or invalid`);
+            }
+          } catch (e) {
+            const errMsg = (e as Error)?.message || JSON.stringify(e);
+            hilog.error(0x0000, 'LocalIconManager', `Failed to load app_data.json: ${errMsg}`);
+            // Try alternative root if fail? Usually AppScope is at root
+          }
         }
+      }
 
         // Load custom icons
         await this.loadCustomIcons();
 
         this.isLoaded = true;
         console.info('LocalIconManager loaded successfully, total apps:', Object.keys(this.appDataMap).length);
+        
+        if (!this.isBuiltinLoaded) {
+          this.initPromise = null; // 允许下次调用时重试获取内置图标
+        }
+        
         resolve();
       } catch (e) {
         console.error('LocalIconManager init failed:', JSON.stringify(e));
@@ -715,7 +796,8 @@ export class LocalIconManager {
           return targetUri;
         } catch (e) {
           console.error(`Failed to extract icon ${filename}:`, JSON.stringify(e));
-          return ''; // No remote fallback
+          // 后台获取不到 resourceManager 时，返回统一的 builtin 协议路径，以便前台再次接力解析
+          return `builtin://${filename}`;
         }
       } else {
         // Custom icon missing

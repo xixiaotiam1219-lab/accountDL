@@ -128,7 +128,7 @@ export struct AddMenuSheet {
       })
       .visualEffect(new hdsEffect.HdsEffectBuilder()
         .pointLight({
-          sourceType: this.pressedIndex === 0 ? hdsEffect.PointLightSourceType.SOFT : hdsEffect.PointLightSourceType.NONE,
+          sourceType: this.pressedIndex === 0 ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
           illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
         })
         .buildEffect())
@@ -195,7 +195,7 @@ export struct AddMenuSheet {
       })
       .visualEffect(new hdsEffect.HdsEffectBuilder()
         .pointLight({
-          sourceType: this.pressedIndex === 1 ? hdsEffect.PointLightSourceType.SOFT : hdsEffect.PointLightSourceType.NONE,
+          sourceType: this.pressedIndex === 1 ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
           illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
         })
         .buildEffect())
@@ -262,7 +262,7 @@ export struct AddMenuSheet {
       })
       .visualEffect(new hdsEffect.HdsEffectBuilder()
         .pointLight({
-          sourceType: this.pressedIndex === 3 ? hdsEffect.PointLightSourceType.SOFT : hdsEffect.PointLightSourceType.NONE,
+          sourceType: this.pressedIndex === 3 ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
           illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
         })
         .buildEffect())
@@ -329,7 +329,7 @@ export struct AddMenuSheet {
       })
       .visualEffect(new hdsEffect.HdsEffectBuilder()
         .pointLight({
-          sourceType: this.pressedIndex === 2 ? hdsEffect.PointLightSourceType.SOFT : hdsEffect.PointLightSourceType.NONE,
+          sourceType: this.pressedIndex === 2 ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
           illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
         })
         .buildEffect())

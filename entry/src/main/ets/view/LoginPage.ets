@@ -47,6 +47,7 @@ struct LoginPage {
           this.LoginBuilder()
       }
       .titleBar({
+        avoidLayoutSafeArea:true,
         content: {
           title: {
             mainTitle: '登录'
