@@ -787,15 +787,32 @@ export class LocalIconManager {
       // Extract only if NOT custom (built-in rawfile)
       if (!data.isCustom) {
         try {
-          // ... existing extraction ...
-          const resourceManager = this.context.resourceManager;
-          const content = await resourceManager.getRawFileContent(`icons/${filename}`);
-          const file = fs.openSync(targetPath, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE);
-          fs.writeSync(file.fd, content.buffer);
-          fs.closeSync(file);
-          return targetUri;
+          let resourceManager = this.context.resourceManager;
+          if (!resourceManager) {
+            hilog.info(0x0000, 'LocalIconManager', `[Background] resourceManager missing during resolveIconPath for ${filename}, attempting recovery...`);
+            try {
+              const moduleContext = this.context.createModuleContext('entry');
+              if (moduleContext && moduleContext.resourceManager) {
+                resourceManager = moduleContext.resourceManager;
+              }
+            } catch (err) {
+              hilog.warn(0x0000, 'LocalIconManager', `[Background] createModuleContext failed: ${JSON.stringify(err)}`);
+            }
+          }
+
+          if (resourceManager) {
+            const content = await resourceManager.getRawFileContent(`icons/${filename}`);
+            const file = fs.openSync(targetPath, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE);
+            fs.writeSync(file.fd, content.buffer);
+            fs.closeSync(file);
+            hilog.info(0x0000, 'LocalIconManager', `[Background] Successfully extracted ${filename} to sandbox`);
+            return targetUri;
+          } else {
+            hilog.warn(0x0000, 'LocalIconManager', `[Background] Still no resourceManager for ${filename}, returning builtin://`);
+            return `builtin://${filename}`;
+          }
         } catch (e) {
-          console.error(`Failed to extract icon ${filename}:`, JSON.stringify(e));
+          hilog.error(0x0000, 'LocalIconManager', `[Background] Failed to extract icon ${filename}: ${JSON.stringify(e)}`);
           // 后台获取不到 resourceManager 时，返回统一的 builtin 协议路径，以便前台再次接力解析
           return `builtin://${filename}`;
         }

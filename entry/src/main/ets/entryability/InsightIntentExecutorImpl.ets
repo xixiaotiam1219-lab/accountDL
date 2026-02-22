@@ -63,6 +63,12 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
     try {
       const context = (this.context as Object) as common.UIAbilityContext;
       await PreferenceUtil.getInstance().loadPreference(context);
+      // 关键：冷启动环境下 AppStorage 为空，必须重新从持久化库加载登录态
+      const session = await PreferenceUtil.getInstance().loadSession();
+      if (session && session['isLoggedIn'] !== undefined) {
+        AppStorage.setOrCreate('isLoggedIn', session['isLoggedIn'] as boolean);
+        hilog.info(0xFEED, TAG, `Restored login status during foreground cold start: ${session['isLoggedIn']}`);
+      }
       await SubscriptionRepository.getInstance().init(context);
       await LocalIconManager.getInstance().init(context);
     } catch (e) {
@@ -179,6 +185,12 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
     try {
       const context = (this.context as Object) as common.UIAbilityContext;
       await PreferenceUtil.getInstance().loadPreference(context);
+      // 关键：冷启动环境下 AppStorage 为空，必须重新从持久化库加载登录态
+      const session = await PreferenceUtil.getInstance().loadSession();
+      if (session && session['isLoggedIn'] !== undefined) {
+        AppStorage.setOrCreate('isLoggedIn', session['isLoggedIn'] as boolean);
+        hilog.info(0xFEED, TAG, `Restored login status during background cold start: ${session['isLoggedIn']}`);
+      }
       await SubscriptionRepository.getInstance().init(context);
       await LocalIconManager.getInstance().init(context);
     } catch (e) {
@@ -701,8 +713,6 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
             status: s.usageStatus || (s.isAutoRenewal ? 'auto_renew' : 'manual')
           };
         });
-        resultData['resultPayload'] = leanRecords; // 直接返回对象数组
-
         // 新增：生成适配“热点条目”格式的数据包 (带序号、三分离)
         const dataPackage = activeSubs.map((s, index): HotTopicItem => {
           const dateStr = DateUtil.formatDate(s.nextBillingDate);
@@ -720,7 +730,6 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         resultData['showPackage'] = dataPackage.length > 0 ? "true" : "false"; // 修改为字符串，符合项目内布尔参数习惯
 
       } else {
-        resultData['resultPayload'] = [];
         resultData['dataPackage'] = [];
         resultData['showPackage'] = "false"; // 修改为字符串
       }
@@ -763,67 +772,122 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       } else if (cycleLower.includes('month') || cycleLower.includes('月')) {
         cycle = 'Monthly';
       } else if (cycleLower.includes('life') || cycleLower.includes('终身') || cycleLower.includes('买断')) {
-        cycle = 'Lifetime';
+        cycle = 'Indefinite'; // 修正：团购券或单次体验即便是终身，在业务上更贴近不定/单次
       } else if (cycleLower.includes('indefinite') || cycleLower.includes('不定') || cycleLower.includes('随机')) {
         cycle = 'Indefinite';
       }
 
-      // 提取提醒天数 (默认为1天) - 已移到下方
-      
+      // ==== 智能推断业务类型 (recordType) - 提前到此处以支持图标感知逻辑 ====
+      let recordType: 'subscription' | 'groupBuy' | 'warranty' = 'subscription';
+      const recordTypeParam = param['recordType'] as string;
+      const platformRaw = param['platform'] as string;
+      const brandParam = (param['brand'] as string) || (param['merchantName'] as string) || '';
+      const couponCode = (param['couponCode'] as string) || '';
+      const merchantName = (param['merchantName'] as string) || '';
+      const usageTime = (param['usageTime'] as string) || '';
+      const purchaseChannel = (param['purchaseChannel'] as string) || '';
+
+      // 平台映射规范化
+      let platformParam: 'meituan' | 'douyin' | 'dianping' | undefined = undefined;
+      const lowerPlatform = (platformRaw || '').toLowerCase();
+      if (lowerPlatform === 'meituan' || lowerPlatform.includes('美团')) {
+        platformParam = 'meituan';
+      } else if (lowerPlatform === 'douyin' || lowerPlatform.includes('抖音')) {
+        platformParam = 'douyin';
+      } else if (lowerPlatform === 'dianping' || lowerPlatform.includes('点评')) {
+        platformParam = 'dianping';
+      }
+
+      if (recordTypeParam === 'groupBuy' || recordTypeParam === 'groupbuy' || recordTypeParam === 'group_buy') {
+        recordType = 'groupBuy';
+      } else if (recordTypeParam === 'warranty') {
+        recordType = 'warranty';
+        cycle = 'Lifetime';
+      } else if (recordTypeParam === 'subscription') {
+        recordType = 'subscription';
+      } else if (name.toLowerCase().match(/保修|延保|碎屏险|保质期|售后|care/)) {
+        recordType = 'warranty';
+        cycle = 'Lifetime';
+      } else {
+        const nameLower = name.toLowerCase();
+        // 扩展团购券关键词：抵用券、代金券、套餐、体验
+        if (nameLower.includes('券') || nameLower.includes('团购') || nameLower.includes('次卡') || nameLower.includes('体验') || 
+            nameLower.includes('代金') || nameLower.includes('抵用') || nameLower.includes('套餐') ||
+            nameLower.includes('美团') || nameLower.includes('瑞幸') || nameLower.includes('星巴克') || nameLower.includes('大众点评') || 
+            nameLower.includes('抖音') || nameLower.includes('快手')) {
+          recordType = 'groupBuy';
+        }
+      }
+
       // 自动尝试匹配图标
       let iconPath = '';
-      try {
-        const iconManager = LocalIconManager.getInstance();
-        let appInfo = await iconManager.getAppInfo(name);
+      
+      // 特殊逻辑：对于已识别平台的团购券，强制使用平台品牌图标，避免误匹配到无关 App
+      if (recordType === 'groupBuy') {
+        if (platformParam === 'meituan') iconPath = 'builtin://美团.png';
+        else if (platformParam === 'douyin') iconPath = 'builtin://抖音.png';
+        else if (platformParam === 'dianping') iconPath = 'builtin://大众点评.png';
+      } else if (recordType === 'warranty' && (param['category'] as string)) {
+        iconPath = 'warranty_icon:' + (param['category'] as string);
+      }
 
-        // 校验匹配质量: 仅接受精确匹配或前缀匹配 (e.g. "京东" matches "京东金融")
-        // 拒绝中间包含匹配 (e.g. "京东" matches "北京东站")
-        if (appInfo) {
-           const matchedName = appInfo.name.toLowerCase();
-           const inputName = name.toLowerCase();
-           if (matchedName !== inputName && !inputName.startsWith(matchedName)) {
-               hilog.info(0xFEED, TAG, `[AddCore] Discarding fuzzy match: ${appInfo.name} for ${name}`);
-               appInfo = null;
-           }
-        }
+      if (!iconPath) {
+        try {
+          const iconManager = LocalIconManager.getInstance();
+          let appInfo = await iconManager.getAppInfo(name);
 
-        let cleanName = name.replace(/(会员|VIP|订阅|套餐|卷|代金券|服务|卡|Premium|Member)$/i, '').trim();
-        // 2. 如果没匹配到，尝试去掉常见后缀再次匹配 (如：腾讯视频会员 -> 腾讯视频)
-        if (!appInfo) {
-          if (cleanName && cleanName !== name) {
-            hilog.info(0xFEED, TAG, `[AddCore] Retry icon match with cleaned name: ${cleanName}`);
-            appInfo = await iconManager.getAppInfo(cleanName);
+          // 校验匹配质量
+          if (appInfo) {
+             const matchedName = appInfo.name.toLowerCase();
+             const inputName = name.toLowerCase();
+             if (!inputName.includes(matchedName) && !matchedName.includes(inputName)) {
+                 hilog.info(0xFEED, TAG, `[AddCore] Discarding weak match: ${appInfo.name} for ${name}`);
+                 appInfo = null;
+             }
+          }
 
-            // 对清洗后的名字也进行校验
-            if (appInfo) {
-                const matchedName = appInfo.name.toLowerCase();
-                const inputCleanName = cleanName.toLowerCase();
-                if (matchedName !== inputCleanName && !inputCleanName.startsWith(matchedName)) {
-                    appInfo = null;
-                }
+          let cleanName = name.replace(/^(订阅了|关注了|购买了|开通了)/g, '').trim();
+          const noiseRegex = /(超级|至尊|黄金|白金|星钻|大会员|旗舰版|标准版|专业版|会员|VIP|会员卡|订阅|套餐|券|代金券|服务|卡|Premium|Member|PLUS)$/i;
+          let lastCleanName = '';
+          do {
+              lastCleanName = cleanName;
+              cleanName = cleanName.replace(noiseRegex, '').trim();
+          } while (cleanName !== lastCleanName);
+
+          // 2. 如果没匹配到，尝试去掉常见后缀再次匹配
+          if (!appInfo) {
+            if (cleanName && cleanName !== name) {
+              hilog.info(0xFEED, TAG, `[AddCore] Retry icon match with cleaned name: ${cleanName}`);
+              appInfo = await iconManager.getAppInfo(cleanName);
+
+              if (appInfo) {
+                  const matchedName = appInfo.name.toLowerCase();
+                  const inputCleanName = cleanName.toLowerCase();
+                  if (!inputCleanName.includes(matchedName) && !matchedName.includes(inputCleanName)) {
+                      appInfo = null;
+                  }
+              }
             }
           }
-        }
 
-        if (appInfo && appInfo.icon) {
-          iconPath = appInfo.icon;
-          hilog.info(0xFEED, TAG, `[AddCore] Auto-detected local app icon: ${iconPath}`);
-        } else {
-          // 3. 尝试从服务配置库匹配 (MemberServiceConfig)
-          const service = matchMemberService(name);
-          if (service && service.icon) {
-            iconPath = service.icon;
-            hilog.info(0xFEED, TAG, `[AddCore] Auto-detected service config icon: ${iconPath}`);
+          if (appInfo && appInfo.icon) {
+            iconPath = appInfo.icon;
+            hilog.info(0xFEED, TAG, `[AddCore] Auto-detected local app icon: ${iconPath}`);
           } else {
-            // 4. 终极降级：因为后台无法获取 resourceManager 加载 app_data.json
-            // 大部分系统图标遵循 builtin://{name}.png 的命名规范，由 UI 自动容错接管
-            const targetIconName = service ? service.name : (cleanName || name);
-            iconPath = `builtin://${targetIconName}.png`;
-            hilog.info(0xFEED, TAG, `[AddCore] Fallback to inferred builtin icon: ${iconPath}`);
+            // 3. 尝试从服务配置库匹配
+            const service = matchMemberService(cleanName || name);
+            if (service) {
+              iconPath = `builtin://${service.name}.png`;
+              hilog.info(0xFEED, TAG, `[AddCore] Auto-detected service config icon: ${iconPath}`);
+            } else {
+              const targetIconName = cleanName || name;
+              iconPath = `builtin://${targetIconName}.png`;
+              hilog.info(0xFEED, TAG, `[AddCore] Fallback to inferred builtin icon: ${iconPath}`);
+            }
           }
+        } catch (iconErr) {
+          hilog.warn(0xFEED, TAG, `[AddCore] Failed to detect icon: ${iconErr}`);
         }
-      } catch (iconErr) {
-        hilog.warn(0xFEED, TAG, `[AddCore] Failed to detect icon: ${iconErr}`);
       }
 
       // 提取日期 (YYYY-MM-DD)
@@ -848,15 +912,20 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       }
 
       // 永久/不定期项目：统一把「购买日期」作为核心时间点
-      // 即便小艺或平台传入了一个很远的 expireDate（例如 2099-12-31），
-      // 对于 Lifetime/Indefinite，我们始终以 purchaseDate 作为 nextBillingDate，
-      // 这样日历、月度报告等视图都会按真实购买时间来展示。
       if (cycle === 'Lifetime' || cycle === 'Indefinite') {
         if (purchaseDateStr) {
           nextBillingDate = startDate;
         } else if (expireDateStr) {
-          // 如果没有显式购买日期，至少保证 startDate 与 nextBillingDate 保持一致
           startDate = nextBillingDate;
+        }
+      }
+
+      // 提取数量
+      let quantity = 1;
+      if (param['quantity'] !== undefined) {
+        quantity = parseInt(param['quantity'] as string);
+        if (isNaN(quantity) || quantity <= 0) {
+           quantity = 1;
         }
       }
 
@@ -891,61 +960,6 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       // 提取分类
       let category = param['category'] as string;
       const subCategory = param['subCategory'] as string;
-
-      // 提取团购专属字段
-      const couponCode = param['couponCode'] as string;
-      const merchantName = param['merchantName'] as string;
-      const usageTime = param['usageTime'] as string;
-      let quantity = 1;
-      if (param['quantity'] !== undefined) {
-        quantity = parseInt(param['quantity'] as string);
-        if (isNaN(quantity) || quantity <= 0) {
-           quantity = 1;
-        }
-      }
-
-      // 智能推断业务类型 (recordType)
-      let recordType: 'subscription' | 'groupBuy' | 'warranty' = 'subscription';
-      const recordTypeParam = param['recordType'] as string;
-      const platformRaw = param['platform'] as string;
-      const brandParam = param['brand'] as string;
-      const purchaseChannel = param['purchaseChannel'] as string;
-
-      // 平台映射规范化：解决小艺可能传回中文导致枚举映射失败的问题
-      let platformParam: 'meituan' | 'douyin' | 'dianping' | undefined = undefined;
-      const lowerPlatform = (platformRaw || '').toLowerCase();
-      if (lowerPlatform === 'meituan' || lowerPlatform.includes('美团')) {
-        platformParam = 'meituan';
-      } else if (lowerPlatform === 'douyin' || lowerPlatform.includes('抖音')) {
-        platformParam = 'douyin';
-      } else if (lowerPlatform === 'dianping' || lowerPlatform.includes('点评')) {
-        platformParam = 'dianping';
-      }
-
-      if (recordTypeParam === 'groupBuy' || recordTypeParam === 'groupbuy' || recordTypeParam === 'group_buy') {
-        recordType = 'groupBuy';
-      } else if (recordTypeParam === 'warranty') {
-        recordType = 'warranty';
-        cycle = 'Lifetime';
-      } else if (recordTypeParam === 'subscription') {
-        recordType = 'subscription';
-      } else if (name.toLowerCase().match(/保修|延保|碎屏险|保质期|售后|care/)) {
-        recordType = 'warranty';
-        cycle = 'Lifetime';
-      } else {
-        const nameLower = name.toLowerCase();
-        if (nameLower.includes('券') || nameLower.includes('团购') || nameLower.includes('次卡') || nameLower.includes('体验') || 
-                   nameLower.includes('美团') || nameLower.includes('瑞幸') || nameLower.includes('星巴克') || nameLower.includes('大众点评') || 
-                   nameLower.includes('抖音') || nameLower.includes('快手')) {
-          recordType = 'groupBuy';
-        }
-      }
-
-      // 自动补全图标逻辑增强
-      if (recordType === 'warranty' && category && category !== '其他物品') {
-        iconPath = 'warranty_icon:' + category;
-      }
-
       // 自动修正自动续费选项 (团购券和保修一般非自动续费)
       let isAutoRenewal = recordType === 'subscription' && (cycle === 'Monthly' || cycle === 'Quarterly' || cycle === 'Yearly');
       const autoRenewalRaw = param['isAutoRenewal'];
@@ -1044,7 +1058,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           'isReminderEnabled': reminderEnabledStr,
           'reminderDaysBefore': reminderDaysStr,
           'reminderTime': reminderTimeStr,
-          'resultPayload': JSON.stringify(newSub)
+          'resultText': `已为您成功记录 ${newSub.name} 订阅，${cycleMap[newSub.billingCycle]}费用为 ${newSub.price} 元。`
         };
       } else if (recordType === 'warranty') {
         resultData = {
@@ -1059,7 +1073,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           'isReminderEnabled': reminderEnabledStr,
           'reminderDaysBefore': reminderDaysStr,
           'reminderTime': reminderTimeStr,
-          'resultPayload': JSON.stringify(newSub)
+          'resultText': `已为您成功记录 ${newSub.brand || ''}${newSub.name} 的保修信息，到期日为 ${DateUtil.formatDate(newSub.nextBillingDate)}。`
         };
       } else {
         // groupBuy (AddVoucher)
@@ -1075,7 +1089,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           'isReminderEnabled': reminderEnabledStr,
           'reminderDaysBefore': reminderDaysStr,
           'reminderTime': reminderTimeStr,
-          'resultPayload': JSON.stringify(newSub)
+          'resultText': `已为您成功记录 ${newSub.merchantName || newSub.name} 的团购券，有效期至 ${DateUtil.formatDate(newSub.nextBillingDate)}。`
         };
       }
 

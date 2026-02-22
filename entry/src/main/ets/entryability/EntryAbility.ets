@@ -21,6 +21,7 @@ import { fileIo as fs } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
 import { util, url } from '@kit.ArkTS';
 import { WARRANTY_ICON_MAP_NAMES, WARRANTY_THEME_MAP, getWarrantyThemeColors } from '../utils/WarrantyConstants';
+import { LocalIconManager } from '../utils/LocalIconManager';
 
 const DOMAIN = 0x0000;
 export default class EntryAbility extends UIAbility {
@@ -87,6 +88,9 @@ export default class EntryAbility extends UIAbility {
     SubscriptionRepository.getInstance().init(this.context).then(() => {
       SubscriptionRepository.getInstance().updateWidgetSnapshotSync('init');
     });
+
+    // Initialize LocalIconManager for early icon loading
+    LocalIconManager.getInstance().init(this.context);
 
     // Store context for fallback access if needed
     AppStorage.setOrCreate('context', this.context);
