@@ -64,7 +64,7 @@ export struct SubscriptionIcon {
 
   // 获取保修主题柔和渐变底座
   private getWarrantyBgGradient(): LinearGradient | undefined {
-    if (!this.icon.startsWith('warranty_icon:')) return undefined;
+    if (!this.icon || !this.icon.startsWith('warranty_icon:')) return undefined;
     const name = this.icon.split(':')[1];
     const theme: WarrantyColorTheme = WARRANTY_THEME_MAP[name] || 'blue';
     const colors = getWarrantyThemeColors(theme);
@@ -78,7 +78,7 @@ export struct SubscriptionIcon {
   private getDisplayIcon(): string {
     if (!this.icon) return '';
     
-    if (this.icon.startsWith('builtin://')) {
+    if (this.icon && this.icon.startsWith('builtin://')) {
       return this.resolvedBuiltinPath; // Use the dynamically retrieved path from LocalIconManager
     }
     
@@ -115,7 +115,7 @@ export struct SubscriptionIcon {
           if (this.icon.startsWith('file://') || this.icon.startsWith('http') || this.icon.startsWith('data:') || this.icon.startsWith('builtin://')) {
             // Image Type (Local File, Network, or Builtin Preview)
             // 只有当非 builtin，或者 builtin 且已解析出真实路径时，才渲染 Image 组件，防止触发空 url 报错
-            if (!this.loadFailed && (!this.icon.startsWith('builtin://') || this.resolvedBuiltinPath)) {
+            if (!this.loadFailed && (this.icon && (!this.icon.startsWith('builtin://') || this.resolvedBuiltinPath))) {
               Image(this.getDisplayIcon())
                 .width('102%') // Slightly scale up
                 .height('102%')
@@ -142,7 +142,7 @@ export struct SubscriptionIcon {
       .height(this.iconSize)
       // 为保修图标提供 100% 不透明的浅色弱渐变底座，其他场景保持默认轻微背景
       .linearGradient(this.getWarrantyBgGradient())
-      .backgroundColor(this.icon.startsWith('warranty_icon:') ? Color.Transparent : 
+      .backgroundColor((this.icon && this.icon.startsWith('warranty_icon:')) ? Color.Transparent : 
         (this.isNewYearTheme ? '#1AFF2400' : (this.showVipTheme ? '#20EDC269' : '#1A0A59F7')))
       .borderRadius(this.iconRadius)
       .clip(true) // CRITICAL: Clip content to border radius to prevent "black edges" or unrounded corners
