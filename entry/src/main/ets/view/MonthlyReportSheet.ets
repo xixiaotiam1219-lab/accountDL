@@ -9,7 +9,7 @@ import { ImageUtils } from '../utils/ImageUtils';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
-import { hdsEffect, HdsNavigation, HdsNavigationTitleMode, ScrollEffectType } from '@kit.UIDesignKit';
+import { hdsEffect,   HdsNavigation, HdsNavigationTitleMode, ScrollEffectType } from '@kit.UIDesignKit';
 import { curves, LengthMetrics } from '@kit.ArkUI';
 import { BackgroundWatermark } from './BackgroundWatermark';
 
@@ -786,7 +786,18 @@ export struct MonthlyReportSheet {
           ]
         }
       },
-
+      // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+      //   systemMaterialEffect: {
+      //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
+      //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+      //   },
+      //   scrollEffectOpts: {
+      //     enableScrollEffect: true,
+      //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+      //     blurEffectiveStartOffset: LengthMetrics.vp(0),
+      //     blurEffectiveEndOffset: LengthMetrics.vp(20)
+      //   }
+      // } : undefined
     })
     .titleMode(HdsNavigationTitleMode.MODAL)
     .mode(NavigationMode.Stack)

@@ -179,7 +179,9 @@ export class SubscriptionRepository {
       { name: 'realUsageTime', type: 'INTEGER' },
       // 保修/保质期专属字段
       { name: 'brand', type: 'TEXT' },
-      { name: 'purchaseChannel', type: 'TEXT' }
+      { name: 'purchaseChannel', type: 'TEXT' },
+      // 提醒状态控制字段
+      { name: 'lastIgnoredBillingDate', type: 'INTEGER' }
     ];
 
     try {
@@ -256,7 +258,9 @@ export class SubscriptionRepository {
       realUsageTime: subscription.realUsageTime || null,
       // 保修/保质期字段
       brand: subscription.brand || null,
-      purchaseChannel: subscription.purchaseChannel || null
+      purchaseChannel: subscription.purchaseChannel || null,
+      // 提醒状态
+      lastIgnoredBillingDate: subscription.lastIgnoredBillingDate || null
     };
     const rowId = await this.rdbStore.insert(TABLE_NAME, valueBucket);
 
@@ -324,11 +328,14 @@ export class SubscriptionRepository {
         usageTime: resultSet.getColumnIndex('usageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageTime')) ? resultSet.getString(resultSet.getColumnIndex('usageTime')) : undefined,
         realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined,
         brand: resultSet.getColumnIndex('brand') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('brand')) ? resultSet.getString(resultSet.getColumnIndex('brand')) : undefined,
-        purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined
+        purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined,
+        lastIgnoredBillingDate: resultSet.getColumnIndex('lastIgnoredBillingDate') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('lastIgnoredBillingDate')) ? resultSet.getLong(resultSet.getColumnIndex('lastIgnoredBillingDate')) : undefined
       };
 
       // 自动推算过期的 nextBillingDate (永久订阅和不定周期不推算，非自动续费不推算)
-      if (sub.billingCycle !== 'Lifetime' && sub.billingCycle !== 'Indefinite' && sub.isAutoRenewal !== false && sub.nextBillingDate > 0 && sub.nextBillingDate < now) {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      if (sub.billingCycle !== 'Lifetime' && sub.billingCycle !== 'Indefinite' && sub.isAutoRenewal !== false && sub.nextBillingDate > 0 && sub.nextBillingDate < todayStart.getTime()) {
         const updatedDate = this.calculateNextBillingDate(sub.nextBillingDate, sub.billingCycle);
         sub.nextBillingDate = updatedDate;
         sub.lastModified = now;
@@ -340,6 +347,14 @@ export class SubscriptionRepository {
         if (sub.reminderDaysBefore !== undefined) {
           LocalNotificationManager.getInstance().scheduleReminder(sub);
         }
+      } else if (sub.recordType === 'groupBuy' && sub.usageStatus === 'unused' && sub.nextBillingDate > 0 && sub.nextBillingDate < todayStart.getTime()) {
+        // 团购券过期逻辑：如果已过有效期，自动标记为已过期
+        sub.usageStatus = 'expired';
+        // 清除提醒设置
+        sub.reminderDaysBefore = undefined;
+        sub.reminderTime = undefined;
+        sub.lastModified = now;
+        updatePromises.push(this.update(sub, true));
       } else {
         // [New Feature] 如果提醒时间已过（且未触发自动续费，说明处于“已提醒但未到期”区间），自动关闭提醒开关
         if (sub.reminderDaysBefore !== undefined && sub.nextBillingDate > now) {
@@ -377,13 +392,12 @@ export class SubscriptionRepository {
     }
     resultSet.close();
 
-    // 如果有更新，触发一次云同步
+    // 如果有更新，同步等待更新完成，防止后台意图过早退出导致更新中断
     if (updatePromises.length > 0) {
-      Promise.all(updatePromises).then(() => {
-        this.syncWithCloud();
-        // 如果是自动续费导致的日期变动，同步更新卡片快照
-        this.updateWidgetSnapshotSync('auto_renewal');
-      });
+      await Promise.all(updatePromises);
+      this.syncWithCloud();
+      // 如果是自动续费导致的日期变动，同步更新卡片快照
+      this.updateWidgetSnapshotSync('auto_renewal');
     }
     // 统一排序：按扣款日期升序，但将永久订阅的项目沉底（因为它们没有后续扣款，且不需要提醒）
     subscriptions.sort((a, b) => {
@@ -454,7 +468,9 @@ export class SubscriptionRepository {
       realUsageTime: subscription.realUsageTime || null,
       // 保修/保质期字段
       brand: subscription.brand || null,
-      purchaseChannel: subscription.purchaseChannel || null
+      purchaseChannel: subscription.purchaseChannel || null,
+      // 提醒状态
+      lastIgnoredBillingDate: subscription.lastIgnoredBillingDate || null
     };
     const predicates = new relationalStore.RdbPredicates(TABLE_NAME);
     if (!subscription.id) {
@@ -646,7 +662,8 @@ export class SubscriptionRepository {
         usageTime: resultSet.getColumnIndex('usageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageTime')) ? resultSet.getString(resultSet.getColumnIndex('usageTime')) : undefined,
         realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined,
         brand: resultSet.getColumnIndex('brand') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('brand')) ? resultSet.getString(resultSet.getColumnIndex('brand')) : undefined,
-        purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined
+        purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined,
+        lastIgnoredBillingDate: resultSet.getColumnIndex('lastIgnoredBillingDate') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('lastIgnoredBillingDate')) ? resultSet.getLong(resultSet.getColumnIndex('lastIgnoredBillingDate')) : undefined
       });
     }
     resultSet.close();
@@ -724,7 +741,8 @@ export class SubscriptionRepository {
       usageTime: resultSet.getColumnIndex('usageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageTime')) ? resultSet.getString(resultSet.getColumnIndex('usageTime')) : undefined,
       realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined,
       brand: resultSet.getColumnIndex('brand') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('brand')) ? resultSet.getString(resultSet.getColumnIndex('brand')) : undefined,
-      purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined
+      purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined,
+      lastIgnoredBillingDate: resultSet.getColumnIndex('lastIgnoredBillingDate') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('lastIgnoredBillingDate')) ? resultSet.getLong(resultSet.getColumnIndex('lastIgnoredBillingDate')) : undefined
     };
   }
 

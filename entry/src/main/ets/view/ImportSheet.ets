@@ -3,7 +3,7 @@ import { CustomIconItem } from '../utils/HarmonyShareManager';
 import { DateUtil } from '../utils/DateUtil';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
 import { SubscriptionIcon } from './SubscriptionIcon';
-import { hdsEffect, HdsNavigation, HdsNavigationTitleMode, ScrollEffectType } from '@kit.UIDesignKit';
+import { hdsEffect,   HdsNavigation, HdsNavigationTitleMode, ScrollEffectType } from '@kit.UIDesignKit';
 import { curves, LengthMetrics } from '@kit.ArkUI';
 import { LocalIconManager } from '../utils/LocalIconManager';
 import { util, buffer } from '@kit.ArkTS';
@@ -561,7 +561,18 @@ export struct ImportSheet {
           ]
         }
       },
-
+      // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+      //   systemMaterialEffect: {
+      //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
+      //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+      //   },
+      //   scrollEffectOpts: {
+      //     enableScrollEffect: true,
+      //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+      //     blurEffectiveStartOffset: LengthMetrics.vp(0),
+      //     blurEffectiveEndOffset: LengthMetrics.vp(20)
+      //   }
+      // } : undefined
     })
     .titleMode(HdsNavigationTitleMode.MODAL)
     .mode(NavigationMode.Stack)

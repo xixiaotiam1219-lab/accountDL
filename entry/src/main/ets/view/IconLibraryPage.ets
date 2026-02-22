@@ -8,6 +8,7 @@ import { image } from '@kit.ImageKit';
 import { ImageCropSheet } from './ImageCropPage';
 import { WebViewParam } from './WebViewPage';
 import { hdsEffect, HdsNavDestination, HdsNavigationTitleBarOptions, HdsNavigationMenuItemOptions,
+
   ScrollEffectType} from '@kit.UIDesignKit';
 import { BackgroundWatermark } from './BackgroundWatermark';
 
@@ -785,6 +786,21 @@ export struct IconLibraryPage {
             ]
           }
         },
+        // style: {
+        //   systemMaterialEffect: {
+        //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
+        //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+        //   },
+        //   scrollEffectOpts: {
+        //     enableScrollEffect: true,
+        //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+        //     blurEffectiveStartOffset: LengthMetrics.vp(0),
+        //     blurEffectiveEndOffset: LengthMetrics.vp(20)
+        //   },
+        //   // scrollEffectStyle: {
+        //   //   backgroundStyle: { maskExtraHeight: 96.0 },
+        //   // }
+        // }
       } as HdsNavigationTitleBarOptions :
         {
           avoidLayoutSafeArea: true,
@@ -828,6 +844,21 @@ export struct IconLibraryPage {
               ]
             }
           },
+          // style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+          //   systemMaterialEffect: {
+          //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
+          //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+          //   },
+          //   scrollEffectOpts: {
+          //     enableScrollEffect: true,
+          //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+          //     blurEffectiveStartOffset: LengthMetrics.vp(0),
+          //     blurEffectiveEndOffset: LengthMetrics.vp(20)
+          //   },
+          //   scrollEffectStyle: {
+          //     backgroundStyle: { maskExtraHeight: 96.0 },
+          //   }
+          // } :undefined
         } as HdsNavigationTitleBarOptions)
       .backgroundColor($r('app.color.page_background'))
 

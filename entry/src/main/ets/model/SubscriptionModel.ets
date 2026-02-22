@@ -31,4 +31,7 @@ export interface SubscriptionModel {
   // === 保修/保质期专属字段 ===
   brand?: string; // 品牌名称
   purchaseChannel?: string; // 购买渠道 (京东、天猫、线下门店等)
+
+  // === 提醒状态控制 ===
+  lastIgnoredBillingDate?: number; // 最后一次点击“我知道了”时对应的到期日，用于屏蔽已处理的提醒
 }

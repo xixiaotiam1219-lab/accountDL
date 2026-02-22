@@ -1,6 +1,7 @@
 import { SubscriptionModel } from '../model/SubscriptionModel';
 import { promptAction, curves, LengthMetrics } from '@kit.ArkUI';
 import { hdsEffect,
+
   HdsNavDestination, HdsNavDestinationTitleMode, HdsNavigation, HdsNavigationTitleMode,
   ScrollEffectType } from '@kit.UIDesignKit';
 import { SubscriptionIcon } from './SubscriptionIcon';
@@ -366,6 +367,18 @@ export struct ReminderSetupPanel {
               ]
             }
           },
+          // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ?{
+          //   systemMaterialEffect: {
+          //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
+          //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+          //   },
+          //   scrollEffectOpts: {
+          //     enableScrollEffect: true,
+          //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+          //     blurEffectiveStartOffset: LengthMetrics.vp(0),
+          //     blurEffectiveEndOffset: LengthMetrics.vp(20)
+          //   }
+          // }:undefined
         })
         .titleMode(HdsNavDestinationTitleMode.MODAL)
         .onBackPressed(() => {
@@ -468,6 +481,18 @@ export struct ReminderSetupPanel {
             ]
           }
         },
+        // style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+        //   systemMaterialEffect: {
+        //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
+        //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+        //   },
+        //   scrollEffectOpts: {
+        //     enableScrollEffect: true,
+        //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+        //     blurEffectiveStartOffset: LengthMetrics.vp(0),
+        //     blurEffectiveEndOffset: LengthMetrics.vp(20)
+        //   }
+        // }:undefined
       })
       .titleMode(HdsNavigationTitleMode.MODAL)
       .navDestination(this.navDestination)

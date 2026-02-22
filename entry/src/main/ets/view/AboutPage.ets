@@ -1,6 +1,6 @@
 import { WebViewParam } from './WebViewPage';
 import { BackgroundWatermark } from './BackgroundWatermark';
-import { HdsNavDestination, ScrollEffectType, hdsEffect } from '@kit.UIDesignKit';
+import {   HdsNavDestination, ScrollEffectType, hdsEffect } from '@kit.UIDesignKit';
 import { curves, LengthMetrics, PromptAction, promptAction } from '@kit.ArkUI';
 import { deviceInfo, BusinessError } from '@kit.BasicServicesKit';
 import { privacyManager } from '@kit.StoreKit';
@@ -208,6 +208,18 @@ export struct AboutPage {
             mainTitle: '关于应用'
           }
         },
+        // style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+        //   systemMaterialEffect: {
+        //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
+        //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+        //   },
+        //   scrollEffectOpts: {
+        //     enableScrollEffect: true,
+        //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+        //     blurEffectiveStartOffset: LengthMetrics.vp(0),
+        //     blurEffectiveEndOffset: LengthMetrics.vp(20)
+        //   }
+        // }:undefined
       })
       .backgroundColor($r('app.color.page_background'))
 

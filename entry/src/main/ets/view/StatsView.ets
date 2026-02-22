@@ -10,7 +10,7 @@ import { resolveIcon } from '../utils/MemberServiceConfig';
 import { LoginSheet } from './LoginSheet';
 import { MonthlyReportSheet } from './MonthlyReportSheet';
 import { SubscriptionIcon } from './SubscriptionIcon';
-import { hdsEffect, HdsNavDestination, ScrollEffectType, HdsNavigationTitleBarOptions, HdsNavigationTitleBarStyle } from '@kit.UIDesignKit';
+import { hdsEffect,   HdsNavDestination, ScrollEffectType, HdsNavigationTitleBarOptions, HdsNavigationTitleBarStyle } from '@kit.UIDesignKit';
 
 interface RankingItem {
   sub: SubscriptionModel;
@@ -129,26 +129,31 @@ export struct StatsView {
       
       if (this.isAnimationEnabled) {
         // 第一梯队: 头部 + 概览
-        animateTo({ curve: springCurve }, () => {
-          this.animHeader = true;
-          this.animStep1 = true;
-        });
+        setTimeout(() => {
+          if (!this.isVisible) return;
+          animateTo({ curve: springCurve }, () => {
+            this.animHeader = true;
+            this.animStep1 = true;
+          });
+        }, 50);
         
         // 第二梯队: 趋势图 + 热力图
         setTimeout(() => {
+          if (!this.isVisible) return;
           animateTo({ curve: springCurve }, () => {
             this.animStep2 = true;
             this.animStepHeatmap = true;
           })
-        }, interval);
+        }, 50 + interval);
         
         // 第三梯队: 报告 + 排行
         setTimeout(() => {
+          if (!this.isVisible) return;
           animateTo({ curve: springCurve }, () => {
             this.animStep3 = true;
             this.animStep4 = true;
           })
-        }, interval * 2);
+        }, 50 + interval * 2);
       } else {
         this.animHeader = true;
         this.animStep1 = true;
@@ -1268,7 +1273,18 @@ export struct StatsView {
     .hideBackButton(true).hideTitleBar(false).backgroundColor(Color.Transparent)
     .titleBar({
       avoidLayoutSafeArea: true,
-
+      // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+      //   systemMaterialEffect: {
+      //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
+      //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+      //   },
+      //   scrollEffectOpts: {
+      //     enableScrollEffect: true,
+      //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+      //     blurEffectiveStartOffset: LengthMetrics.vp(0),
+      //     blurEffectiveEndOffset: LengthMetrics.vp(20)
+      //   }
+      // }: undefined,
       content: {
         title: { mainTitle: '统计分析' },
       }

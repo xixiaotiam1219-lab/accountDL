@@ -6,7 +6,7 @@ import { EVENT_SYNC_COMPLETED, EVENT_LOGOUT, EVENT_DATA_CHANGED, GlobalBus } fro
 import { resolveIcon } from '../utils/MemberServiceConfig';
 import { SubscriptionIcon } from './SubscriptionIcon';
 import { commonEventManager, deviceInfo } from '@kit.BasicServicesKit';
-import { hdsEffect, HdsNavDestination, HdsNavigationMenuItemOptions,
+import { hdsEffect,   HdsNavDestination, HdsNavigationMenuItemOptions,
   ScrollEffectType } from '@kit.UIDesignKit';
 
 interface LinearGradientValue {
@@ -366,21 +366,20 @@ export struct CalendarView {
   }
 
   prevMonth(jumpToEnd: boolean = false) {
-    // Prevent going back past current month
-    // const today = new Date();
-    // if (this.currentYear < today.getFullYear() ||
-    //   (this.currentYear === today.getFullYear() && this.currentMonth <= today.getMonth())) {
-    //   promptAction.showToast({ message: '已经到头啦！', duration: 1500 });
-    //   return;
-    // }
-
     const changeAction = () => {
+      let oldDay = this.selectedDate.getDate();
       if (this.currentMonth === 0) {
         this.currentMonth = 11;
         this.currentYear--;
       } else {
         this.currentMonth--;
       }
+      
+      // 同步更新选中日期，处理月份天数溢出（如3月31日切到2月）
+      const daysInNewMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
+      const newDay = Math.min(oldDay, daysInNewMonth);
+      this.selectedDate = new Date(this.currentYear, this.currentMonth, newDay);
+
       this.refreshData();
       this.generateCalendar();
     };
@@ -408,12 +407,19 @@ export struct CalendarView {
 
   nextMonth() {
     const changeAction = () => {
+      let oldDay = this.selectedDate.getDate();
       if (this.currentMonth === 11) {
         this.currentMonth = 0;
         this.currentYear++;
       } else {
         this.currentMonth++;
       }
+
+      // 同步更新选中日期
+      const daysInNewMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
+      const newDay = Math.min(oldDay, daysInNewMonth);
+      this.selectedDate = new Date(this.currentYear, this.currentMonth, newDay);
+
       this.refreshData();
       this.generateCalendar();
     };
@@ -433,7 +439,16 @@ export struct CalendarView {
 
   handleDateClick(date: Date) {
     if (date.getTime() === 0) return;
-    this.selectedDate = date;
+    
+    const changeAction = () => {
+      this.selectedDate = date;
+    }
+
+    if (this.isAnimationEnabled) {
+      animateTo({ curve: curves.springMotion(this.animationResponse, this.animationDamping) }, changeAction);
+    } else {
+      changeAction();
+    }
 
     // 如果在时间轴模式，点击头部日期自动滚动对齐
     if (this.viewMode === 1) {
@@ -585,6 +600,11 @@ export struct CalendarView {
     .width('100%')
     .layoutWeight(1) // 占据剩余空间
     .padding({ left: 16, right: 16 })
+    .id(`list-${this.currentYear}-${this.currentMonth}-${this.selectedDate.getDate()}`) // 关键：ID 变化触发过渡
+    .transition(TransitionEffect.asymmetric(
+      TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: 40 })).animation({ duration: this.isAnimationEnabled ? 300 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) }), // 入场
+      TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: -40 })).animation({ duration: this.isAnimationEnabled ? 300 : 0, curve: curves.springMotion(this.animationResponse, this.animationDamping) }) // 出场
+    ))
   }
 
   getDayGradient(date: Date): LinearGradientValue {
@@ -1638,6 +1658,18 @@ export struct CalendarView {
             ]
           }
         },
+        // style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+        //   systemMaterialEffect: {
+        //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
+        //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+        //   },
+        //   scrollEffectOpts: {
+        //     enableScrollEffect: true,
+        //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+        //     blurEffectiveStartOffset: LengthMetrics.vp(0),
+        //     blurEffectiveEndOffset: LengthMetrics.vp(20)
+        //   }
+        // }:undefined
       })
 
   }

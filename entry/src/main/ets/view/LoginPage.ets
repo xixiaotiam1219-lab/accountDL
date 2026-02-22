@@ -1,6 +1,8 @@
 import { LoginSheet } from './LoginSheet';
 import { BackgroundWatermark } from './BackgroundWatermark';
-import {  HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
+import {   HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
+import { deviceInfo } from '@kit.BasicServicesKit';
+import { LengthMetrics } from '@kit.ArkUI';
 
 @Builder
 export function LoginPageBuilder() {
@@ -45,11 +47,24 @@ struct LoginPage {
           this.LoginBuilder()
       }
       .titleBar({
+        avoidLayoutSafeArea:true,
         content: {
           title: {
             mainTitle: '登录'
           }
         },
+        // style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+        //   systemMaterialEffect: {
+        //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
+        //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+        //   },
+        //   scrollEffectOpts: {
+        //     enableScrollEffect: true,
+        //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+        //     blurEffectiveStartOffset: LengthMetrics.vp(0),
+        //     blurEffectiveEndOffset: LengthMetrics.vp(20)
+        //   }
+        // }:undefined
       })
       .backgroundColor($r('app.color.page_background'))
 

@@ -3,7 +3,7 @@ import { PreferenceUtil } from '../utils/PreferenceUtil';
 import { WebViewParam } from './WebViewPage';
 import { http } from '@kit.NetworkKit';
 import { ZHIPU_API_BASE_URL } from '../utils/ApiConfig';
-import { hdsEffect, HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
+import { hdsEffect,   HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
 import { BackgroundWatermark } from './BackgroundWatermark';
 import { deviceInfo } from '@kit.BasicServicesKit';
 
@@ -420,7 +420,18 @@ export struct AIConfigPage {
           },
 
         },
-
+        // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ?{
+        //   systemMaterialEffect: {
+        //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
+        //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+        //   },
+        //   scrollEffectOpts: {
+        //     enableScrollEffect: true,
+        //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+        //     blurEffectiveStartOffset: LengthMetrics.vp(0),
+        //     blurEffectiveEndOffset: LengthMetrics.vp(20)
+        //   }
+        // }:undefined
       })
       .backgroundColor($r('app.color.page_background'))
 

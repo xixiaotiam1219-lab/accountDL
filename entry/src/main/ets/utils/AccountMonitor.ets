@@ -99,8 +99,7 @@ export class AccountMonitor {
     try {
       const subs = await SubscriptionRepository.getInstance().queryAll();
       const notificationManagerModule = await import('../manager/LocalNotificationManager');
-      const LocalNotificationManager = notificationManagerModule.LocalNotificationManager;
-      await LocalNotificationManager.getInstance().cancelAllReminders(subs);
+      await notificationManagerModule.LocalNotificationManager.getInstance().cancelAllReminders(subs);
     } catch (e) {
       hilog.error(DOMAIN, TAG, `Failed to cancel reminders during logout: ${JSON.stringify(e)}`);
     }

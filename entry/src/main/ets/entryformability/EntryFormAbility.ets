@@ -257,7 +257,7 @@ export default class EntryFormAbility extends FormExtensionAbility {
                 obj.title = item.name || (isWarranty ? '未知保修' : '未知订阅');
 
                 if (isGroupBuy) {
-                  const statusText: string = item.usageStatus === 'used' ? '已使用' : (item.usageStatus === 'expired' ? '已过期' : `剩 ${DateUtil.getDaysUntil(item.nextBillingDate)} 天`);
+                  const statusText: string = item.usageStatus === 'used' ? '已使用' : (item.usageStatus === 'expired' ? '已过期' : (DateUtil.getDaysUntil(item.nextBillingDate) < 0 ? '已过期' : `剩 ${DateUtil.getDaysUntil(item.nextBillingDate)} 天`));
                   obj.content = item.merchantName ? `${item.merchantName} | ${statusText}` : statusText;
                 } else if (isWarranty) {
                   const statusStr = days < 0 ? '过保' : '在保';
