@@ -1241,22 +1241,36 @@ export class PreferenceUtil {
     await this.ensureInitialized();
     if (!this.pref) return;
     try {
-      await this.pref.put(`reminder_map_${subId}`, reminderId);
-      await this.pref.flush();
+      const existingIds = await this.getReminderIds(subId);
+      if (!existingIds.includes(reminderId)) {
+        existingIds.push(reminderId);
+        await this.pref.put(`reminder_map_${subId}`, JSON.stringify(existingIds));
+        await this.pref.flush();
+      }
     } catch (err) {
-      hilog.error(DOMAIN, TAG, `Failed to save reminder map: ${err}`);
+      hilog.error(DOMAIN, TAG, `Failed to save reminder map for sub ${subId}: ${err}`);
     }
   }
 
-  public async getReminderId(subId: number): Promise<number> {
+  public async getReminderIds(subId: number): Promise<number[]> {
     await this.ensureInitialized();
-    if (!this.pref) return -1;
+    if (!this.pref) return [];
     try {
-      const id = await this.pref.get(`reminder_map_${subId}`, -1);
-      return id as number;
+      const val = await this.pref.get(`reminder_map_${subId}`, '[]');
+      if (typeof val === 'number') {
+        // 兼容旧版本单 ID 格式
+        return val === -1 ? [] : [val];
+      }
+      return JSON.parse(val as string) as number[];
     } catch (err) {
-      return -1;
+      return [];
     }
+  }
+
+  // 保留原有方法名兼容接口，返回第一个 ID (通常为主周期提醒)
+  public async getReminderId(subId: number): Promise<number> {
+    const ids = await this.getReminderIds(subId);
+    return ids.length > 0 ? ids[0] : -1;
   }
 
   public async saveSortOrder(order: string) {
@@ -1292,6 +1306,25 @@ export class PreferenceUtil {
       await this.pref.flush();
     } catch (err) {
       hilog.error(DOMAIN, TAG, `Failed to remove reminder map: ${err}`);
+    }
+  }
+
+  public async removeSpecificReminderId(subId: number, reminderId: number) {
+    await this.ensureInitialized();
+    if (!this.pref) return;
+    try {
+      let ids = await this.getReminderIds(subId);
+      if (ids.includes(reminderId)) {
+        ids = ids.filter(id => id !== reminderId);
+        if (ids.length > 0) {
+          await this.pref.put(`reminder_map_${subId}`, JSON.stringify(ids));
+        } else {
+          await this.pref.delete(`reminder_map_${subId}`);
+        }
+        await this.pref.flush();
+      }
+    } catch (err) {
+      hilog.error(DOMAIN, TAG, `Failed to remove specific reminder id for sub ${subId}: ${err}`);
     }
   }
 

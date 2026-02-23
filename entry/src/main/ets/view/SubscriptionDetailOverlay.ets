@@ -1,4 +1,4 @@
-import { SubscriptionModel } from '../model/SubscriptionModel';
+import { SubscriptionModel, ExtendedWarrantyItem } from '../model/SubscriptionModel';
 import { DateUtil } from '../utils/DateUtil';
 import { SubscriptionIcon } from './SubscriptionIcon';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
@@ -356,8 +356,69 @@ export struct SubscriptionDetailOverlay {
                           : $r('app.color.text_primary')))
                   }
                   .width('100%')
+                }
 
-                } else {
+                if (this.data.recordType === 'warranty' && this.data.extendedWarranties) {
+                  // ========== 保障服务列表 ==========
+                  Column({ space: 12 }) {
+                    Row() {
+                      SymbolGlyph($r('sys.symbol.checkmark_shield'))
+                        .fontSize(14)
+                        .fontColor([this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                          (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
+                        .margin({ right: 6 })
+                      Text('保障/附加项目')
+                        .fontSize(14)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor($r('app.color.text_primary'))
+                    }
+                    .width('100%')
+                    .margin({ top: 4 })
+
+                    Column({ space: 10 }) {
+                      ForEach((() => {
+                        try {
+                          return JSON.parse(this.data.extendedWarranties || '[]') as ExtendedWarrantyItem[];
+                        } catch (e) {
+                          return [] as ExtendedWarrantyItem[];
+                        }
+                      })(), (item: ExtendedWarrantyItem) => {
+                        Row() {
+                          Column() {
+                            Text(item.name)
+                              .fontSize(15)
+                              .fontWeight(FontWeight.Medium)
+                              .fontColor($r('app.color.text_primary'))
+                            if (item.date) {
+                              Text('到期：' + DateUtil.formatDate(item.date))
+                                .fontSize(12)
+                                .fontColor(DateUtil.getDaysUntil(item.date) < 0 ? '#F44336' : $r('app.color.text_secondary'))
+                                .margin({ top: 2 })
+                            }
+                          }
+                          .alignItems(HorizontalAlign.Start)
+
+                          Blank()
+
+                          Text((Number(item.price) > 0 ? (this.data.currency === 'USD' ? '$' : '¥') : '') + item.price)
+                            .fontSize(16)
+                            .fontWeight(FontWeight.Bold)
+                            .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') :
+                              (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.text_primary')))
+                        }
+                        .width('100%')
+                        .padding(12)
+                        .backgroundColor($r('app.color.page_background'))
+                        .borderRadius(12)
+                      }, (item: ExtendedWarrantyItem) => item.id)
+                    }
+                    .width('100%')
+                  }
+                  .width('100%')
+                  .margin({ top: 8 })
+                }
+
+                if (this.data.recordType !== 'groupBuy' && this.data.recordType !== 'warranty') {
                   // 原有订阅详情
                   // 下次扣费
                   if (this.data.billingCycle !== 'Lifetime') {

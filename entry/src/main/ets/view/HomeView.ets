@@ -1,4 +1,4 @@
-import { SubscriptionModel } from '../model/SubscriptionModel';
+import { SubscriptionModel, ExtendedWarrantyItem } from '../model/SubscriptionModel';
 import { SubscriptionCard } from './SubscriptionCard';
 import { NewYearSubscriptionCard } from './NewYearSubscriptionCard';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
@@ -10,7 +10,7 @@ import { EVENT_SYNC_COMPLETED, EVENT_DATA_CHANGED, GlobalBus } from '../utils/Gl
 import { LoginSheet } from './LoginSheet';
 import { SubscriptionIcon } from './SubscriptionIcon';
 import { PreferenceUtil } from '../utils/PreferenceUtil';
-import { hdsEffect,   HdsNavDestination,
+import { hdsEffect, HdsNavDestination,
   HdsNavigation,
   HdsNavigationMenuItemOptions,
   HdsNavigationTitleMode,
@@ -20,6 +20,7 @@ import { ReminderSetupPanel } from './ReminderSetupPanel';
 import { LocalIconManager } from '../utils/LocalIconManager';
 import { HarmonyShareManager } from '../utils/HarmonyShareManager';
 import { commonEventManager, deviceInfo } from '@kit.BasicServicesKit';
+import { SwipeDeleteButton } from '../Components/SwipeDeleteButton';
 
 // 导航参数类型
 class AddSubscriptionNavParams {
@@ -101,7 +102,7 @@ export struct HomeView {
   @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
   @StorageLink('smartHandMode') smartHandMode: 'left' | 'right' | 'center' = 'center';
   @StorageLink('statusBarHeight') statusBarHeight: number = 0;
-  
+
   // Tab 交互增强相关
   @State indicatorWidth: number = 0;
   @State indicatorX: number = 0;
@@ -657,11 +658,22 @@ export struct HomeView {
         if (sub.recordType === 'groupBuy') {
           targetDate = sub.realUsageTime ? new Date(sub.realUsageTime) : new Date(sub.nextBillingDate);
         } else {
-          targetDate = new Date(sub.nextBillingDate);
+          // 优先使用购买日期 (startDate)，如果没有则使用到期日 (nextBillingDate)
+          targetDate = new Date(sub.startDate || sub.nextBillingDate);
         }
 
         if (DateUtil.isSameMonth(targetDate, now)) {
-          total += sub.price;
+          let extendedCost = 0;
+          if (sub.extendedWarranties) {
+            try {
+              const warranties = JSON.parse(sub.extendedWarranties) as ExtendedWarrantyItem[];
+              warranties.forEach(w => {
+                const p = Number(w.price);
+                if (!isNaN(p) && p > 0) extendedCost += p;
+              });
+            } catch (e) {}
+          }
+          total += sub.price + extendedCost;
         }
         return;
       }
@@ -866,19 +878,19 @@ export struct HomeView {
 
   @Builder EmptyState() {
     Column() {
-      SymbolGlyph(this.currentTab === 'groupBuy' ? $r('sys.symbol.bag') : 
+      SymbolGlyph(this.currentTab === 'groupBuy' ? $r('sys.symbol.bag') :
         (this.currentTab === 'warranty' ? $r('sys.symbol.shield_checkered') : $r('sys.symbol.plus')))
         .fontSize(56)
         .fontColor([$r('app.color.text_secondary')])
         .margin({ bottom: 16 })
-      
-      Text(this.currentTab === 'groupBuy' ? "暂无团购" : 
+
+      Text(this.currentTab === 'groupBuy' ? "暂无团购" :
         (this.currentTab === 'warranty' ? "暂无保修" : "暂无服务"))
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
         .fontColor($r('app.color.text_primary'))
         .margin({ bottom: 8 })
-      
+
       Text(this.isLoggedIn ? "点击下方 + 按钮开始添加" : "请先登录后添加")
         .fontSize(14)
         .fontColor($r('app.color.text_secondary'))
@@ -969,46 +981,34 @@ export struct HomeView {
 
   @Builder SyncGuideSheet() {
     Column() {
-        HdsNavigation(this.navStack) {
-          this.SyncGuideBuilder()
-        }
-        .backgroundColor(Color.Transparent)
-        .titleBar({
-          content: {
-            title: { mainTitle: '多端同步指南' },
-            menu: {
-              value: [
-                {
-                  content: {
-                    icon: $r('sys.symbol.xmark'),
-                    action: () => {
-                      this.showSyncGuide = false;
-                    }
+      HdsNavigation(this.navStack) {
+        this.SyncGuideBuilder()
+      }
+      .backgroundColor(Color.Transparent)
+      .titleBar({
+        content: {
+          title: { mainTitle: '多端同步指南' },
+          menu: {
+            value: [
+              {
+                content: {
+                  icon: $r('sys.symbol.xmark'),
+                  action: () => {
+                    this.showSyncGuide = false;
                   }
                 }
-              ]
-            }
-          },
-          // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ?{
-          //   systemMaterialEffect: {
-          //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
-          //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-          //   },
-          //   scrollEffectOpts: {
-          //     enableScrollEffect: true,
-          //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-          //     blurEffectiveStartOffset: LengthMetrics.vp(0),
-          //     blurEffectiveEndOffset: LengthMetrics.vp(20)
-          //   }
-          // }:undefined
-        })
-        .titleMode(HdsNavigationTitleMode.MODAL)
-        .mode(NavigationMode.Stack)
-        .hideBackButton(true)
-        .backgroundColor($r('app.color.page_background'))
-        .borderRadius({ topLeft: 24, topRight: 24 })
-        .width('100%')
-        .height('100%')
+              }
+            ]
+          }
+        },
+      })
+      .titleMode(HdsNavigationTitleMode.MODAL)
+      .mode(NavigationMode.Stack)
+      .hideBackButton(true)
+      .backgroundColor($r('app.color.page_background'))
+      .borderRadius({ topLeft: 24, topRight: 24 })
+      .width('100%')
+      .height('100%')
 
     }
     .width('100%')
@@ -1123,7 +1123,7 @@ export struct HomeView {
     }
     .titleBar({
       content: {
-        title: { 
+        title: {
           mainTitle: '近期到期订阅',
           subTitle: '以下订阅即将到期'
         },
@@ -1140,18 +1140,6 @@ export struct HomeView {
           ]
         }
       },
-      // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
-      //   systemMaterialEffect: {
-      //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
-      //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-      //   },
-      //   scrollEffectOpts: {
-      //     enableScrollEffect: true,
-      //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-      //     blurEffectiveStartOffset: LengthMetrics.vp(0),
-      //     blurEffectiveEndOffset: LengthMetrics.vp(20)
-      //   }
-      // } : undefined
     })
     .titleMode(HdsNavigationTitleMode.MODAL)
     .mode(NavigationMode.Stack)
@@ -1360,7 +1348,7 @@ export struct HomeView {
 
   @Builder AgentStackBuilder() {
     Row({ space: 10 }) {
-      
+
       Stack() {
         FunctionComponent({
           agentId: this.agentId,
@@ -1520,7 +1508,7 @@ export struct HomeView {
                               const x = newValue.position.x as number;
                               const w = newValue.width as number;
                               this.tabAreaMap.set(item.id, { x: x, width: w });
-                              
+
                               // 初始化时设置默认指示器位置
                               if (this.currentTab === item.id && this.indicatorWidth === 0) {
                                 this.indicatorX = x;
@@ -1543,9 +1531,9 @@ export struct HomeView {
                     .padding(4)
                   }
                   .scrollable(ScrollDirection.Horizontal)
-                   .scrollBar(BarState.Off)
-                   .edgeEffect(EdgeEffect.Spring) // 弹性滑动手感更好
-                   .margin({ right: 12 })
+                  .scrollBar(BarState.Off)
+                  .edgeEffect(EdgeEffect.Spring) // 弹性滑动手感更好
+                  .margin({ right: 12 })
 
                   Blank()
 
@@ -1590,7 +1578,7 @@ export struct HomeView {
                     { value: '名称 (A-Z)', action: () => this.applySort('name_asc') }
                   ])
                 }
-                .width('100%').margin({ bottom: 16 })
+                .width('100%').margin({ bottom: 4 })
                 .opacity(this.animStep2 ? 1 : 0)
                 .translate({ y: this.animStep2 ? 0 : 50 })
               }
@@ -1709,7 +1697,7 @@ export struct HomeView {
                               const x = newValue.position.x as number;
                               const w = newValue.width as number;
                               this.tabAreaMap.set(item.id, { x: x, width: w });
-                              
+
                               // 初始化时设置默认指示器位置
                               if (this.currentTab === item.id && this.indicatorWidth === 0) {
                                 this.indicatorX = x;
@@ -1780,7 +1768,7 @@ export struct HomeView {
                     { value: '名称 (A-Z)', action: () => this.applySort('name_asc') }
                   ])
                 }
-                .width('100%').margin({ bottom: 16 })
+                .width('100%').margin({ bottom: 4 })
                 .opacity(this.animStep2 ? 1 : 0)
                 .translate({ y: this.animStep2 ? 0 : 50 })
               }
@@ -1790,7 +1778,7 @@ export struct HomeView {
             if (this.currentTab === 'subscription' || this.currentTab === 'all') {
               ListItem() {
                 NewYearSubscriptionCard()
-                  .margin({ bottom: 16, left: 16, right: 16 })
+                  .margin({ bottom: 12, left: 16, right: 16 })
               }
             }
 
@@ -1896,72 +1884,60 @@ export struct HomeView {
   }
 
   build() {
-      HdsNavDestination() {
-        this.homeBuilder()
-      }
-      .hideBackButton(true)
-      .hideTitleBar(false)
-      .backgroundColor(Color.Transparent)
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        content: {
-          title: { mainTitle: '订阅概览' },
-          stackBuilder: (): void => this.AgentStackBuilder(),
-          menu: {
-            value: [
-              {
-                content: {
-                  label: '提醒管理',
-                  icon: $r('sys.symbol.bell'),
-                  action: (): void => {
-                    getContext(this).eventHub.emit('openReminderSheet');
-                  }
+    HdsNavDestination() {
+      this.homeBuilder()
+    }
+    .hideBackButton(true)
+    .hideTitleBar(false)
+    .backgroundColor(Color.Transparent)
+    .titleBar({
+      avoidLayoutSafeArea: true,
+      content: {
+        title: { mainTitle: '订阅概览' },
+        stackBuilder: (): void => this.AgentStackBuilder(),
+        menu: {
+          value: [
+            {
+              content: {
+                label: '提醒管理',
+                icon: $r('sys.symbol.bell'),
+                action: (): void => {
+                  getContext(this).eventHub.emit('openReminderSheet');
                 }
-              } as HdsNavigationMenuItemOptions,
+              }
+            } as HdsNavigationMenuItemOptions,
 
-              {
-                content: {
-                  label: '分享',
-                  icon: $r('sys.symbol.share'),
-                  action: (): void => {
-                    if (!this.isLoggedIn) {
-                      if (this.isWide && this.isSplitViewEnabled) {
-                        this.pageStack.removeByName('Login');
-                        this.pageStack.pushPathByName('Login', null);
-                      } else {
-                        if (this.isAnimationEnabled) {
-                          animateTo({
-                            duration: this.animationDuration,
-                            curve: curves.springMotion(this.animationResponse, this.animationDamping)
-                          }, () => {
-                            this.showLoginSheet = true;
-                          });
-                        } else {
+            {
+              content: {
+                label: '分享',
+                icon: $r('sys.symbol.share'),
+                action: (): void => {
+                  if (!this.isLoggedIn) {
+                    if (this.isWide && this.isSplitViewEnabled) {
+                      this.pageStack.removeByName('Login');
+                      this.pageStack.pushPathByName('Login', null);
+                    } else {
+                      if (this.isAnimationEnabled) {
+                        animateTo({
+                          duration: this.animationDuration,
+                          curve: curves.springMotion(this.animationResponse, this.animationDamping)
+                        }, () => {
                           this.showLoginSheet = true;
-                        }
+                        });
+                      } else {
+                        this.showLoginSheet = true;
                       }
-                      return;
                     }
-                    HarmonyShareManager.getInstance().activeShare();
+                    return;
                   }
+                  HarmonyShareManager.getInstance().activeShare();
                 }
-              } as HdsNavigationMenuItemOptions
-            ]
-          }
-        },
-        // style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
-        //   systemMaterialEffect: {
-        //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
-        //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-        //   },
-        //   scrollEffectOpts: {
-        //     enableScrollEffect: true,
-        //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-        //     blurEffectiveStartOffset: LengthMetrics.vp(0),
-        //     blurEffectiveEndOffset: LengthMetrics.vp(20)
-        //   }
-        // }:undefined
-      })
+              }
+            } as HdsNavigationMenuItemOptions
+          ]
+        }
+      },
+    })
 
   }
 
@@ -2047,58 +2023,6 @@ export struct HomeView {
         }
       })
     }
-  }
-}
-
-@Component
-struct SwipeDeleteButton {
-  @Prop item: SubscriptionModel;
-  @Prop isStart: boolean = false;
-  onDelete: (item: SubscriptionModel) => void = () => {};
-  @State isPressed: boolean = false;
-  @State lightSource: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
-  @StorageLink('isAnimationEnabled') isAnimationEnabled: boolean = true;
-  @StorageLink('isPointLightEnabled') isPointLightEnabled: boolean = true;
-  @StorageLink('isOnline') isOnline: boolean = true;
-
-  build() {
-    Button({ type: ButtonType.Circle }) {
-      SymbolGlyph($r('sys.symbol.trash')).fontSize(24).fontColor([Color.White])
-    }
-    .width(48).height(48)
-    .backgroundColor(Color.Red)
-    .margin({
-      bottom: 12,
-      left: this.isStart ? 24 : 0,
-      right: this.isStart ? 0 : 24
-    })
-    .zIndex(1)
-    .visualEffect(new hdsEffect.HdsEffectBuilder()
-      .pointLight({
-        sourceType: this.lightSource,
-        illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-      })
-      .buildEffect())
-    .scale({ x: this.isPressed ? 0.9 : 1, y: this.isPressed ? 0.9 : 1 })
-    .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-    .onTouch((event: TouchEvent) => {
-      if (event.type === TouchType.Down) {
-        if (this.isAnimationEnabled && this.isPointLightEnabled) {
-          this.isPressed = true;
-          this.lightSource = hdsEffect.PointLightSourceType.BRIGHT;
-        }
-      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-        this.isPressed = false;
-        this.lightSource = hdsEffect.PointLightSourceType.NONE;
-      }
-    })
-    .onClick(() => {
-      if (!this.isOnline) {
-        prompt.showToast({ message: '无法连接到服务器，请检查设备的网络连接' });
-        return;
-      }
-      this.onDelete(this.item);
-    })
   }
 }
 

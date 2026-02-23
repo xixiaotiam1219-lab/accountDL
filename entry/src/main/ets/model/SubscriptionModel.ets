@@ -34,4 +34,24 @@ export interface SubscriptionModel {
 
   // === 提醒状态控制 ===
   lastIgnoredBillingDate?: number; // 最后一次点击“我知道了”时对应的到期日，用于屏蔽已处理的提醒
+
+  // === 附加延保服务 ===
+  extendedWarranties?: string; // JSON 序列化后的 ExtendedWarrantyItem[]
+}
+
+@Observed
+export class ExtendedWarrantyItem {
+  id: string = ''; // 唯一标识
+  name: string = ''; // 延保名称
+  price: string = ''; // 延保金额
+  date: number = 0; // 延保到期时间
+  isReminderEnabled: boolean = false; // 是否开启独立提醒
+
+  constructor(id: string, name: string, price: string, date: number, isReminderEnabled: boolean = false) {
+    this.id = id;
+    this.name = name;
+    this.price = price;
+    this.date = date;
+    this.isReminderEnabled = isReminderEnabled;
+  }
 }

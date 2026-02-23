@@ -570,7 +570,7 @@ export struct AddSubscription {
             .backgroundColor($r('app.color.page_background'))
             .borderRadius(16)
             .padding(4)
-            .margin({ bottom: 24 })
+            // .margin({ bottom: 24 })
             .opacity(this.animStep1 ? 1 : 0)
             .translate({ y: this.animStep1 ? 0 : 100 })
             .scale({ x: this.animStep1 ? 1 : 0.9, y: this.animStep1 ? 1 : 0.9 })

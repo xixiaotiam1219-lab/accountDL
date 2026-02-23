@@ -16,7 +16,7 @@ export struct AboutPage {
   @StorageLink('topRectHeight') topRectHeight: number = 0;
   @StorageLink('isNewYearTheme') isNewYearTheme: boolean = false;
   @StorageLink('isNewYearWatermarkEnabled') isNewYearWatermarkEnabled: boolean = true;
-  private appVersion: string = 'v2.0.0';
+  private appVersion: string = 'v2.0.1';
   private agreementUrl: string = 'https://agreement-drcn.hispace.dbankcloud.cn/index.html?lang=zh&agreementId=1866142389635159616';
   private promptAction: PromptAction = this.getUIContext().getPromptAction();
 

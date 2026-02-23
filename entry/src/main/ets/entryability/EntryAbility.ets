@@ -5,7 +5,6 @@ import { window, display, promptAction } from '@kit.ArkUI';
 import { FloatingBallManager } from '../utils/FloatingBallManager';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
 import { OCRManager } from '../utils/OCRManager';
-import { pushService } from '@kit.PushKit';
 import { notificationManager } from '@kit.NotificationKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { NetworkMonitor } from '../utils/NetworkMonitor';
@@ -22,6 +21,7 @@ import { http } from '@kit.NetworkKit';
 import { util, url } from '@kit.ArkTS';
 import { WARRANTY_ICON_MAP_NAMES, WARRANTY_THEME_MAP, getWarrantyThemeColors } from '../utils/WarrantyConstants';
 import { LocalIconManager } from '../utils/LocalIconManager';
+import { LocalNotificationManager } from '../manager/LocalNotificationManager';
 
 const DOMAIN = 0x0000;
 export default class EntryAbility extends UIAbility {
@@ -76,8 +76,10 @@ export default class EntryAbility extends UIAbility {
           });
         }
 
-        // 无论是否登录，都尝试刷新一次卡片（确保显示"未登录"或缓存数据）
-        this.updateAllWidgets();
+        // 无论是否登录，都尝试刷新一次卡片（推迟执行，不阻塞启动）
+        setTimeout(() => {
+           this.updateAllWidgets();
+        }, 4000);
       });
 
       // 提前加载主题配置，确保 Index 页面首次渲染时 showVipTheme/isNewYearTheme 已有正确值
@@ -85,55 +87,49 @@ export default class EntryAbility extends UIAbility {
     });
 
     // Initialize Repository (Standard Init for other uses)
-    SubscriptionRepository.getInstance().init(this.context).then(() => {
-      SubscriptionRepository.getInstance().updateWidgetSnapshotSync('init');
-    });
+    SubscriptionRepository.getInstance().init(this.context);
 
-    // Initialize LocalIconManager for early icon loading
-    LocalIconManager.getInstance().init(this.context);
-
-    // Store context for fallback access if needed
-    AppStorage.setOrCreate('context', this.context);
-
-    // Initialize OCRManager
-    OCRManager.getInstance().setContext(this.context);
-
-    // Initialize HuaweiAuthManager
-    HuaweiAuthManager.getInstance().setContext(this.context);
-
-    // Load and Apply Theme
-    PreferenceUtil.getInstance().loadPreference(this.context).then(() => {
-      PreferenceUtil.getInstance().loadTheme().then((mode) => {
-        let colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
-        if (mode === 1) {
-          colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT;
-        } else if (mode === 2) {
-          colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
-        }
-        this.context.getApplicationContext().setColorMode(colorMode);
-        AppStorage.setOrCreate('currentColorMode', colorMode);
-      });
-      PreferenceUtil.getInstance().loadAnimationEnabled();
-      PreferenceUtil.getInstance().loadAnimationDuration();
-      PreferenceUtil.getInstance().loadPointLightEnabled();
-      PreferenceUtil.getInstance().loadSplitViewEnabled();
-      PreferenceUtil.getInstance().loadWatermarkImage();
-      PreferenceUtil.getInstance().loadWatermarkOpacity();
-      PreferenceUtil.getInstance().loadWatermarkOffset();
-      PreferenceUtil.getInstance().loadSmartGestureEnabled(); // Async load
-      PreferenceUtil.getInstance().loadAppLockSettingsSync(this.context);
-      PreferenceUtil.getInstance().loadNewYearWatermarkEnabled();
-    });
-
-    // Starters
+    // Starters - Immediate but non-blocking
     NetworkMonitor.getInstance().startMonitoring();
     AccountMonitor.getInstance().startMonitoring();
 
-    // Push Token
-    pushService.getToken().then(token => {
-      AppStorage.setOrCreate('pushToken', token);
-    }).catch((err: BusinessError) => {
-      hilog.error(DOMAIN, 'testTag', 'Failed to get push token: %{public}d %{public}s', err.code, err.message);
+    // 延迟初始化非核心组件 (启动 1.5s 后)
+    setTimeout(() => {
+      // Initialize OCRManager
+      OCRManager.getInstance().setContext(this.context);
+
+      // Initialize HuaweiAuthManager
+      HuaweiAuthManager.getInstance().setContext(this.context);
+
+      // Initialize LocalIconManager
+      LocalIconManager.getInstance().init(this.context);
+    }, 1500);
+
+    // Load and Apply Theme & Preferences
+    PreferenceUtil.getInstance().loadPreference(this.context).then(() => {
+      // 仅加载首屏渲染核心配置
+      PreferenceUtil.getInstance().loadThemeId();
+      PreferenceUtil.getInstance().loadSession().then((session) => {
+        const isLoggedIn = session['isLoggedIn'] as boolean;
+        AppStorage.setOrCreate('isLoggedIn', isLoggedIn);
+        AppStorage.setOrCreate('unionId', session['unionId'] as string);
+        AppStorage.setOrCreate('userName', (session['userName'] as string) || '立即登录');
+        AppStorage.setOrCreate('userAvatar', session['userAvatar'] as string);
+      });
+
+      // 异步加载次要偏好设置
+      PreferenceUtil.getInstance().loadTheme().then((mode) => {
+        let colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
+        if (mode === 1) colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT;
+        else if (mode === 2) colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
+        this.context.getApplicationContext().setColorMode(colorMode);
+        AppStorage.setOrCreate('currentColorMode', colorMode);
+      });
+      
+      PreferenceUtil.getInstance().loadAnimationEnabled();
+      PreferenceUtil.getInstance().loadSplitViewEnabled();
+      PreferenceUtil.getInstance().loadSmartGestureEnabled();
+      PreferenceUtil.getInstance().loadAppLockSettingsSync(this.context);
     });
 
     // Register GlobalBus Listeners for Widget Sync
@@ -592,12 +588,6 @@ export default class EntryAbility extends UIAbility {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
     NetworkMonitor.getInstance().stopMonitoring();
     AccountMonitor.getInstance().stopMonitoring();
-
-    try {
-      pushService.off('tokenUpdate');
-    } catch (e) {
-      // ignore
-    }
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
@@ -689,6 +679,11 @@ export default class EntryAbility extends UIAbility {
       setTimeout(() => {
         UpdateManager.getInstance().checkUpdate(this.context as common.UIAbilityContext, true);
       }, 2000); // Delay check to prioritize startup rendering
+
+      // 提醒自检修复 (延迟执行，静默自愈)
+      setTimeout(async () => {
+        await LocalNotificationManager.getInstance().selfCheckReminders();
+      }, 5000); // 启动5秒后执行，不影响首屏加载
 
       // 延迟处理导入数据，确保 promptAction 弹出层可用
       if (this.pendingImportWant) {

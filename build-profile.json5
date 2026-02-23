@@ -70,7 +70,7 @@
     "products": [
       {
         "name": "default",
-        "signingConfig": "relse",
+        "signingConfig": "ADR",
         "targetSdkVersion": "6.0.2(22)",
         "compatibleSdkVersion": "6.0.1(21)",
         "runtimeOS": "HarmonyOS",

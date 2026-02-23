@@ -73,6 +73,7 @@ export const WARRANTY_ICON_MAP: Record<string, Resource> = {
   '空气炸锅': $rawfile('devices_icon/空气炸锅.svg'),
   'TWS耳机': $rawfile('devices_icon/TWS耳机.svg'),
   '智能手表': $rawfile('devices_icon/智能手表.svg'),
+  '其他物品': $rawfile('devices_icon/其他物品.svg'),
 };
 
 /**

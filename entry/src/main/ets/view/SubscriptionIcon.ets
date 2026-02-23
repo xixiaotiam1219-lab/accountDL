@@ -40,6 +40,8 @@ export struct SubscriptionIcon {
       if (typeof result !== 'string') {
         this.resolvedResource = result;
         this.isResourceResolved = true;
+      } else {
+        this.loadFailed = true;
       }
     } else if (this.icon && this.icon.startsWith('builtin://')) {
       const appName = this.icon.substring(10).replace('.png', '');
@@ -64,8 +66,14 @@ export struct SubscriptionIcon {
 
   // 获取保修主题柔和渐变底座
   private getWarrantyBgGradient(): LinearGradient | undefined {
-    if (!this.icon || !this.icon.startsWith('warranty_icon:')) return undefined;
-    const name = this.icon.split(':')[1];
+    // 极端加固：确保 icon 是字符串且不为空
+    if (typeof this.icon !== 'string' || !this.icon) return undefined;
+    if (!this.icon.startsWith('warranty_icon:')) return undefined;
+    
+    const parts = this.icon.split(':');
+    if (parts.length < 2) return undefined;
+    
+    const name = parts[1];
     const theme: WarrantyColorTheme = WARRANTY_THEME_MAP[name] || 'blue';
     const colors = getWarrantyThemeColors(theme);
     return {
@@ -76,9 +84,9 @@ export struct SubscriptionIcon {
 
   // 计算最终显示的图标内容，处理内置协议逻辑
   private getDisplayIcon(): string {
-    if (!this.icon) return '';
+    if (typeof this.icon !== 'string' || !this.icon) return '';
     
-    if (this.icon && this.icon.startsWith('builtin://')) {
+    if (this.icon.startsWith('builtin://')) {
       return this.resolvedBuiltinPath; // Use the dynamically retrieved path from LocalIconManager
     }
     
@@ -111,38 +119,40 @@ export struct SubscriptionIcon {
             .objectFit(ImageFit.Contain) // Use Contain to ensure full icon is visible within the rounded container
             .borderRadius(this.iconRadius) // Double safety, though container clip handles it
             .opacity(0.85) // 保持适度的柔和感，避免纯黑过于突兀
-        } else if (this.icon) {
-          if (this.icon.startsWith('file://') || this.icon.startsWith('http') || this.icon.startsWith('data:') || this.icon.startsWith('builtin://')) {
-            // Image Type (Local File, Network, or Builtin Preview)
-            // 只有当非 builtin，或者 builtin 且已解析出真实路径时，才渲染 Image 组件，防止触发空 url 报错
-            if (!this.loadFailed && (this.icon && (!this.icon.startsWith('builtin://') || this.resolvedBuiltinPath))) {
-              Image(this.getDisplayIcon())
-                .width('102%') // Slightly scale up
-                .height('102%')
-                .objectFit(ImageFit.Contain)
+          } else if (this.icon && typeof this.icon === 'string') {
+            if (this.icon.startsWith('file://') || this.icon.startsWith('http') || this.icon.startsWith('data:') || this.icon.startsWith('builtin://')) {
+              // Image Type (Local File, Network, or Builtin Preview)
+              // 只有当非 builtin，或者 builtin 且已解析出真实路径时，才渲染 Image 组件，防止触发空 url 报错
+              if (!this.loadFailed && (!this.icon.startsWith('builtin://') || this.resolvedBuiltinPath)) {
+                Image(this.getDisplayIcon())
+                  .width('102%') // Slightly scale up
+                  .height('102%')
+                  .objectFit(ImageFit.Contain)
+                  .borderRadius(this.iconRadius)
+                  .onError(() => {
+                    this.loadFailed = true;
+                  })
+              }
+            } else if (!this.icon.startsWith('resource:') && !this.icon.startsWith('warranty_icon:') && !this.loadFailed) {
+              // Text Type (Emoji or Single Character)
+              Text(this.icon)
+                .fontSize(this.iconSize * 0.5)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.text_primary')))
+                .textAlign(TextAlign.Center)
+                .width('100%')
+                .height('100%')
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
                 .borderRadius(this.iconRadius)
-                .onError(() => {
-                  this.loadFailed = true;
-                })
             }
-          } else if (!this.icon.startsWith('resource:')) {
-            // Text Type (Emoji or Single Character)
-            Text(this.icon)
-              .fontSize(this.iconSize * 0.5)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.text_primary')))
-              .textAlign(TextAlign.Center)
-              .width('100%')
-              .height('100%')
-              .borderRadius(this.iconRadius)
           }
-        }
       }
       .width(this.iconSize)
       .height(this.iconSize)
       // 为保修图标提供 100% 不透明的浅色弱渐变底座，其他场景保持默认轻微背景
       .linearGradient(this.getWarrantyBgGradient())
-      .backgroundColor((this.icon && this.icon.startsWith('warranty_icon:')) ? Color.Transparent : 
+      .backgroundColor(typeof this.icon === 'string' && this.icon.startsWith('warranty_icon:') ? Color.Transparent : 
         (this.isNewYearTheme ? '#1AFF2400' : (this.showVipTheme ? '#20EDC269' : '#1A0A59F7')))
       .borderRadius(this.iconRadius)
       .clip(true) // CRITICAL: Clip content to border radius to prevent "black edges" or unrounded corners

@@ -1161,10 +1161,9 @@ struct Index {
           this.PlaceholderBuilder()
         }
 
-        // --- Floating TabBar (Only visible when HdsTabs is disabled) ---
-        if (!this.isHdsTabsEnabled) {
+
           this.CustomFloatingTabBar()
-        }
+
 
         // Global Detail Overlay
         if (this.isDetailVisible && this.detailData) {

@@ -4,7 +4,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
 import { PreferenceUtil } from '../utils/PreferenceUtil';
 import { DateUtil } from '../utils/DateUtil';
-import { SubscriptionModel } from '../model/SubscriptionModel';
+import { SubscriptionModel, ExtendedWarrantyItem } from '../model/SubscriptionModel';
 import { LocalIconManager } from '../utils/LocalIconManager';
 import { matchMemberService } from '../utils/MemberServiceConfig';
 import { util } from '@kit.ArkTS';
@@ -29,8 +29,12 @@ interface LeanRecord {
 
 interface HotTopicItem {
   title: string;
-  subtitle: string;
-  footer: string;
+  subtitle?: string;
+  footer?: string;
+}
+
+interface DataPackageItem {
+  title: string;
 }
 
 class Constants {
@@ -165,8 +169,6 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
 
       if (inferredType) {
         param['recordTypeFilter'] = inferredType;
-      } else if (!param['recordTypeFilter'] && !param['record_type_filter']) {
-        param['recordTypeFilter'] = 'subscription';
       }
       return this.executeQueryCore(param);
     }
@@ -315,6 +317,42 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       let recordTypeFilter = (param['recordTypeFilter'] as string) || '';
       const allSubs = await SubscriptionRepository.getInstance().queryAll();
 
+      // 展开延保数据为独立条目，支持 "主商品·延保名称" 格式显示
+      const expandedSubs: SubscriptionModel[] = [];
+      allSubs.forEach(s => {
+        expandedSubs.push(s);
+        if (s.extendedWarranties) {
+          try {
+            const warranties = JSON.parse(s.extendedWarranties) as ExtendedWarrantyItem[];
+            if (warranties && warranties.length > 0) {
+              warranties.forEach(w => {
+                // 构造虚拟条目
+                const virtualSub: SubscriptionModel = {
+                  uuid: s.uuid + '_ext_' + w.id,
+                  name: `${s.name}·${w.name}`,
+                  price: parseFloat(w.price) || 0,
+                  currency: s.currency,
+                  billingCycle: 'Lifetime',
+                  nextBillingDate: w.date,
+                  startDate: s.startDate, // 沿用主条目购买时间
+                  icon: s.icon,
+                  category: s.category,
+                  lastModified: s.lastModified,
+                  isDeleted: s.isDeleted,
+                  recordType: 'warranty',
+                  brand: s.brand,
+                  purchaseChannel: s.purchaseChannel,
+                  isAutoRenewal: false
+                };
+                expandedSubs.push(virtualSub);
+              });
+            }
+          } catch (e) {
+            hilog.warn(0xFEED, TAG, `Failed to parse extended warranties for ${s.name}: ${e}`);
+          }
+        }
+      });
+
       // 动态推断 recordTypeFilter
       // 场景：用户说“查一下今年的保修”，小艺触发了 QueryRecord，但没传 recordTypeFilter，且 timeRange="this_year" 或 name="保修"
       if (!recordTypeFilter) {
@@ -371,6 +409,17 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         startDate = new Date(now.getFullYear(), quarterStartMonth, 1, 0, 0, 0, 0).getTime();
         endDate = new Date(now.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999).getTime();
         dateDescription = "下季度";
+        useRangeSummation = isExpenseQuery;
+      } else if (timeRange === 'this_week') {
+        const currDay = now.getDay(); // 0 (Sun) - 6 (Sat)
+        // Assume Monday is the start of the week
+        const diffToMon = currDay === 0 ? 6 : currDay - 1;
+        const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMon, 0, 0, 0, 0);
+         const endOfWeek = new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
+         
+         startDate = isExpirationQuery ? now.getTime() : startOfWeek.getTime();
+        endDate = endOfWeek.getTime();
+        dateDescription = "本周";
         useRangeSummation = isExpenseQuery;
       } else if (timeRange === 'this_month') {
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -463,7 +512,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         }
       }
 
-      let activeSubs = allSubs.filter(s => {
+      let activeSubs = expandedSubs.filter(s => {
         if (s.isDeleted) return false;
 
         // 增加类型过滤逻辑
@@ -472,7 +521,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         }
 
         // 新增：名称/品牌精确过滤 (主要针对保修和券)
-        if (filterBrand || (filterName && filterName !== '保修' && filterName !== '团购券' && !filterName.includes('保质期'))) {
+        if (filterBrand || (filterName && filterName !== '保修' && filterName !== '延保' && filterName !== '团购券' && !filterName.includes('保质期'))) {
           let matched = false;
           const sName = s.name.toLowerCase();
           const sBrand = s.brand?.toLowerCase() || '';
@@ -944,22 +993,6 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         }
       }
 
-      if ((cycle === 'Lifetime' || cycle === 'Indefinite') && recordType !== 'warranty') {
-        if (purchaseDateStr) {
-          nextBillingDate = startDate;
-        } else if (expireDateStr) {
-          startDate = nextBillingDate;
-        }
-      }
-
-      let quantity = 1;
-      if (param['quantity'] !== undefined) {
-        quantity = parseInt(param['quantity'] as string);
-        if (isNaN(quantity) || quantity <= 0) {
-          quantity = 1;
-        }
-      }
-
       let isReminderEnabled = false;
       let reminderDaysBefore = 1;
       const needReminderRaw = param['isReminderEnabled'];
@@ -983,6 +1016,94 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         reminderTime = param['reminderTime'] as string;
       }
 
+      // ==== 3. 处理延保 (Extended Warranty) ====
+      let extendedWarranties: ExtendedWarrantyItem[] = [];
+      try {
+        const extWarrantyParam = param['extendedWarranty'];
+        if (extWarrantyParam) {
+          let extList: Record<string, Object>[] = [];
+          if (Array.isArray(extWarrantyParam)) {
+            extList = extWarrantyParam as Record<string, Object>[];
+          } else if (typeof extWarrantyParam === 'string') {
+             try {
+               // 尝试解析JSON字符串
+               const parsed = JSON.parse(extWarrantyParam) as Record<string, Object> | Record<string, Object>[];
+               if (Array.isArray(parsed)) {
+                 extList = parsed as Record<string, Object>[];
+               } else {
+                 extList = [parsed as Record<string, Object>];
+               }
+             } catch {
+               // 并不是JSON，可能只是单个名称
+                extList = [{ 'name': extWarrantyParam }];
+             }
+          } else if (typeof extWarrantyParam === 'object') {
+            extList = [extWarrantyParam as Record<string, Object>];
+          }
+
+          extendedWarranties = extList.map(item => {
+            const wName = (item['name'] as string) || (item['title'] as string) || "未命名延保";
+            const wPrice = (item['price'] as string) || "0";
+            let wDate = nextBillingDate; // 默认跟随主保修
+            
+            const wDateStr = (item['date'] as string) || (item['expireDate'] as string) || "";
+            if (wDateStr) {
+               const d = new Date(wDateStr);
+               if (!isNaN(d.getTime())) {
+                 wDate = d.getTime();
+               }
+            } else {
+              // 尝试从 duration 解析 (e.g., "2年", "365天")
+              const durationStr = (item['duration'] as string) || "";
+              if (durationStr) {
+                 const numMatch = durationStr.match(/(\d+)/);
+                 const num = numMatch ? parseInt(numMatch[1]) : 0;
+                 if (num > 0) {
+                    const d = new Date(startDate); // 基于购买日期计算
+                    if (durationStr.includes('年') || durationStr.includes('year')) {
+                       d.setFullYear(d.getFullYear() + num);
+                    } else if (durationStr.includes('月') || durationStr.includes('month')) {
+                       d.setMonth(d.getMonth() + num);
+                    } else {
+                       // 默认按天
+                       d.setDate(d.getDate() + num);
+                    }
+                    wDate = d.getTime();
+                 }
+              }
+            }
+            
+            return new ExtendedWarrantyItem(
+              util.generateRandomUUID(true),
+              wName,
+              wPrice,
+              wDate,
+              isReminderEnabled // 如果用户全局开启了提醒，延保项也默认开启
+            );
+          });
+          hilog.info(0xFEED, TAG, `[AddCore] Parsed ${extendedWarranties.length} extended warranties.`);
+        }
+      } catch (e) {
+        hilog.warn(0xFEED, TAG, `[AddCore] Failed to parse extended warranties: ${e}`);
+      }
+
+
+      if ((cycle === 'Lifetime' || cycle === 'Indefinite') && recordType !== 'warranty') {
+        if (purchaseDateStr) {
+          nextBillingDate = startDate;
+        } else if (expireDateStr) {
+          startDate = nextBillingDate;
+        }
+      }
+
+      let quantity = 1;
+      if (param['quantity'] !== undefined) {
+        quantity = parseInt(param['quantity'] as string);
+        if (isNaN(quantity) || quantity <= 0) {
+          quantity = 1;
+        }
+      }
+
       let category = param['category'] as string;
       const subCategory = param['subCategory'] as string;
       let isAutoRenewal = recordType === 'subscription' && (cycle === 'Monthly' || cycle === 'Quarterly' || cycle === 'Yearly');
@@ -997,11 +1118,12 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       if (!expireDateStr && cycle !== 'Lifetime' && cycle !== 'Indefinite' && cycle !== 'Indefinite') {
         const d = new Date(startDate);
         if (cycle === 'Monthly') {
-          d.setMonth(d.getMonth() + 1);
+          // 修复：包月逻辑改为 +30天，避免月份天数不同导致的问题（如1月31日+1月=3月3日或报错）
+          d.setDate(d.getDate() + 30);
         } else if (cycle === 'Quarterly') {
-          d.setMonth(d.getMonth() + 3);
+          d.setDate(d.getDate() + 90);
         } else if (cycle === 'Yearly') {
-          d.setFullYear(d.getFullYear() + 1);
+          d.setDate(d.getDate() + 365);
         }
         nextBillingDate = d.getTime();
       }
@@ -1030,7 +1152,8 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         usageTime: usageTime || undefined,
         quantity: recordType === 'groupBuy' ? quantity : undefined,
         usageStatus: recordType === 'groupBuy' ? 'unused' : undefined,
-        purchaseChannel: purchaseChannel || undefined
+        purchaseChannel: purchaseChannel || undefined,
+        extendedWarranties: extendedWarranties.length > 0 ? JSON.stringify(extendedWarranties) : undefined
       };
 
       if (!isReminderEnabled) {
@@ -1060,6 +1183,41 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       let resultData: Record<string, Object> = {};
       const defVal = "无";
 
+      // 构造 dataPackage 供 LLM/UI 展示
+      const dataPackage: DataPackageItem[] = [];
+      
+      // 1. 添加主记录 (逻辑变更：对于保修类型，永远不显示主记录，只显示延保；如果没有延保，则 dataPackage 为空)
+      if (extendedWarranties.length === 0) {
+        if (recordType !== 'warranty') {
+           const mainDateStr = DateUtil.formatDate(newSub.nextBillingDate);
+           let mainActionStr = '';
+           if (recordType === 'groupBuy') {
+              mainActionStr = '到期';
+           } else {
+              mainActionStr = '续费';
+           }
+           
+           const mainCycleText = recordType === 'subscription' ? this.getCycleText(newSub.billingCycle as string) : '';
+           const mainPriceStr = `¥${newSub.price.toFixed(2)}`;
+           
+           dataPackage.push({
+             title: `1. ${newSub.name}${newSub.brand ? ` (${newSub.brand})` : ''} ${mainDateStr} ${mainActionStr}${mainPriceStr ? ` ${mainPriceStr}` : ''}${mainCycleText ? ` ${mainCycleText}` : ''}`
+           });
+        }
+      }
+
+      // 2. 添加延保记录
+      if (extendedWarranties.length > 0) {
+        extendedWarranties.forEach((w, idx) => {
+           const wDateStr = DateUtil.formatDate(w.date);
+           const wActionStr = w.date < new Date().getTime() ? '已过保' : '在保';
+           // 延保通常显示为 "额外保障" 或 "延保服务"
+           dataPackage.push({
+             title: `${idx + 1}. ${w.name} ${wDateStr} 到期 ${w.price && Number(w.price) > 0 ? `¥${w.price}` : ''}`
+           });
+        });
+      }
+
       if (recordType === 'subscription') {
         resultData = {
           'name': newSub.name || defVal,
@@ -1073,9 +1231,12 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           'isReminderEnabled': reminderEnabledStr,
           'reminderDaysBefore': reminderDaysStr,
           'reminderTime': reminderTimeStr,
-          'resultText': `已为您成功记录 ${newSub.name} 订阅，${cycleMap[newSub.billingCycle || 'Monthly']}费用为 ${newSub.price} 元。`
+          'resultText': `已为您成功记录 ${newSub.name} 订阅，${cycleMap[newSub.billingCycle || 'Monthly']}费用为 ${newSub.price} 元。`,
+          'dataPackage': dataPackage,
+          'showPackage': "true"
         };
       } else if (recordType === 'warranty') {
+        const totalItems = 1 + extendedWarranties.length;
         resultData = {
           'name': newSub.name || defVal,
           'price': `${newSub.price}`,
@@ -1089,7 +1250,9 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           'isReminderEnabled': reminderEnabledStr,
           'reminderDaysBefore': reminderDaysStr,
           'reminderTime': reminderTimeStr,
-          'resultText': `已为您成功记录 ${newSub.brand || ''}${newSub.name} 的保修信息，到期日为 ${DateUtil.formatDate(newSub.nextBillingDate)}。`
+          'resultText': `已为您成功记录 ${newSub.brand || ''}${newSub.name} 的保修信息${extendedWarranties.length > 0 ? `及 ${extendedWarranties.length} 项延保服务` : ''}。`,
+          'dataPackage': dataPackage,
+          'showPackage': "true"
         };
       } else {
         resultData = {
@@ -1104,7 +1267,9 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           'isReminderEnabled': reminderEnabledStr,
           'reminderDaysBefore': reminderDaysStr,
           'reminderTime': reminderTimeStr,
-          'resultText': `已为您成功记录 ${newSub.merchantName || newSub.name} 的团购券，有效期至 ${DateUtil.formatDate(newSub.nextBillingDate)}。`
+          'resultText': `已为您成功记录 ${newSub.merchantName || newSub.name} 的团购券，有效期至 ${DateUtil.formatDate(newSub.nextBillingDate)}。`,
+          'dataPackage': dataPackage,
+          'showPackage': "true"
         };
       }
 
