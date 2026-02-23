@@ -42,7 +42,10 @@ export class DateUtil {
    * 计算从今天到目标日期的天数差
    * 忽略时分秒，只比较日期
    */
-  static getDaysUntil(targetDate: number | Date): number {
+  static getDaysUntil(targetDate: number | Date | undefined | null): number {
+    if (targetDate === undefined || targetDate === null) {
+      return 0;
+    }
     const now = new Date();
     // 重置 now 为当天的 00:00:00
     now.setHours(0, 0, 0, 0);

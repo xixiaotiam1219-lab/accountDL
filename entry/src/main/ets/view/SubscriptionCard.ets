@@ -1,4 +1,4 @@
-import { SubscriptionModel } from '../model/SubscriptionModel';
+import { SubscriptionModel, ExtendedWarrantyItem } from '../model/SubscriptionModel';
 import { DateUtil } from '../utils/DateUtil';
 import { resolveIcon } from '../utils/MemberServiceConfig';
 import { SubscriptionIcon } from './SubscriptionIcon';
@@ -85,6 +85,18 @@ export struct SubscriptionCard {
       .hitTestBehavior(HitTestMode.None)
   }
 
+  getExtendedWarrantyCount(): number {
+    if (this.data.extendedWarranties) {
+      try {
+        const extended = JSON.parse(this.data.extendedWarranties) as ExtendedWarrantyItem[];
+        return extended.length;
+      } catch (e) {
+        // ignore
+      }
+    }
+    return 0;
+  }
+
   build() {
     // 判断当前卡片是否正在展示详情
     // 只有当详情页可见，且显示的卡片UUID与当前卡片一致时，才隐藏当前卡片
@@ -147,7 +159,10 @@ export struct SubscriptionCard {
                     Span(' · ')
                     Span(this.data.brand)
                   }
-                  if (this.data.purchaseChannel) {
+                  if (this.getExtendedWarrantyCount() > 0) {
+                    Span(' · ')
+                    Span(`含 ${this.getExtendedWarrantyCount()} 项额外保障`)
+                  } else if (this.data.purchaseChannel) {
                     Span(' · ')
                     Span(this.data.purchaseChannel)
                   }

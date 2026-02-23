@@ -1,4 +1,4 @@
-import { SubscriptionModel } from '../model/SubscriptionModel';
+import { SubscriptionModel, ExtendedWarrantyItem } from '../model/SubscriptionModel';
 import { resolveIcon } from '../utils/MemberServiceConfig';
 import { SubscriptionIcon } from './SubscriptionIcon';
 import { componentSnapshot, promptAction } from '@kit.ArkUI';
@@ -146,6 +146,19 @@ export struct MonthlyReportSheet {
 
     this.subscriptions.forEach(sub => {
       let monthlyCost = Number(sub.price);
+
+      let extendedCost = 0;
+      if (['Lifetime', 'Indefinite'].includes(sub.billingCycle) || sub.recordType === 'groupBuy' || sub.recordType === 'warranty') {
+          if (sub.extendedWarranties) {
+             try {
+               const warranties = JSON.parse(sub.extendedWarranties) as ExtendedWarrantyItem[];
+               warranties.forEach(w => {
+                 const p = Number(w.price);
+                 if (!isNaN(p) && p > 0) extendedCost += p;
+               });
+             } catch (e) {}
+          }
+      }
       
       // Group Buy: checking usage time first
       if (sub.recordType === 'groupBuy') {
@@ -162,6 +175,7 @@ export struct MonthlyReportSheet {
              return;
           }
         }
+        monthlyCost += extendedCost;
         totalMonthlyItems += monthlyCost;
       } else if (sub.recordType === 'warranty') {
           // 保修记录：通常是一次性支出，按购买日期 (startDate) 判断是否计入本月
@@ -169,18 +183,18 @@ export struct MonthlyReportSheet {
           const isCurrentMonth = startDate.getFullYear() === new Date().getFullYear() && 
                                  startDate.getMonth() === new Date().getMonth();
           if (isCurrentMonth) {
-            monthlyCost = Number(sub.price);
+            monthlyCost = Number(sub.price) + extendedCost;
             totalMonthlyItems += monthlyCost;
           } else {
             // 非本月购买的保修，不计入月度支出
             return;
           }
       } else if (sub.billingCycle === 'Lifetime' || sub.billingCycle === 'Indefinite') {
-        const billingDate = new Date(sub.nextBillingDate);
+        const billingDate = new Date(sub.startDate || sub.nextBillingDate);
         const isCurrentMonth = billingDate.getFullYear() === new Date().getFullYear() && 
                                billingDate.getMonth() === new Date().getMonth();
         if (isCurrentMonth) {
-          monthlyCost = Number(sub.price);
+          monthlyCost = Number(sub.price) + extendedCost;
           totalMonthlyItems += monthlyCost; // 作为本月一次性大额支出计入
         } else {
           monthlyCost = 0; // 非本月购买的永久项目不计入当月预估
@@ -265,6 +279,7 @@ export struct MonthlyReportSheet {
 
   async startSnapshot() {
     if (this.isSnapshotting) return;
+    const originalYOffset = this.scroller.currentOffset().yOffset;
     promptAction.showToast({ message: '正在生成月报长截图...', duration: 2000 });
     try {
       // 1. Capture current screen as mask FIRST (before modifying UI state)
@@ -305,8 +320,8 @@ export struct MonthlyReportSheet {
       promptAction.showToast({ message: '截图失败: ' + JSON.stringify(err) });
     } finally {
       // 6. Cleanup
-      // Restore scroll to top
-      this.scroller.scrollTo({ xOffset: 0, yOffset: 0, animation: { duration: 0 } });
+      // Restore scroll to original position
+      this.scroller.scrollTo({ xOffset: 0, yOffset: originalYOffset, animation: { duration: 0 } });
       
       this.componentMaskImage = undefined;
       this.isSnapshotting = false;
@@ -725,28 +740,34 @@ export struct MonthlyReportSheet {
   @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
   @Builder MonthlyBuilder(){
     if (this.reportData) {
-      Scroll(this.scroller) {
-        Column() {
-          // 额外顶部留白，以便内容在滚动时进入标题栏模糊区
-          Column().height(64).width('100%') 
-          
-          this.ReportContent(this.reportData)
+      Stack() {
+        Scroll(this.scroller) {
+          Column() {
+            // 额外顶部留白，以便内容在滚动时进入标题栏模糊区
+            Column().height(64).width('100%')
+
+            this.ReportContent(this.reportData)
+          }
+          .padding({ bottom: 40, left: 16, right: 16 })
         }
-        .padding({ bottom: 40, left: 16, right: 16 })
+        .id(REPORT_List_ID)
+        .width('100%')
+        .height('100%')
+        .edgeEffect(EdgeEffect.Spring)
+        .scrollBar(BarState.Off)
+        .onDidScroll(() => {
+          this.curYOffset = this.scroller.currentOffset().yOffset;
+        })
+        .onAreaChange((oldValue, newValue) => {
+          this.listComponentWidth = newValue.width as number;
+          this.listComponentHeight = newValue.height as number;
+        })
+
+        this.SnapshotOverlay()
       }
-      .id(REPORT_List_ID)
       .width('100%')
       .height('100%')
-      .edgeEffect(EdgeEffect.Spring)
-      .scrollBar(BarState.Off)
-      .onDidScroll(() => {
-        this.curYOffset = this.scroller.currentOffset().yOffset;
-      })
-      .onAreaChange((oldValue, newValue) => {
-        this.listComponentWidth = newValue.width as number;
-        this.listComponentHeight = newValue.height as number;
-      })
-      .overlay(this.SnapshotOverlay())
+      .alignContent(Alignment.TopStart)
     } else {
       Column() {
         LoadingProgress().width(48).height(48).color($r('app.color.brand_color'))

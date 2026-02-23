@@ -1,4 +1,4 @@
-import { SubscriptionModel } from '../model/SubscriptionModel';
+import { SubscriptionModel, ExtendedWarrantyItem } from '../model/SubscriptionModel';
 import { SubscriptionCard } from './SubscriptionCard';
 import { NewYearSubscriptionCard } from './NewYearSubscriptionCard';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
@@ -20,6 +20,7 @@ import { ReminderSetupPanel } from './ReminderSetupPanel';
 import { LocalIconManager } from '../utils/LocalIconManager';
 import { HarmonyShareManager } from '../utils/HarmonyShareManager';
 import { commonEventManager, deviceInfo } from '@kit.BasicServicesKit';
+import { SwipeDeleteButton } from '../Components/SwipeDeleteButton';
 
 // 导航参数类型
 class AddSubscriptionNavParams {
@@ -657,11 +658,22 @@ export struct HomeView {
         if (sub.recordType === 'groupBuy') {
           targetDate = sub.realUsageTime ? new Date(sub.realUsageTime) : new Date(sub.nextBillingDate);
         } else {
-          targetDate = new Date(sub.nextBillingDate);
+          // 优先使用购买日期 (startDate)，如果没有则使用到期日 (nextBillingDate)
+          targetDate = new Date(sub.startDate || sub.nextBillingDate);
         }
 
         if (DateUtil.isSameMonth(targetDate, now)) {
-          total += sub.price;
+          let extendedCost = 0;
+          if (sub.extendedWarranties) {
+            try {
+              const warranties = JSON.parse(sub.extendedWarranties) as ExtendedWarrantyItem[];
+              warranties.forEach(w => {
+                const p = Number(w.price);
+                if (!isNaN(p) && p > 0) extendedCost += p;
+              });
+            } catch (e) {}
+          }
+          total += sub.price + extendedCost;
         }
         return;
       }
@@ -1590,7 +1602,7 @@ export struct HomeView {
                     { value: '名称 (A-Z)', action: () => this.applySort('name_asc') }
                   ])
                 }
-                .width('100%').margin({ bottom: 16 })
+                .width('100%').margin({ bottom: 4 })
                 .opacity(this.animStep2 ? 1 : 0)
                 .translate({ y: this.animStep2 ? 0 : 50 })
               }
@@ -1780,7 +1792,7 @@ export struct HomeView {
                     { value: '名称 (A-Z)', action: () => this.applySort('name_asc') }
                   ])
                 }
-                .width('100%').margin({ bottom: 16 })
+                .width('100%').margin({ bottom: 4 })
                 .opacity(this.animStep2 ? 1 : 0)
                 .translate({ y: this.animStep2 ? 0 : 50 })
               }
@@ -1790,7 +1802,7 @@ export struct HomeView {
             if (this.currentTab === 'subscription' || this.currentTab === 'all') {
               ListItem() {
                 NewYearSubscriptionCard()
-                  .margin({ bottom: 16, left: 16, right: 16 })
+                  .margin({ bottom: 12, left: 16, right: 16 })
               }
             }
 
@@ -2047,58 +2059,6 @@ export struct HomeView {
         }
       })
     }
-  }
-}
-
-@Component
-struct SwipeDeleteButton {
-  @Prop item: SubscriptionModel;
-  @Prop isStart: boolean = false;
-  onDelete: (item: SubscriptionModel) => void = () => {};
-  @State isPressed: boolean = false;
-  @State lightSource: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
-  @StorageLink('isAnimationEnabled') isAnimationEnabled: boolean = true;
-  @StorageLink('isPointLightEnabled') isPointLightEnabled: boolean = true;
-  @StorageLink('isOnline') isOnline: boolean = true;
-
-  build() {
-    Button({ type: ButtonType.Circle }) {
-      SymbolGlyph($r('sys.symbol.trash')).fontSize(24).fontColor([Color.White])
-    }
-    .width(48).height(48)
-    .backgroundColor(Color.Red)
-    .margin({
-      bottom: 12,
-      left: this.isStart ? 24 : 0,
-      right: this.isStart ? 0 : 24
-    })
-    .zIndex(1)
-    .visualEffect(new hdsEffect.HdsEffectBuilder()
-      .pointLight({
-        sourceType: this.lightSource,
-        illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
-      })
-      .buildEffect())
-    .scale({ x: this.isPressed ? 0.9 : 1, y: this.isPressed ? 0.9 : 1 })
-    .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
-    .onTouch((event: TouchEvent) => {
-      if (event.type === TouchType.Down) {
-        if (this.isAnimationEnabled && this.isPointLightEnabled) {
-          this.isPressed = true;
-          this.lightSource = hdsEffect.PointLightSourceType.BRIGHT;
-        }
-      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-        this.isPressed = false;
-        this.lightSource = hdsEffect.PointLightSourceType.NONE;
-      }
-    })
-    .onClick(() => {
-      if (!this.isOnline) {
-        prompt.showToast({ message: '无法连接到服务器，请检查设备的网络连接' });
-        return;
-      }
-      this.onDelete(this.item);
-    })
   }
 }
 

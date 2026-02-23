@@ -78,6 +78,15 @@ export interface MinimalCardItem {
   price?: number;
   currency?: string;
   platform?: string;
+  billingCycle: 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite';
+  icon?: string;
+  category?: string;
+  subCategory?: string;
+  isAutoRenewal?: boolean;
+  paymentMethod?: string;
+  startDate?: number;
+  brand?: string;
+  purchaseChannel?: string;
   merchantName?: string;
   nextBillingDate?: number;
 }
@@ -180,6 +189,8 @@ export class SubscriptionRepository {
       // 保修/保质期专属字段
       { name: 'brand', type: 'TEXT' },
       { name: 'purchaseChannel', type: 'TEXT' },
+      // 附加延保服务字段 (JSON 数组存储)
+      { name: 'extendedWarranties', type: 'TEXT' },
       // 提醒状态控制字段
       { name: 'lastIgnoredBillingDate', type: 'INTEGER' }
     ];
@@ -259,6 +270,8 @@ export class SubscriptionRepository {
       // 保修/保质期字段
       brand: subscription.brand || null,
       purchaseChannel: subscription.purchaseChannel || null,
+      // 附加延保服务字段 (JSON)
+      extendedWarranties: subscription.extendedWarranties || null,
       // 提醒状态
       lastIgnoredBillingDate: subscription.lastIgnoredBillingDate || null
     };
@@ -329,6 +342,7 @@ export class SubscriptionRepository {
         realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined,
         brand: resultSet.getColumnIndex('brand') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('brand')) ? resultSet.getString(resultSet.getColumnIndex('brand')) : undefined,
         purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined,
+        extendedWarranties: resultSet.getColumnIndex('extendedWarranties') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('extendedWarranties')) ? resultSet.getString(resultSet.getColumnIndex('extendedWarranties')) : undefined,
         lastIgnoredBillingDate: resultSet.getColumnIndex('lastIgnoredBillingDate') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('lastIgnoredBillingDate')) ? resultSet.getLong(resultSet.getColumnIndex('lastIgnoredBillingDate')) : undefined
       };
 
@@ -469,6 +483,8 @@ export class SubscriptionRepository {
       // 保修/保质期字段
       brand: subscription.brand || null,
       purchaseChannel: subscription.purchaseChannel || null,
+      // 附加延保服务字段 (JSON)
+      extendedWarranties: subscription.extendedWarranties || null,
       // 提醒状态
       lastIgnoredBillingDate: subscription.lastIgnoredBillingDate || null
     };
@@ -663,6 +679,7 @@ export class SubscriptionRepository {
         realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined,
         brand: resultSet.getColumnIndex('brand') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('brand')) ? resultSet.getString(resultSet.getColumnIndex('brand')) : undefined,
         purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined,
+        extendedWarranties: resultSet.getColumnIndex('extendedWarranties') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('extendedWarranties')) ? resultSet.getString(resultSet.getColumnIndex('extendedWarranties')) : undefined,
         lastIgnoredBillingDate: resultSet.getColumnIndex('lastIgnoredBillingDate') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('lastIgnoredBillingDate')) ? resultSet.getLong(resultSet.getColumnIndex('lastIgnoredBillingDate')) : undefined
       });
     }
@@ -742,6 +759,7 @@ export class SubscriptionRepository {
       realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined,
       brand: resultSet.getColumnIndex('brand') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('brand')) ? resultSet.getString(resultSet.getColumnIndex('brand')) : undefined,
       purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined,
+      extendedWarranties: resultSet.getColumnIndex('extendedWarranties') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('extendedWarranties')) ? resultSet.getString(resultSet.getColumnIndex('extendedWarranties')) : undefined,
       lastIgnoredBillingDate: resultSet.getColumnIndex('lastIgnoredBillingDate') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('lastIgnoredBillingDate')) ? resultSet.getLong(resultSet.getColumnIndex('lastIgnoredBillingDate')) : undefined
     };
   }
@@ -838,7 +856,16 @@ export class SubscriptionRepository {
           currency: item.currency,
           platform: item.platform,
           merchantName: item.merchantName,
-          nextBillingDate: item.nextBillingDate
+          nextBillingDate: item.nextBillingDate,
+          billingCycle: (item.billingCycle as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite') || 'Monthly',
+          icon: item.icon,
+          category: item.category,
+          subCategory: item.subCategory,
+          isAutoRenewal: item.isAutoRenewal,
+          paymentMethod: item.paymentMethod,
+          startDate: item.startDate,
+          brand: item.brand,
+          purchaseChannel: item.purchaseChannel
         };
         snapshotItem.originalItem = JSON.stringify(minimalItem);
         return snapshotItem;

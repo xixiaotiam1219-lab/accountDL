@@ -321,7 +321,17 @@ export default class EntryFormAbility extends FormExtensionAbility {
             recordType: item.recordType || 'subscription',
             usageStatus: item.usageStatus || 'unused',
             isWarranty: isWarranty,
-            name: item.name || ''
+            name: item.name || '',
+            billingCycle: item.billingCycle,
+            icon: item.icon,
+            category: item.category,
+            subCategory: item.subCategory,
+            isAutoRenewal: item.isAutoRenewal,
+            paymentMethod: item.paymentMethod,
+            startDate: item.startDate,
+            brand: item.brand,
+            purchaseChannel: item.purchaseChannel,
+            merchantName: item.merchantName
           };
           obj.originalItem = JSON.stringify(minimalItem);
           return obj;

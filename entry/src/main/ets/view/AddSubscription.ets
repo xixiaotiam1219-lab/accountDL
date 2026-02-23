@@ -13,11 +13,12 @@ import { BusinessError, Callback, deviceInfo } from '@kit.BasicServicesKit';
 import { FloatingBallManager } from '../utils/FloatingBallManager';
 import { photoAccessHelper, PhotoSource, RecentPhotoComponent, RecentPhotoOptions, BaseItemInfo } from '@kit.MediaLibraryKit';
 import { image } from '@kit.ImageKit';
+import { ExtendedWarrantyItem } from '../model/SubscriptionModel';
 
 import { fileIo } from '@kit.CoreFileKit';
 import { hdsEffect, hdsMaterial, HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
 import { ImageCropSheet } from './ImageCropPage';
-import { GlobalBus, EVENT_SYNC_COMPLETED } from '../utils/GlobalBus';
+import { GlobalBus, EVENT_SYNC_COMPLETED, EVENT_DATA_CHANGED } from '../utils/GlobalBus';
 import { SubscriptionIcon } from './SubscriptionIcon';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
@@ -25,7 +26,7 @@ import { PreferenceUtil } from '../utils/PreferenceUtil';
 import { AppInfo, LocalIconManager } from '../utils/LocalIconManager';
 import { WebViewParam } from './WebViewPage';
 import { WarrantyCategorySheet, WarrantyCategory } from './WarrantyCategorySheet';
-
+import { ExtendedWarrantyItemView } from './ExtendedWarrantyItemView';
 @Builder
 export function AddSubscriptionBuilder() {
   AddSubscription()
@@ -77,6 +78,12 @@ export struct AddSubscription {
   // === 保修/保质期专属状态 ===
   @State brand: string = ''; // 品牌名称
   @State purchaseChannel: string = ''; // 购买渠道
+  
+  // === 附加保障服务 (多项支持) ===
+  @State extendedWarranties: ExtendedWarrantyItem[] = [];
+  @State isExtendedWarrantyListExpanded: boolean = false;
+  @State extendedWarrantyListOpacity: number = 0;
+
   @State isUsageTimePressed: boolean = false;
   @State usageTimeLight: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
   @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
@@ -188,6 +195,7 @@ export struct AddSubscription {
     // 保修/保质期字段
     this.brand = '';
     this.purchaseChannel = '';
+    this.extendedWarranties = [];
   }
 
   @State isQROnly: boolean = false; // 新增：是否仅识别二维码模式
@@ -359,8 +367,6 @@ export struct AddSubscription {
         }
     });
   }
-
-
 
   @Builder ExampleImagesDialog() {
     Column() {
@@ -1065,7 +1071,7 @@ export struct AddSubscription {
             })
           }
           .width('90%')
-          .margin({ top: 12, bottom: 20 })
+          .margin({  bottom: 20 })
           .opacity(this.animStep1 ? 1 : 0)
           .translate({ y: this.animStep1 ? 0 : 100 })
           .scale({ x: this.animStep1 ? 1 : 0.9, y: this.animStep1 ? 1 : 0.9 })
@@ -2212,7 +2218,7 @@ export struct AddSubscription {
               .margin({ right: 12 })
 
               Column() {
-                Text(`${this.currency === 'USD' ? '$' : '¥'}${this.price || '0.00'}`)
+                Text(`${this.currency === 'USD' ? '$' : '¥'}${this.getTotalPrice()}`)
                   .fontSize(18)
                   .fontWeight(FontWeight.Bold)
                   .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
@@ -2592,7 +2598,77 @@ export struct AddSubscription {
 
                 Divider().color($r('app.color.divider_color')).opacity(0.3)
 
-                // 7. 到期提醒
+                // 7. 附加保障服务 (可选 - 多项模式)
+                Column({ space: 0 }) {
+                  Row() {
+                    Text("附加保障服务 (可选)")
+                      .fontSize(13)
+                      .fontColor($r('app.color.text_secondary'))
+                    Blank()
+                    // 新增按钮
+                    Button({ type: ButtonType.Circle }) {
+                      SymbolGlyph($r('sys.symbol.plus'))
+                        .fontSize(18)
+                        .fontColor([this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
+                    }
+                    .width(28)
+                    .height(28)
+                    .backgroundColor($r('app.color.page_background'))
+                    .shadow({ radius: 4, color: '#10000000', offsetY: 2 })
+                    .onClick(() => {
+                      animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
+                        this.extendedWarranties.push(new ExtendedWarrantyItem(
+                          util.generateRandomUUID(true),
+                          '',
+                          '',
+                          new Date().getTime()
+                        ));
+                      })
+                    })
+                  }
+                  .width('100%')
+                  .margin({ bottom: 8 })
+                  
+                  if (this.extendedWarranties.length > 0) {
+                    Column({ space: 12 }) {
+                      ForEach(this.extendedWarranties, (item: ExtendedWarrantyItem, index: number) => {
+                        ExtendedWarrantyItemView({
+                          item: item,
+                          index: index,
+                          currency: this.currency,
+                          isNewYearTheme: this.isNewYearTheme,
+                          showVipTheme: this.showVipTheme,
+                          animationDuration: this.animationDuration,
+                          isParentReminderEnabled: this.isReminderEnabled,
+                          onDelete: (id: string) => {
+                            animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
+                              this.extendedWarranties = this.extendedWarranties.filter(w => w.id !== id);
+                            })
+                          }
+                        })
+                      }, (item: ExtendedWarrantyItem) => item.id)
+
+                    }
+                    .width('100%')
+                  } else {
+                    Text("点击右上角 + 添加保障服务")
+                      .fontSize(12)
+                      .fontColor($r('app.color.text_secondary'))
+                      .opacity(0.6)
+                      .textAlign(TextAlign.Center)
+                      .width('100%')
+                      .margin({ top: 4, bottom: 4 })
+                  }
+                }
+                .width('100%')
+                .padding(16)
+                .backgroundColor($r('app.color.card_background')) // 使用 card_background 增加层次感
+                .borderRadius(16)
+                .margin({ bottom: 12 })
+
+                Divider().color($r('app.color.divider_color')).opacity(0.3)
+
+                // 8. 到期提醒
                 Column({ space: 12 }) {
                   Row() {
                     Text("到期提醒")
@@ -4120,7 +4196,8 @@ export struct AddSubscription {
                   realUsageTime: this.recordType === 'groupBuy' ? this.realUsageTime : undefined,
                   // 保修/保质期字段
                   brand: this.recordType === 'warranty' ? this.brand : undefined,
-                  purchaseChannel: this.recordType === 'warranty' ? this.purchaseChannel : undefined
+                  purchaseChannel: this.recordType === 'warranty' ? this.purchaseChannel : undefined,
+                  extendedWarranties: this.recordType === 'warranty' && this.extendedWarranties.length > 0 ? JSON.stringify(this.extendedWarranties) : undefined
                 };
 
                 if (this.editId !== -1) {
@@ -4130,6 +4207,7 @@ export struct AddSubscription {
                   await SubscriptionRepository.getInstance().insert(newSub);
                 }
                 SubscriptionRepository.getInstance().updateWidgetSnapshotSync('save');
+                GlobalBus.publish(EVENT_DATA_CHANGED);
                 this.pageStack.clear();
               })
           }
@@ -4294,6 +4372,21 @@ export struct AddSubscription {
             // 加载保修/保质期专属字段
             this.brand = params.brand || '';
             this.purchaseChannel = params.purchaseChannel || '';
+            if (params.extendedWarranties) {
+               try {
+                 const rawList = JSON.parse(params.extendedWarranties) as ExtendedWarrantyItem[];
+                 this.extendedWarranties = rawList.map(item => new ExtendedWarrantyItem(
+                   item.id,
+                   item.name,
+                   item.price,
+                   item.date,
+                   item.isReminderEnabled
+                 ));
+               } catch (e) {
+                 hilog.error(0x0000, 'AddSubscription', `Failed to parse extendedWarranties: ${e.message}`);
+                 this.extendedWarranties = [];
+               }
+            }
           }
 
           if (this.recordType === 'subscription') {
@@ -4398,6 +4491,16 @@ export struct AddSubscription {
 
   // 缓存的应用图标 PixelMap
   private iconPixelMap: image.PixelMap | undefined = undefined;
+
+  getTotalPrice(): string {
+    let total = parseFloat(this.price) || 0;
+    if (this.recordType === 'warranty' && this.extendedWarranties.length > 0) {
+      this.extendedWarranties.forEach(item => {
+        total += parseFloat(item.price) || 0;
+      });
+    }
+    return total.toFixed(2);
+  }
 
   /**
    * 启动截图识别模式
@@ -4882,17 +4985,6 @@ export struct AddSubscription {
       }
   }
 
-  // --- 旧代码清理 ---
-  /*
-  private onCaptureStatusChange(captureStatus: boolean): void {
-     // ...
-  }
-
-  private stopCaptureListener(): void {
-     // ...
-  }
-  */
-
   /**
    * 处理最近截图
    * 显示 RecentPhotoComponent 让用户选择最新的截图
@@ -5355,3 +5447,4 @@ export struct AddSubscription {
   }
 
 }
+

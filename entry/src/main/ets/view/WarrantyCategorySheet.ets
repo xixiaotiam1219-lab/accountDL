@@ -69,10 +69,10 @@ export const WARRANTY_ICON_MAP: Record<string, Resource> = {
   '吹风机': $rawfile('devices_icon/吹风机.svg'),
   '咖啡机': $rawfile('devices_icon/咖啡机.svg'),
   '微波炉': $rawfile('devices_icon/微波炉.svg'),
-  '电饭煲': $rawfile('devices_icon/电饭煲.svg'),
   '空气炸锅': $rawfile('devices_icon/空气炸锅.svg'),
   'TWS耳机': $rawfile('devices_icon/TWS耳机.svg'),
   '智能手表': $rawfile('devices_icon/智能手表.svg'),
+  '其他物品': $rawfile('devices_icon/其他物品.svg'),
 };
 
 /**
@@ -87,10 +87,11 @@ export const WARRANTY_THEME_MAP: Record<string, WarrantyColorTheme> = {
   '数码相机': 'orange', '拍立得': 'orange', '无人机': 'orange', '运动云台': 'orange', '运动相机': 'orange', '防丢器TAG': 'orange',
   // Teal: 外设周边
   '鼠标': 'teal', '键盘': 'teal', '数位板': 'teal', '手写笔': 'teal', '路由器': 'teal', '充电宝': 'teal', '无线充电器': 'teal',
-  // Green: 智能家居
-  '扫地机器人': 'green', '空气净化器': 'green', '智能窗帘': 'green', '智能门锁': 'green', '吹风机': 'green', '咖啡机': 'green',
+  '智能门锁': 'green', '吹风机': 'green', '咖啡机': 'green',
   // Gray: 基础家电 & 办公
   '冰箱': 'gray', '洗衣机': 'gray', '空调': 'gray', '显示屏': 'gray', '打印机': 'gray', '电子书': 'gray', '微波炉': 'gray', '电饭煲': 'gray', '空气炸锅': 'gray',
+  // Teal: 其他
+  '其他物品': 'teal'
 };
 
 @Component

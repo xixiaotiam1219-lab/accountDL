@@ -16,7 +16,7 @@ export struct AboutPage {
   @StorageLink('topRectHeight') topRectHeight: number = 0;
   @StorageLink('isNewYearTheme') isNewYearTheme: boolean = false;
   @StorageLink('isNewYearWatermarkEnabled') isNewYearWatermarkEnabled: boolean = true;
-  private appVersion: string = 'v1.0.3';
+  private appVersion: string = 'v2.0.0';
   private agreementUrl: string = 'https://agreement-drcn.hispace.dbankcloud.cn/index.html?lang=zh&agreementId=1866142389635159616';
   private promptAction: PromptAction = this.getUIContext().getPromptAction();
 
@@ -179,7 +179,7 @@ export struct AboutPage {
               Column() {
                 Divider().color($r('app.color.divider_color')).margin({ top: 8, bottom: 16 })
 
-                Text("记得订阅. All Rights Reserved.")
+                Text("©️记得订阅. All Rights Reserved.")
                   .fontSize(12)
                   .fontColor($r('app.color.text_secondary'))
                   .margin({ bottom: 10 })
