@@ -278,22 +278,26 @@ export struct ImportSheet {
       }
       this.calibrateStartDate(item);
 
-      // --- 核心改进：在预览阶段就执行图标修复 ---
+      // --- 核心改进：在预览阶段执行图标识别逻辑，但尊重已有协议 ---
       if (item.name) {
-        // 对于 builtin://、旧路径或失效链接，直接尝试通过库找回
-        const info = await iconManager.getAppInfo(item.name);
-        if (info && info.icon) {
-          // 策略调整：如果是精确匹配，直接使用；如果是模糊匹配，仅在原图标无效或为空时使用
-          if (info.name === item.name) {
-            item.icon = info.icon;
-          } else if (!item.icon || item.icon.startsWith('builtin://') || item.icon.startsWith('app.media.')) {
-            // 模糊匹配结果仅作为兜底
-            item.icon = info.icon;
+        const hasValidIcon = item.icon && (item.icon.startsWith('data:image') || item.icon.startsWith('builtin://'));
+        
+        if (!hasValidIcon) {
+          // 只有在 icon 缺失或不规范时，才尝试从库中寻找匹配
+          const info = await iconManager.getAppInfo(item.name);
+          if (info && info.icon) {
+            // 策略：如果是精确匹配，直接使用；如果是模糊匹配且原图标失效，则使用补全
+            if (info.name === item.name) {
+              item.icon = info.icon;
+            } else if (!item.icon || item.icon.startsWith('app.media.')) {
+              item.icon = info.icon;
+            }
+          } else if (item.icon && item.icon.startsWith('app.media.')) {
+            // 处理旧资源引用转换
+            if (item.icon.includes('meituan')) item.icon = 'resource:meituan_logo';
+            else if (item.icon.includes('douyin')) item.icon = 'resource:douyin_logo';
+            else if (item.icon.includes('dianping')) item.icon = 'resource:dianping_logo';
           }
-        } else if (item.icon && item.icon.startsWith('app.media.')) {
-          if (item.icon.includes('meituan')) item.icon = 'resource:meituan_logo';
-          else if (item.icon.includes('douyin')) item.icon = 'resource:douyin_logo';
-          else if (item.icon.includes('dianping')) item.icon = 'resource:dianping_logo';
         }
       }
 
@@ -344,10 +348,10 @@ export struct ImportSheet {
     const iconB = b || '';
     if (iconA === iconB) return true;
 
-    // Normalize builtin icons
+    // Normalize builtin and sandbox icons
     const getIdentity = (uri: string): string => {
       if (uri.startsWith('builtin://')) return uri.substring(10);
-      if (uri.includes('/local_icons/')) {
+      if (uri.includes('/icons/') || uri.includes('/imported_icons/')) {
         const parts = uri.split('/');
         return parts[parts.length - 1];
       }
@@ -588,10 +592,11 @@ export struct ImportSheet {
     for (const item of selected) {
       if (item.icon && item.icon.startsWith('data:')) {
         try {
-          const savedUri = await this.saveBase64Image(item.icon, 'imported', 'icons');
+          // 修正：存储到专用自定义目录 imported_icons，并使用 icon_ 前缀以匹配判定逻辑
+          const savedUri = await this.saveBase64Image(item.icon, 'icon', 'imported_icons');
           if (savedUri) {
             item.icon = savedUri;
-            hilog.info(0x0000, 'ImportSheet', `Saved imported icon for ${item.name} to ${savedUri}`);
+            hilog.info(0x0000, 'ImportSheet', `Saved imported custom icon for ${item.name} to ${savedUri}`);
           }
         } catch (e) {
           hilog.error(0x0000, 'ImportSheet', `Failed to save imported icon for ${item.name}: ${e}`);
@@ -646,9 +651,14 @@ export struct ImportSheet {
       }
       
       if (!fs.accessSync(targetDir)) {
-        fs.mkdirSync(targetDir);
+        try {
+          fs.mkdirSync(targetDir);
+        } catch (e) {
+          // ignore if exists
+        }
       }
 
+      // 关键固化：与导出端判定逻辑对齐，使用 icon_ 前缀
       const fileName = `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
       const filePath = `${targetDir}/${fileName}`;
       const file = fs.openSync(filePath, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE);
