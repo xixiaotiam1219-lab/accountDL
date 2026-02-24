@@ -11,6 +11,7 @@ export struct ExtendedWarrantyItemView {
   @Prop animationDuration: number;
   @Prop isParentReminderEnabled: boolean;
   onDelete: (id: string) => void = (id: string) => {};
+  onReminderChange: () => void = () => {};
 
   build() {
     Column() {
@@ -119,6 +120,7 @@ export struct ExtendedWarrantyItemView {
                 .onChange((isOn: boolean) => {
                   animateTo({ duration: 200 }, () => {
                     this.item.isReminderEnabled = isOn;
+                    this.onReminderChange();
                   })
                 })
             }.width('100%')

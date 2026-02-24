@@ -1073,12 +1073,25 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
               }
             }
             
+            let subReminderEnabled = isReminderEnabled; // 默认跟随主项
+            const itemReminderRaw = item['isReminderEnabled'];
+            if (itemReminderRaw !== undefined) {
+                const itemReminderStr = String(itemReminderRaw).toLowerCase();
+                if (itemReminderStr === 'true' || itemReminderStr === '开启') {
+                    subReminderEnabled = true;
+                } else if (itemReminderStr === 'false' || itemReminderStr === '未开启') {
+                    // 如果主项开启，即便子项参数是 false，根据需求也可能需要强制开启？
+                    // 按照用户要求 "如果开启了一起设置为true"，这里强制跟随主项
+                    subReminderEnabled = isReminderEnabled || false;
+                }
+            }
+            
             return new ExtendedWarrantyItem(
               util.generateRandomUUID(true),
               wName,
               wPrice,
               wDate,
-              isReminderEnabled // 如果用户全局开启了提醒，延保项也默认开启
+              subReminderEnabled
             );
           });
           hilog.info(0xFEED, TAG, `[AddCore] Parsed ${extendedWarranties.length} extended warranties.`);
@@ -1126,6 +1139,21 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           d.setDate(d.getDate() + 365);
         }
         nextBillingDate = d.getTime();
+      }
+
+      // ==== 4. 提醒数量限制校验 (非阻塞拦截) ====
+      let isReminderLimitReached = false;
+      if (isReminderEnabled) {
+          const currentCount = await this.getReminderCount();
+          // 本次拟增加的提醒数 = 主项(1) + 延保子项数
+          const incomingCount = 1 + extendedWarranties.filter(w => w.isReminderEnabled).length;
+          if (currentCount + incomingCount > 30) {
+              isReminderLimitReached = true;
+              // 强制关闭本条记录的所有提醒
+              isReminderEnabled = false;
+              extendedWarranties.forEach(w => w.isReminderEnabled = false);
+              hilog.warn(0xFEED, TAG, `Reminder limit reached. Disabling specific reminder for new record: ${name}`);
+          }
       }
 
       const newSub: SubscriptionModel = {
@@ -1231,7 +1259,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           'isReminderEnabled': reminderEnabledStr,
           'reminderDaysBefore': reminderDaysStr,
           'reminderTime': reminderTimeStr,
-          'resultText': `已为您成功记录 ${newSub.name} 订阅，${cycleMap[newSub.billingCycle || 'Monthly']}费用为 ${newSub.price} 元。`,
+          'resultText': `已为您成功记录 ${newSub.name} 订阅，${cycleMap[newSub.billingCycle || 'Monthly']}费用为 ${newSub.price} 元。${isReminderLimitReached ? '由于您的提醒数量已达上限(30个)，本次添加未开启提醒通知。' : ''}`,
           'dataPackage': dataPackage,
           'showPackage': "true"
         };
@@ -1250,7 +1278,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           'isReminderEnabled': reminderEnabledStr,
           'reminderDaysBefore': reminderDaysStr,
           'reminderTime': reminderTimeStr,
-          'resultText': `已为您成功记录 ${newSub.brand || ''}${newSub.name} 的保修信息${extendedWarranties.length > 0 ? `及 ${extendedWarranties.length} 项延保服务` : ''}。`,
+          'resultText': `已为您成功记录 ${newSub.brand || ''}${newSub.name} 的保修信息${extendedWarranties.length > 0 ? `及 ${extendedWarranties.length} 项延保服务` : ''}。${isReminderLimitReached ? '由于您的提醒数量已达上限(30个)，本次添加未开启提醒通知。' : ''}`,
           'dataPackage': dataPackage,
           'showPackage': "true"
         };
@@ -1267,7 +1295,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           'isReminderEnabled': reminderEnabledStr,
           'reminderDaysBefore': reminderDaysStr,
           'reminderTime': reminderTimeStr,
-          'resultText': `已为您成功记录 ${newSub.merchantName || newSub.name} 的团购券，有效期至 ${DateUtil.formatDate(newSub.nextBillingDate)}。`,
+          'resultText': `已为您成功记录 ${newSub.merchantName || newSub.name} 的团购券，有效期至 ${DateUtil.formatDate(newSub.nextBillingDate)}。${isReminderLimitReached ? '由于您的提醒数量已达上限(30个)，本次添加未开启提醒通知。' : ''}`,
           'dataPackage': dataPackage,
           'showPackage': "true"
         };
@@ -1300,5 +1328,24 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       'Indefinite': '次'
     };
     return cycleMap[cycle] || '';
+  }
+
+  private async getReminderCount(): Promise<number> {
+    try {
+      const allSubs = await SubscriptionRepository.getInstance().queryAll();
+      const activeSubs = allSubs.filter(s => !s.isDeleted);
+      let count = activeSubs.filter(s => s.reminderDaysBefore !== undefined).length;
+      activeSubs.forEach(s => {
+        if (s.extendedWarranties) {
+          try {
+            const items: ExtendedWarrantyItem[] = JSON.parse(s.extendedWarranties);
+            count += items.filter(i => i.isReminderEnabled).length;
+          } catch (e) {}
+        }
+      });
+      return count;
+    } catch (e) {
+      return 0;
+    }
   }
 }

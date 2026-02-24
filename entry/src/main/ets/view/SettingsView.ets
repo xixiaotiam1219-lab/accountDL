@@ -896,7 +896,33 @@ export struct SettingsView {
           }
         }
 
-        // 2. 处理 couponImage (团购券截图)
+        // 2. 处理 icon (图标导出优化：精准区分内置库与自定义库)
+        if (item.icon && item.icon.startsWith('file://') && !item.icon.startsWith('data:')) {
+          try {
+            // 精准区分：内置图标库 vs 自定义图标
+            // 排除条件：1. 必须包含 /icons/ 2. 不能包含 /imported_icons/ 3. 文件名不能以 icon_ 或 temp_ 开头（裁剪生成的）
+            const isBuiltinPath = item.icon.includes('/icons/') && !item.icon.includes('/imported_icons/');
+            const filename = item.icon.split('/').pop() || '';
+            const isGeneratedFile = filename.startsWith('icon_') || filename.startsWith('temp_');
+
+            if (isBuiltinPath && !isGeneratedFile) {
+              // (1) 真正的内置图标库中的图标：导出为协议引用
+              if (filename) {
+                item.icon = `builtin://${filename}`;
+              }
+            } else {
+              // (2) 自定义图标：转换为 Base64
+              const base64Icon = await this.fileToBase64(item.icon);
+              if (base64Icon) {
+                item.icon = base64Icon;
+              }
+            }
+          } catch (e) {
+            hilog.error(0x0000, 'SettingsView', `Icon conversion error: ${JSON.stringify(e)}`);
+          }
+        }
+
+        // 3. 处理 couponImage (团购券截图)
         if (item.couponImage && !item.couponImage.startsWith('data:')) {
           try {
             const originalPath = item.couponImage;

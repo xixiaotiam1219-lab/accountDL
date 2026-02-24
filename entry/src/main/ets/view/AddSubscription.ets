@@ -58,6 +58,9 @@ export struct AddSubscription {
   @State ocrExpireDate: string = '';
   @State editId: number = -1;
   @State uuid: string = ''; // 记录唯一标识
+  @State reminderCount: number = 0; // 当前系统提醒总数
+  @State initialReminderEnabled: boolean = false; // 进入页面时是否已开启提醒
+  @State initialTotalReminders: number = 0; // 进入页面时整个系统的提醒总数 (用于精准计算增量)
   @State icon: string = '';
   // 订阅分类
   @State category: string = '其他';
@@ -236,6 +239,57 @@ export struct AddSubscription {
   @State isPlatformPressed: boolean = false;
   @State platformLight: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
 
+  private async updateReminderCount() {
+    try {
+      const list = await SubscriptionRepository.getInstance().queryAll();
+      this.reminderCount = list.filter(s => s.reminderDaysBefore !== undefined).length;
+      this.initialTotalReminders = this.reminderCount;
+    } catch (e) {
+      console.error('Update reminder count failed:', e);
+    }
+  }
+
+  /**
+   * 计算当前页面操作对系统提醒总数的实时影响
+   * 返回值为增量（正数表示增加，负数表示减少）
+   */
+  private getCurrentPageReminderImpact(): number {
+    let impact = 0;
+    
+    // 基础提醒变动
+    if (this.isReminderEnabled && !this.initialReminderEnabled) impact += 1;
+    if (!this.isReminderEnabled && this.initialReminderEnabled) impact -= 1;
+    
+    // 保修项的特殊逻辑：及其子项
+    if (this.recordType === 'warranty') {
+      // 统计当前页面开启了提醒的延保项数量
+      const currentActiveWarranties = this.extendedWarranties.filter(w => w.isReminderEnabled).length;
+      
+      // 获取初始时开启了提醒的延保项数量
+      let initialActiveWarranties = 0;
+      const paramsArray = this.pageStack.getParamByName('AddSubscription') as Object[];
+      if (paramsArray && paramsArray.length > 0) {
+        const params = paramsArray[paramsArray.length - 1] as SubscriptionModel;
+        if (params && params.extendedWarranties) {
+           try {
+             const oldList = JSON.parse(params.extendedWarranties) as ExtendedWarrantyItem[];
+             initialActiveWarranties = oldList.filter(w => w.isReminderEnabled).length;
+           } catch (e) {}
+        }
+      }
+      impact += (currentActiveWarranties - initialActiveWarranties);
+    }
+    
+    return impact;
+  }
+
+  /**
+   * 获取实时预测的系统总提醒数
+   */
+  private getPredictedTotalReminders(): number {
+    return this.initialTotalReminders + this.getCurrentPageReminderImpact();
+  }
+
   @State isUsageStatusPressed: boolean = false;
   @State usageStatusLight: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
 
@@ -285,6 +339,9 @@ export struct AddSubscription {
     // 初始化本地图标管理器
     await LocalIconManager.getInstance().init(getContext(this));
     
+    // 初始化提醒总数
+    this.updateReminderCount();
+
     // 如果存在残留的闪控球，自动关闭
     try {
       await FloatingBallManager.getInstance().stop();
@@ -389,7 +446,7 @@ export struct AddSubscription {
                 .borderRadius(8)
                 .backgroundColor('#F5F5F5')
                 .margin({ bottom: 8 })
-              
+
               Text("订阅截图示例")
                 .fontSize(13)
                 .fontColor($r('app.color.text_primary'))
@@ -405,7 +462,7 @@ export struct AddSubscription {
                 .borderRadius(8)
                 .backgroundColor('#F5F5F5')
                 .margin({ bottom: 8 })
-              
+
               Text("团购券截图示例")
                 .fontSize(13)
                 .fontColor($r('app.color.text_primary'))
@@ -1991,13 +2048,26 @@ export struct AddSubscription {
                       .switchPointColor(Color.White)
                       .onChange((isOn: boolean) => {
                         this.isReminderEnabled = isOn;
-                        if (this.isAnimationEnabled) {
-                          if (isOn) {
+                        if (isOn) {
+                          // 检查上限
+                          const predictedTotal = this.getPredictedTotalReminders();
+                          if (predictedTotal > 30) {
+                            this.promptAction.showToast({ message: `提醒数量已达上限 (30个)，当前预测为 ${predictedTotal} 个` });
+                          }
+
+                          this.isReminderEnabled = true;
+                          if (this.isAnimationEnabled) {
                             animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
                               this.isReminderExpanded = true;
                               this.reminderOpacity = 1;
                             })
                           } else {
+                            this.isReminderExpanded = true;
+                            this.reminderOpacity = 1;
+                          }
+                        } else {
+                          this.isReminderEnabled = false;
+                          if (this.isAnimationEnabled) {
                             animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
                               this.reminderOpacity = 0;
                             });
@@ -2006,14 +2076,25 @@ export struct AddSubscription {
                                 this.isReminderExpanded = false;
                               });
                             }, 200);
+                          } else {
+                            this.isReminderExpanded = false;
+                            this.reminderOpacity = 0;
                           }
-                        } else {
-                          this.isReminderExpanded = isOn;
-                          this.reminderOpacity = isOn ? 1 : 0;
                         }
                       })
                   }
                   .width('100%')
+
+                  if (this.isReminderEnabled || this.isReminderExpanded) {
+                    Row() {
+                      Blank()
+                      Text(`已设置 ${this.getPredictedTotalReminders()}/30 个提醒`)
+                        .fontSize(11)
+                        .fontColor(this.getPredictedTotalReminders() >= 30 ? $r('app.color.warning_color') : $r('app.color.text_secondary'))
+                        .margin({ bottom: 4 })
+                    }
+                    .width('100%')
+                  }
 
                   if (this.isReminderExpanded) {
                     Row() {
@@ -2644,6 +2725,10 @@ export struct AddSubscription {
                             animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
                               this.extendedWarranties = this.extendedWarranties.filter(w => w.id !== id);
                             })
+                          },
+                          onReminderChange: () => {
+                            // 强制触发数组更新感知，以刷新页面上的 remindCount 统计数值
+                            this.extendedWarranties = [...this.extendedWarranties];
                           }
                         })
                       }, (item: ExtendedWarrantyItem) => item.id)
@@ -2682,13 +2767,25 @@ export struct AddSubscription {
                       .switchPointColor(Color.White)
                       .onChange((isOn: boolean) => {
                         this.isReminderEnabled = isOn;
-                        if (this.isAnimationEnabled) {
-                          if (isOn) {
+                        if (isOn) {
+                          // 检查上限
+                          if (!this.initialReminderEnabled && this.reminderCount >= 30) {
+                            this.promptAction.showToast({ message: '提醒数量已达上限 (30个)' });
+                          }
+
+                          this.isReminderEnabled = true;
+                          if (this.isAnimationEnabled) {
                             animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
                               this.isReminderExpanded = true;
                               this.reminderOpacity = 1;
                             })
                           } else {
+                            this.isReminderExpanded = true;
+                            this.reminderOpacity = 1;
+                          }
+                        } else {
+                          this.isReminderEnabled = false;
+                          if (this.isAnimationEnabled) {
                             animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
                               this.reminderOpacity = 0;
                             });
@@ -2697,15 +2794,26 @@ export struct AddSubscription {
                                 this.isReminderExpanded = false;
                               });
                             }, 200);
+                          } else {
+                            this.isReminderExpanded = false;
+                            this.reminderOpacity = 0;
                           }
-                        } else {
-                          this.isReminderExpanded = isOn;
-                          this.reminderOpacity = isOn ? 1 : 0;
                         }
                       })
                   }
                   .width('100%')
                   .alignItems(VerticalAlign.Center)
+
+                  if (this.isReminderEnabled || this.isReminderExpanded) {
+                    Row() {
+                      Blank()
+                      Text(`已设置 ${this.getPredictedTotalReminders()}/30 个提醒`)
+                        .fontSize(11)
+                        .fontColor(this.getPredictedTotalReminders() >= 30 ? $r('app.color.warning_color') : $r('app.color.text_secondary'))
+                        .margin({ bottom: 4 })
+                    }
+                    .width('100%')
+                  }
 
                   if (this.isReminderExpanded) {
                     Row() {
@@ -3805,13 +3913,25 @@ export struct AddSubscription {
                         .switchPointColor(Color.White)
                         .onChange((isOn: boolean) => {
                           this.isReminderEnabled = isOn;
-                          if (this.isAnimationEnabled) {
-                            if (isOn) {
+                          if (isOn) {
+                            // 检查上限
+                            if (!this.initialReminderEnabled && this.reminderCount >= 30) {
+                              this.promptAction.showToast({ message: '提醒数量已达上限 (30个)' });
+                            }
+
+                            this.isReminderEnabled = true;
+                            if (this.isAnimationEnabled) {
                               animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
                                 this.isReminderExpanded = true;
                                 this.reminderOpacity = 1;
                               })
                             } else {
+                              this.isReminderExpanded = true;
+                              this.reminderOpacity = 1;
+                            }
+                          } else {
+                            this.isReminderEnabled = false;
+                            if (this.isAnimationEnabled) {
                               animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
                                 this.reminderOpacity = 0;
                               });
@@ -3820,15 +3940,26 @@ export struct AddSubscription {
                                   this.isReminderExpanded = false;
                                 });
                               }, 200);
+                            } else {
+                              this.isReminderExpanded = false;
+                              this.reminderOpacity = 0;
                             }
-                          } else {
-                            this.isReminderExpanded = isOn;
-                            this.reminderOpacity = isOn ? 1 : 0;
                           }
                         })
                     }
                     .width('100%')
                     .alignItems(VerticalAlign.Center)
+
+                    if (this.isReminderEnabled || this.isReminderExpanded) {
+                      Row() {
+                        Blank()
+                        Text(`已设置 ${this.getPredictedTotalReminders()}/30 个提醒`)
+                          .fontSize(11)
+                          .fontColor(this.getPredictedTotalReminders() >= 30 ? $r('app.color.warning_color') : $r('app.color.text_secondary'))
+                          .margin({ bottom: 4 })
+                      }
+                      .width('100%')
+                    }
 
                     if (this.isReminderExpanded) {
                       Row() {
@@ -4147,6 +4278,13 @@ export struct AddSubscription {
                   return;
                 }
 
+                // 提醒上限拦截
+                const predictedTotal = this.initialTotalReminders + this.getCurrentPageReminderImpact();
+                if (predictedTotal > 30) {
+                  this.promptAction.showToast({ message: `提醒数量已达上限 (30个)，当前超出 ${predictedTotal - 30} 个` });
+                  return;
+                }
+
                 if (this.name === '' || this.price === '') {
                   this.promptAction.showToast({ message: '请填写名称和金额' });
                   return;
@@ -4347,6 +4485,7 @@ export struct AddSubscription {
           // 加载提醒设置
           if (params.reminderDaysBefore !== undefined) {
             this.isReminderEnabled = true;
+            this.initialReminderEnabled = true;
             this.isReminderExpanded = true;
             this.reminderOpacity = 1;
             this.reminderDaysBefore = params.reminderDaysBefore;

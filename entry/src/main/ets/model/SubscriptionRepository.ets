@@ -192,7 +192,18 @@ export class SubscriptionRepository {
       // 附加延保服务字段 (JSON 数组存储)
       { name: 'extendedWarranties', type: 'TEXT' },
       // 提醒状态控制字段
-      { name: 'lastIgnoredBillingDate', type: 'INTEGER' }
+      { name: 'lastIgnoredBillingDate', type: 'INTEGER' },
+      // 补充缺失的迁移定义（防止从更早版本升级时缺失字段）
+      { name: 'startDate', type: 'INTEGER' },
+      { name: 'paymentMethod', type: 'TEXT DEFAULT "其他支付方式"' },
+      { name: 'icon', type: 'TEXT' },
+      { name: 'category', type: 'TEXT' },
+      { name: 'reminderDaysBefore', type: 'INTEGER DEFAULT 1' },
+      { name: 'reminderTime', type: 'TEXT DEFAULT "09:00"' },
+      { name: 'subCategory', type: 'TEXT' },
+      { name: 'isAutoRenewal', type: 'INTEGER DEFAULT 1' },
+      { name: 'lastModified', type: 'INTEGER' },
+      { name: 'isDeleted', type: 'INTEGER DEFAULT 0' }
     ];
 
     try {
@@ -309,42 +320,7 @@ export class SubscriptionRepository {
     const updatePromises: Promise<number>[] = [];
 
     while (resultSet.goToNextRow()) {
-      const reminderDaysIdx = resultSet.getColumnIndex('reminderDaysBefore');
-      const reminderTimeIdx = resultSet.getColumnIndex('reminderTime');
-
-      const sub: SubscriptionModel = {
-        id: resultSet.getLong(resultSet.getColumnIndex('id')),
-        uuid: resultSet.getString(resultSet.getColumnIndex('uuid')),
-        name: resultSet.getString(resultSet.getColumnIndex('name')),
-        price: resultSet.getDouble(resultSet.getColumnIndex('price')),
-        currency: resultSet.getString(resultSet.getColumnIndex('currency')),
-        billingCycle: resultSet.getString(resultSet.getColumnIndex('billingCycle')) as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite',
-        nextBillingDate: resultSet.getLong(resultSet.getColumnIndex('nextBillingDate')),
-        icon: resultSet.getString(resultSet.getColumnIndex('icon')),
-        category: resultSet.getString(resultSet.getColumnIndex('category')),
-        lastModified: resultSet.getLong(resultSet.getColumnIndex('lastModified')),
-        isDeleted: resultSet.getLong(resultSet.getColumnIndex('isDeleted')) === 1,
-        reminderDaysBefore: resultSet.isColumnNull(reminderDaysIdx) ? undefined : resultSet.getLong(reminderDaysIdx),
-        reminderTime: resultSet.isColumnNull(reminderTimeIdx) ? undefined : resultSet.getString(reminderTimeIdx),
-        subCategory: resultSet.getString(resultSet.getColumnIndex('subCategory')),
-        startDate: resultSet.getLong(resultSet.getColumnIndex('startDate')),
-        isAutoRenewal: resultSet.getColumnIndex('isAutoRenewal') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('isAutoRenewal')) === 1 : true,
-        paymentMethod: resultSet.getColumnIndex('paymentMethod') !== -1 ? resultSet.getString(resultSet.getColumnIndex('paymentMethod')) : '其他支付方式',
-        // 团购券字段
-        recordType: (resultSet.getColumnIndex('recordType') !== -1 ? resultSet.getString(resultSet.getColumnIndex('recordType')) : 'subscription') as 'subscription' | 'groupBuy' | 'warranty',
-        platform: resultSet.getColumnIndex('platform') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('platform')) ? resultSet.getString(resultSet.getColumnIndex('platform')) as 'meituan' | 'douyin' | 'dianping' : undefined,
-        couponCode: resultSet.getColumnIndex('couponCode') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponCode')) ? resultSet.getString(resultSet.getColumnIndex('couponCode')) : undefined,
-        usageStatus: resultSet.getColumnIndex('usageStatus') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageStatus')) ? resultSet.getString(resultSet.getColumnIndex('usageStatus')) as 'unused' | 'used' | 'expired' : 'unused',
-        merchantName: resultSet.getColumnIndex('merchantName') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('merchantName')) ? resultSet.getString(resultSet.getColumnIndex('merchantName')) : undefined,
-        quantity: resultSet.getColumnIndex('quantity') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('quantity')) : 1,
-        couponImage: resultSet.getColumnIndex('couponImage') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponImage')) ? resultSet.getString(resultSet.getColumnIndex('couponImage')) : undefined,
-        usageTime: resultSet.getColumnIndex('usageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageTime')) ? resultSet.getString(resultSet.getColumnIndex('usageTime')) : undefined,
-        realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined,
-        brand: resultSet.getColumnIndex('brand') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('brand')) ? resultSet.getString(resultSet.getColumnIndex('brand')) : undefined,
-        purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined,
-        extendedWarranties: resultSet.getColumnIndex('extendedWarranties') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('extendedWarranties')) ? resultSet.getString(resultSet.getColumnIndex('extendedWarranties')) : undefined,
-        lastIgnoredBillingDate: resultSet.getColumnIndex('lastIgnoredBillingDate') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('lastIgnoredBillingDate')) ? resultSet.getLong(resultSet.getColumnIndex('lastIgnoredBillingDate')) : undefined
-      };
+      const sub: SubscriptionModel = this.mapResultSetToModel(resultSet);
 
       // 自动推算过期的 nextBillingDate (永久订阅和不定周期不推算，非自动续费不推算)
       const todayStart = new Date();
@@ -527,7 +503,7 @@ export class SubscriptionRepository {
     if (resultSet.rowCount > 0) {
       // Exists -> Update
       resultSet.goToFirstRow();
-      const existingId = resultSet.getLong(resultSet.getColumnIndex('id'));
+      const existingId = this.getLongSafe(resultSet, 'id');
       subscription.id = existingId; // Force use local ID
       subscription.isDeleted = false;
       result = await this.update(subscription, false, skipRefresh);
@@ -646,42 +622,7 @@ export class SubscriptionRepository {
     const resultSet = await this.rdbStore!.query(predicates);
     const subscriptions: SubscriptionModel[] = [];
     while (resultSet.goToNextRow()) {
-      const reminderDaysIdx = resultSet.getColumnIndex('reminderDaysBefore');
-      const reminderTimeIdx = resultSet.getColumnIndex('reminderTime');
-
-      subscriptions.push({
-        id: resultSet.getLong(resultSet.getColumnIndex('id')),
-        uuid: resultSet.getString(resultSet.getColumnIndex('uuid')),
-        name: resultSet.getString(resultSet.getColumnIndex('name')),
-        price: resultSet.getDouble(resultSet.getColumnIndex('price')),
-        currency: resultSet.getString(resultSet.getColumnIndex('currency')),
-        billingCycle: resultSet.getString(resultSet.getColumnIndex('billingCycle')) as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite',
-        nextBillingDate: resultSet.getLong(resultSet.getColumnIndex('nextBillingDate')),
-        icon: resultSet.getString(resultSet.getColumnIndex('icon')),
-        category: resultSet.getString(resultSet.getColumnIndex('category')),
-        lastModified: resultSet.getLong(resultSet.getColumnIndex('lastModified')),
-        isDeleted: resultSet.getLong(resultSet.getColumnIndex('isDeleted')) === 1,
-        reminderDaysBefore: resultSet.isColumnNull(reminderDaysIdx) ? undefined : resultSet.getLong(reminderDaysIdx),
-        reminderTime: resultSet.isColumnNull(reminderTimeIdx) ? undefined : resultSet.getString(reminderTimeIdx),
-        subCategory: resultSet.getString(resultSet.getColumnIndex('subCategory')),
-        startDate: resultSet.getLong(resultSet.getColumnIndex('startDate')),
-        isAutoRenewal: resultSet.getColumnIndex('isAutoRenewal') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('isAutoRenewal')) === 1 : true,
-        paymentMethod: resultSet.getColumnIndex('paymentMethod') !== -1 ? resultSet.getString(resultSet.getColumnIndex('paymentMethod')) : '其他支付方式',
-        // 团购券字段
-        recordType: (resultSet.getColumnIndex('recordType') !== -1 ? resultSet.getString(resultSet.getColumnIndex('recordType')) : 'subscription') as 'subscription' | 'groupBuy' | 'warranty',
-        platform: resultSet.getColumnIndex('platform') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('platform')) ? resultSet.getString(resultSet.getColumnIndex('platform')) as 'meituan' | 'douyin' | 'dianping' : undefined,
-        couponCode: resultSet.getColumnIndex('couponCode') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponCode')) ? resultSet.getString(resultSet.getColumnIndex('couponCode')) : undefined,
-        usageStatus: resultSet.getColumnIndex('usageStatus') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageStatus')) ? resultSet.getString(resultSet.getColumnIndex('usageStatus')) as 'unused' | 'used' | 'expired' : 'unused',
-        merchantName: resultSet.getColumnIndex('merchantName') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('merchantName')) ? resultSet.getString(resultSet.getColumnIndex('merchantName')) : undefined,
-        quantity: resultSet.getColumnIndex('quantity') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('quantity')) : 1,
-        couponImage: resultSet.getColumnIndex('couponImage') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponImage')) ? resultSet.getString(resultSet.getColumnIndex('couponImage')) : undefined,
-        usageTime: resultSet.getColumnIndex('usageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageTime')) ? resultSet.getString(resultSet.getColumnIndex('usageTime')) : undefined,
-        realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined,
-        brand: resultSet.getColumnIndex('brand') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('brand')) ? resultSet.getString(resultSet.getColumnIndex('brand')) : undefined,
-        purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined,
-        extendedWarranties: resultSet.getColumnIndex('extendedWarranties') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('extendedWarranties')) ? resultSet.getString(resultSet.getColumnIndex('extendedWarranties')) : undefined,
-        lastIgnoredBillingDate: resultSet.getColumnIndex('lastIgnoredBillingDate') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('lastIgnoredBillingDate')) ? resultSet.getLong(resultSet.getColumnIndex('lastIgnoredBillingDate')) : undefined
-      });
+      subscriptions.push(this.mapResultSetToModel(resultSet));
     }
     resultSet.close();
     return subscriptions;
@@ -726,42 +667,71 @@ export class SubscriptionRepository {
   }
 
   private mapResultSetToModel(resultSet: relationalStore.ResultSet): SubscriptionModel {
-    const reminderDaysIdx = resultSet.getColumnIndex('reminderDaysBefore');
-    const reminderTimeIdx = resultSet.getColumnIndex('reminderTime');
-
     return {
-      id: resultSet.getLong(resultSet.getColumnIndex('id')),
-      uuid: resultSet.getString(resultSet.getColumnIndex('uuid')),
-      name: resultSet.getString(resultSet.getColumnIndex('name')),
-      price: resultSet.getDouble(resultSet.getColumnIndex('price')),
-      currency: resultSet.getString(resultSet.getColumnIndex('currency')),
-      billingCycle: resultSet.getString(resultSet.getColumnIndex('billingCycle')) as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite',
-      nextBillingDate: resultSet.getLong(resultSet.getColumnIndex('nextBillingDate')),
-      icon: resultSet.getString(resultSet.getColumnIndex('icon')),
-      category: resultSet.getString(resultSet.getColumnIndex('category')),
-      lastModified: resultSet.getLong(resultSet.getColumnIndex('lastModified')),
-      isDeleted: resultSet.getLong(resultSet.getColumnIndex('isDeleted')) === 1,
-      reminderDaysBefore: resultSet.isColumnNull(reminderDaysIdx) ? undefined : resultSet.getLong(reminderDaysIdx),
-      reminderTime: resultSet.isColumnNull(reminderTimeIdx) ? undefined : resultSet.getString(reminderTimeIdx),
-      subCategory: resultSet.getString(resultSet.getColumnIndex('subCategory')),
-      startDate: resultSet.getLong(resultSet.getColumnIndex('startDate')),
-      isAutoRenewal: resultSet.getColumnIndex('isAutoRenewal') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('isAutoRenewal')) === 1 : true,
-      paymentMethod: resultSet.getColumnIndex('paymentMethod') !== -1 ? resultSet.getString(resultSet.getColumnIndex('paymentMethod')) : '其他支付方式',
+      id: this.getLongSafe(resultSet, 'id'),
+      uuid: this.getStringSafe(resultSet, 'uuid') || '',
+      name: this.getStringSafe(resultSet, 'name') || '',
+      price: this.getDoubleSafe(resultSet, 'price'),
+      currency: this.getStringSafe(resultSet, 'currency') || 'CNY',
+      billingCycle: (this.getStringSafe(resultSet, 'billingCycle') || 'Monthly') as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite',
+      nextBillingDate: this.getLongSafe(resultSet, 'nextBillingDate'),
+      icon: this.getStringSafe(resultSet, 'icon'),
+      category: this.getStringSafe(resultSet, 'category'),
+      lastModified: this.getLongSafe(resultSet, 'lastModified'),
+      isDeleted: this.getLongSafe(resultSet, 'isDeleted') === 1,
+      reminderDaysBefore: this.getLongOrUndefined(resultSet, 'reminderDaysBefore'),
+      reminderTime: this.getStringSafe(resultSet, 'reminderTime'),
+      subCategory: this.getStringSafe(resultSet, 'subCategory'),
+      startDate: this.getLongSafe(resultSet, 'startDate'),
+      isAutoRenewal: this.getLongSafe(resultSet, 'isAutoRenewal') !== 0, // Default to true if missing or 1 (since 0 is false)
+      paymentMethod: this.getStringSafe(resultSet, 'paymentMethod') || '其他支付方式',
       // 团购券字段
-      recordType: (resultSet.getColumnIndex('recordType') !== -1 ? resultSet.getString(resultSet.getColumnIndex('recordType')) : 'subscription') as 'subscription' | 'groupBuy' | 'warranty',
-      platform: resultSet.getColumnIndex('platform') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('platform')) ? resultSet.getString(resultSet.getColumnIndex('platform')) as 'meituan' | 'douyin' | 'dianping' : undefined,
-      couponCode: resultSet.getColumnIndex('couponCode') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponCode')) ? resultSet.getString(resultSet.getColumnIndex('couponCode')) : undefined,
-      usageStatus: resultSet.getColumnIndex('usageStatus') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageStatus')) ? resultSet.getString(resultSet.getColumnIndex('usageStatus')) as 'unused' | 'used' | 'expired' : 'unused',
-      merchantName: resultSet.getColumnIndex('merchantName') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('merchantName')) ? resultSet.getString(resultSet.getColumnIndex('merchantName')) : undefined,
-      quantity: resultSet.getColumnIndex('quantity') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('quantity')) : 1,
-      couponImage: resultSet.getColumnIndex('couponImage') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponImage')) ? resultSet.getString(resultSet.getColumnIndex('couponImage')) : undefined,
-      usageTime: resultSet.getColumnIndex('usageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageTime')) ? resultSet.getString(resultSet.getColumnIndex('usageTime')) : undefined,
-      realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined,
-      brand: resultSet.getColumnIndex('brand') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('brand')) ? resultSet.getString(resultSet.getColumnIndex('brand')) : undefined,
-      purchaseChannel: resultSet.getColumnIndex('purchaseChannel') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('purchaseChannel')) ? resultSet.getString(resultSet.getColumnIndex('purchaseChannel')) : undefined,
-      extendedWarranties: resultSet.getColumnIndex('extendedWarranties') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('extendedWarranties')) ? resultSet.getString(resultSet.getColumnIndex('extendedWarranties')) : undefined,
-      lastIgnoredBillingDate: resultSet.getColumnIndex('lastIgnoredBillingDate') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('lastIgnoredBillingDate')) ? resultSet.getLong(resultSet.getColumnIndex('lastIgnoredBillingDate')) : undefined
+      recordType: (this.getStringSafe(resultSet, 'recordType') || 'subscription') as 'subscription' | 'groupBuy' | 'warranty',
+      platform: this.getStringSafe(resultSet, 'platform') as 'meituan' | 'douyin' | 'dianping',
+      couponCode: this.getStringSafe(resultSet, 'couponCode'),
+      usageStatus: (this.getStringSafe(resultSet, 'usageStatus') || 'unused') as 'unused' | 'used' | 'expired',
+      merchantName: this.getStringSafe(resultSet, 'merchantName'),
+      quantity: this.getLongSafe(resultSet, 'quantity') || 1,
+      couponImage: this.getStringSafe(resultSet, 'couponImage'),
+      usageTime: this.getStringSafe(resultSet, 'usageTime'),
+      realUsageTime: this.getLongOrUndefined(resultSet, 'realUsageTime'),
+      brand: this.getStringSafe(resultSet, 'brand'),
+      purchaseChannel: this.getStringSafe(resultSet, 'purchaseChannel'),
+      extendedWarranties: this.getStringSafe(resultSet, 'extendedWarranties'),
+      lastIgnoredBillingDate: this.getLongOrUndefined(resultSet, 'lastIgnoredBillingDate')
     };
+  }
+
+  private getStringSafe(resultSet: relationalStore.ResultSet, columnName: string): string | undefined {
+    const index = resultSet.getColumnIndex(columnName);
+    if (index === -1 || resultSet.isColumnNull(index)) {
+      return undefined;
+    }
+    return resultSet.getString(index);
+  }
+
+  private getLongSafe(resultSet: relationalStore.ResultSet, columnName: string): number {
+    const index = resultSet.getColumnIndex(columnName);
+    if (index === -1 || resultSet.isColumnNull(index)) {
+      return 0;
+    }
+    return resultSet.getLong(index);
+  }
+
+  private getLongOrUndefined(resultSet: relationalStore.ResultSet, columnName: string): number | undefined {
+    const index = resultSet.getColumnIndex(columnName);
+    if (index === -1 || resultSet.isColumnNull(index)) {
+      return undefined;
+    }
+    return resultSet.getLong(index);
+  }
+
+  private getDoubleSafe(resultSet: relationalStore.ResultSet, columnName: string): number {
+    const index = resultSet.getColumnIndex(columnName);
+    if (index === -1 || resultSet.isColumnNull(index)) {
+      return 0;
+    }
+    return resultSet.getDouble(index);
   }
 
   /**
@@ -941,7 +911,7 @@ export class SubscriptionRepository {
         if (resultSet.rowCount > 0) {
           // 存在则更新 (overwrite strategy for restore)
           resultSet.goToFirstRow();
-          const existingId = resultSet.getLong(resultSet.getColumnIndex('id'));
+          const existingId = this.getLongSafe(resultSet, 'id');
           item.id = existingId;
           // 保持本地状态标记
           item.isDeleted = false;

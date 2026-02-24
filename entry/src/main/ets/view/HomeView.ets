@@ -2028,7 +2028,6 @@ export struct HomeView {
         item.lastModified = new Date().getTime();
         await SubscriptionRepository.getInstance().update(item);
         this.loadLocalData();
-        this.closeReminderSetup();
       },
       onCancel: () => {
         this.closeReminderSetup();
@@ -2039,8 +2038,7 @@ export struct HomeView {
         item.lastModified = new Date().getTime();
         await SubscriptionRepository.getInstance().update(item);
         this.loadLocalData();
-        this.closeReminderSetup();
-      }
+      },
     })
   }
 
