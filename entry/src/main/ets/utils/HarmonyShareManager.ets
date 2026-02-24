@@ -88,6 +88,7 @@ export class HarmonyShareManager {
       const exportSubs = await this.prepareSubscriptionsForExport(subs, true);
       const exportData = new ExportData();
       exportData.subscriptions = exportSubs;
+      exportData.customIcons = await this.prepareIconLibraryForExport(); // 确保图标库同步
       const jsonStr = JSON.stringify(exportData);
 
       // 将 Base64 编码后的数据进行 URI 编码，检查最终长度
@@ -156,6 +157,8 @@ export class HarmonyShareManager {
       const exportSubs = await this.prepareSubscriptionsForExport(subs, true);
       const exportData = new ExportData();
       exportData.subscriptions = exportSubs;
+      // [新增] 携带自定义图标库数据，确保接收端图标库同步
+      exportData.customIcons = await this.prepareIconLibraryForExport();
       const jsonStr = JSON.stringify(exportData);
 
       const base64Data = new util.Base64Helper().encodeToStringSync(new util.TextEncoder().encodeInto(jsonStr));
@@ -313,10 +316,20 @@ export class HarmonyShareManager {
               realPath = decodeURIComponent(originalPath.substring(7));
           }
 
+<<<<<<< HEAD
           // 核心判断：是否是内置库图标 (包括 rawfile 原始图标和本地缓存图标)
           if (realPath.includes('/local_icons/') || realPath.includes('/icons/')) {
             const libFilename = realPath.substring(realPath.lastIndexOf('/') + 1);
             newItem.icon = `builtin://${libFilename}`;
+=======
+          // 精准判断：内置图标库 vs 自定义导入/裁剪图标
+          const isBuiltinPath = realPath.includes('/icons/') && !realPath.includes('/imported_icons/');
+          const currentFilename = realPath.substring(realPath.lastIndexOf('/') + 1);
+          const isGeneratedFile = currentFilename.startsWith('icon_') || currentFilename.startsWith('temp_');
+
+          if (isBuiltinPath && !isGeneratedFile) {
+            newItem.icon = `builtin://${filename}`;
+>>>>>>> API23
           } else {
             // 真正自定义图标：执行多路径搜索与转换
             let foundPath = '';

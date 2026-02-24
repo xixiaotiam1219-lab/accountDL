@@ -8,7 +8,11 @@ import { image } from '@kit.ImageKit';
 import { ImageCropSheet } from './ImageCropPage';
 import { WebViewParam } from './WebViewPage';
 import { hdsEffect, HdsNavDestination, HdsNavigationTitleBarOptions, HdsNavigationMenuItemOptions,
+<<<<<<< HEAD
 
+=======
+  hdsMaterial,
+>>>>>>> API23
   ScrollEffectType} from '@kit.UIDesignKit';
 import { BackgroundWatermark } from './BackgroundWatermark';
 
@@ -786,6 +790,7 @@ export struct IconLibraryPage {
             ]
           }
         },
+<<<<<<< HEAD
         // style: {
         //   systemMaterialEffect: {
         //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
@@ -801,6 +806,23 @@ export struct IconLibraryPage {
         //   //   backgroundStyle: { maskExtraHeight: 96.0 },
         //   // }
         // }
+=======
+        style: {
+          systemMaterialEffect: {
+            materialType: hdsMaterial.MaterialType.IMMERSIVE,
+            materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+          },
+          scrollEffectOpts: {
+            enableScrollEffect: true,
+            scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+            blurEffectiveStartOffset: LengthMetrics.vp(0),
+            blurEffectiveEndOffset: LengthMetrics.vp(20)
+          },
+          // scrollEffectStyle: {
+          //   backgroundStyle: { maskExtraHeight: 96.0 },
+          // }
+        }
+>>>>>>> API23
       } as HdsNavigationTitleBarOptions :
         {
           avoidLayoutSafeArea: true,
@@ -844,6 +866,7 @@ export struct IconLibraryPage {
               ]
             }
           },
+<<<<<<< HEAD
           // style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
           //   systemMaterialEffect: {
           //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
@@ -859,6 +882,23 @@ export struct IconLibraryPage {
           //     backgroundStyle: { maskExtraHeight: 96.0 },
           //   }
           // } :undefined
+=======
+          style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+            systemMaterialEffect: {
+              materialType: hdsMaterial.MaterialType.IMMERSIVE,
+              materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+            },
+            scrollEffectOpts: {
+              enableScrollEffect: true,
+              scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+              blurEffectiveStartOffset: LengthMetrics.vp(0),
+              blurEffectiveEndOffset: LengthMetrics.vp(20)
+            },
+            scrollEffectStyle: {
+              backgroundStyle: { maskExtraHeight: 96.0 },
+            }
+          } :undefined
+>>>>>>> API23
         } as HdsNavigationTitleBarOptions)
       .backgroundColor($r('app.color.page_background'))
 

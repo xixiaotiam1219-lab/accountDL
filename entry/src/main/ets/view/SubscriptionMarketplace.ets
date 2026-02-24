@@ -1,5 +1,9 @@
 import { curves, LengthMetrics } from '@kit.ArkUI';
+<<<<<<< HEAD
 import { hdsEffect,   HdsNavDestination, HdsNavigationMenuItemOptions, HdsNavigationTitleBarOptions, HdsNavigationTitleBarStyle, ScrollEffectType } from '@kit.UIDesignKit';
+=======
+import { hdsEffect, hdsMaterial, HdsNavDestination, HdsNavigationMenuItemOptions, HdsNavigationTitleBarOptions, HdsNavigationTitleBarStyle, ScrollEffectType } from '@kit.UIDesignKit';
+>>>>>>> API23
 import { SubscriptionIcon } from './SubscriptionIcon';
 import { BackgroundWatermark } from './BackgroundWatermark';
 import { LocalIconManager, AppInfo } from '../utils/LocalIconManager';
@@ -971,6 +975,7 @@ export struct SubscriptionMarketplace {
           ]
         }
       },
+<<<<<<< HEAD
       // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
       //   systemMaterialEffect: {
       //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
@@ -983,6 +988,20 @@ export struct SubscriptionMarketplace {
       //     blurEffectiveEndOffset: LengthMetrics.vp(20)
       //   }
       // }  : undefined
+=======
+      style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.IMMERSIVE,
+          materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+        },
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+          blurEffectiveStartOffset: LengthMetrics.vp(0),
+          blurEffectiveEndOffset: LengthMetrics.vp(20)
+        }
+      }  : undefined
+>>>>>>> API23
     } as HdsNavigationTitleBarOptions)
     .onBackPressed(() => {
       this.pageStack.pop();

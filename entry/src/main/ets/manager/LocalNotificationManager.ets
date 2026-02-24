@@ -128,7 +128,7 @@ export class LocalNotificationManager {
         pkgName: 'com.xxtstudio.accountDL',
         abilityName: 'EntryAbility'
       },
-      ringDuration: 5,
+      ringDuration: 0,
       actionButton: [
         {
           title: '关闭',
@@ -250,7 +250,7 @@ export class LocalNotificationManager {
         pkgName: 'com.xxtstudio.accountDL',
         abilityName: 'EntryAbility'
       },
-      ringDuration: 5,
+      ringDuration: 0,
       actionButton: [
         {
           title: '2026新年快乐！',

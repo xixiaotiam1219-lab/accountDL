@@ -9,7 +9,11 @@ import { ImageUtils } from '../utils/ImageUtils';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
+<<<<<<< HEAD
 import { hdsEffect, HdsNavigation, HdsNavigationTitleMode, ScrollEffectType } from '@kit.UIDesignKit';
+=======
+import { hdsEffect, hdsMaterial, HdsNavigation, HdsNavigationTitleMode, ScrollEffectType } from '@kit.UIDesignKit';
+>>>>>>> API23
 import { curves, LengthMetrics } from '@kit.ArkUI';
 import { BackgroundWatermark } from './BackgroundWatermark';
 
@@ -149,6 +153,7 @@ export struct MonthlyReportSheet {
 
       let extendedCost = 0;
       if (['Lifetime', 'Indefinite'].includes(sub.billingCycle) || sub.recordType === 'groupBuy' || sub.recordType === 'warranty') {
+<<<<<<< HEAD
         if (sub.extendedWarranties) {
           try {
             const warranties = JSON.parse(sub.extendedWarranties) as ExtendedWarrantyItem[];
@@ -160,6 +165,19 @@ export struct MonthlyReportSheet {
         }
       }
 
+=======
+          if (sub.extendedWarranties) {
+             try {
+               const warranties = JSON.parse(sub.extendedWarranties) as ExtendedWarrantyItem[];
+               warranties.forEach(w => {
+                 const p = Number(w.price);
+                 if (!isNaN(p) && p > 0) extendedCost += p;
+               });
+             } catch (e) {}
+          }
+      }
+      
+>>>>>>> API23
       // Group Buy: checking usage time first
       if (sub.recordType === 'groupBuy') {
         if (sub.usageStatus === 'used' && sub.realUsageTime) {
@@ -178,6 +196,7 @@ export struct MonthlyReportSheet {
         monthlyCost += extendedCost;
         totalMonthlyItems += monthlyCost;
       } else if (sub.recordType === 'warranty') {
+<<<<<<< HEAD
         // 保修记录：通常是一次性支出，按购买日期 (startDate) 判断是否计入本月
         const startDate = new Date(sub.startDate || 0);
         const isCurrentMonth = startDate.getFullYear() === new Date().getFullYear() &&
@@ -195,6 +214,25 @@ export struct MonthlyReportSheet {
           billingDate.getMonth() === new Date().getMonth();
         if (isCurrentMonth) {
           monthlyCost = Number(sub.price) + extendedCost;
+=======
+          // 保修记录：通常是一次性支出，按购买日期 (startDate) 判断是否计入本月
+          const startDate = new Date(sub.startDate || 0);
+          const isCurrentMonth = startDate.getFullYear() === new Date().getFullYear() && 
+                                 startDate.getMonth() === new Date().getMonth();
+          if (isCurrentMonth) {
+            monthlyCost = Number(sub.price) + extendedCost;
+            totalMonthlyItems += monthlyCost;
+          } else {
+            // 非本月购买的保修，不计入月度支出
+            return;
+          }
+      } else if (sub.billingCycle === 'Lifetime' || sub.billingCycle === 'Indefinite') {
+        const billingDate = new Date(sub.startDate || sub.nextBillingDate);
+        const isCurrentMonth = billingDate.getFullYear() === new Date().getFullYear() && 
+                               billingDate.getMonth() === new Date().getMonth();
+        if (isCurrentMonth) {
+          monthlyCost = Number(sub.price) + extendedCost;
+>>>>>>> API23
           totalMonthlyItems += monthlyCost; // 作为本月一次性大额支出计入
         } else {
           monthlyCost = 0; // 非本月购买的永久项目不计入当月预估
@@ -322,7 +360,11 @@ export struct MonthlyReportSheet {
       // 6. Cleanup
       // Restore scroll to original position
       this.scroller.scrollTo({ xOffset: 0, yOffset: originalYOffset, animation: { duration: 0 } });
+<<<<<<< HEAD
 
+=======
+      
+>>>>>>> API23
       this.componentMaskImage = undefined;
       this.isSnapshotting = false;
       this.scrollYOffsets = [];
@@ -703,7 +745,240 @@ export struct MonthlyReportSheet {
               }
             })
             .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+<<<<<<< HEAD
           }, (item: ReportItem, index: number) => item?.sub?.id ? item.sub.id.toString() : index.toString())
+=======
+            .opacity(this.animStep1 ? 1 : 0)
+            .translate({ y: this.animStep1 ? 0 : 20 })
+
+           // 2. 支出分类占比
+           if (data.categoryList.length > 0) {
+             Column() {
+               Text("预估分布")
+                 .fontSize(16)
+                 .fontWeight(FontWeight.Bold)
+                                                .fontColor($r('app.color.text_primary'))
+
+                 .width('100%')
+                 .margin({ bottom: 16 })
+
+               ForEach(data.categoryList, (cat: CategoryInfo) => {
+                 Column() {
+                   Row() {
+                     Text(cat.name)
+                       .fontSize(14)
+                                                      .fontColor($r('app.color.text_primary'))
+
+                     Blank()
+                     Text(`¥${cat.amount.toFixed(2)} (${cat.percent.toFixed(1)}%)`)
+                       .fontSize(14)
+                                                      .fontColor($r('app.color.text_secondary'))
+
+                   }
+                   .width('100%')
+                   
+                   Progress({ value: cat.percent, total: 100, type: ProgressType.Linear })
+                     .width('100%')
+                     .height(4)
+                     .color(this.getThemeAccent())
+                     .opacity(0.6)
+                     .margin({ top: 8, bottom: 12 })
+                 }
+               })
+             }
+             .width('100%')
+             .padding(20)
+             .backgroundColor($r('app.color.card_background'))
+             .borderRadius(20)
+             .margin({ bottom: 16 })
+             .visualEffect(new hdsEffect.HdsEffectBuilder()
+                .pointLight({
+                  sourceType: this.categoryLight,
+                  illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                })
+                .buildEffect())
+              .scale({ x: this.isCategoryPressed ? 0.98 : 1, y: this.isCategoryPressed ? 0.98 : 1 })
+              .onTouch((event: TouchEvent) => {
+                if (event.type === TouchType.Down) {
+                  if (this.isAnimationEnabled && this.isPointLightEnabled) {
+                      this.isCategoryPressed = true;
+                      this.categoryLight = hdsEffect.PointLightSourceType.BRIGHT;
+                  }
+                } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                  this.isCategoryPressed = false;
+                  this.categoryLight = hdsEffect.PointLightSourceType.NONE;
+                }
+              })
+              .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+             .opacity(this.animStep2 ? 1 : 0)
+             .translate({ y: this.animStep2 ? 0 : 20 })
+           }
+
+           // 3. 最大占比发现
+           if (data.maxSpender) {
+               Row() {
+                    Column() {
+                        SubscriptionIcon({
+                           icon: data.maxSpender.sub.recordType === 'groupBuy' ? this.getGroupBuyIcon(data.maxSpender.sub) : data.maxSpender.sub.icon,
+                           name: data.maxSpender.sub.recordType === 'groupBuy' ? (data.maxSpender.sub.merchantName || data.maxSpender.sub.name) : data.maxSpender.sub.name,
+                           iconSize: 44,
+                           iconRadius: 10,
+                           showGroupBadge: data.maxSpender.sub.recordType === 'groupBuy'
+                        })
+                    }
+                    .padding({ right: 12 })
+
+                   Column() {
+                       Text("最大开销")
+                           .fontSize(14)
+                           .fontWeight(FontWeight.Bold)
+                                                          .fontColor($r('app.color.text_primary'))
+
+                       Text(`"${data.maxSpender.sub.name}" 是您最高的月均支出项，每月均摊 ¥${data.maxSpender.monthlyCost.toFixed(2)}。`)
+                           .fontSize(13)
+                                                          .fontColor($r('app.color.text_secondary'))
+
+                           .margin({ top: 4 })
+                   }
+                   .layoutWeight(1)
+                   .alignItems(HorizontalAlign.Start)
+               }
+               .width('100%')
+               .padding(16)
+               .backgroundColor($r('app.color.card_background')) // Use theme-adaptive card background
+               .borderRadius(16)
+               .margin({ bottom: 16 })
+               .visualEffect(new hdsEffect.HdsEffectBuilder()
+                 .pointLight({
+                   sourceType: this.maxSpenderLight,
+                   illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                 })
+                 .buildEffect())
+               .scale({ x: this.isMaxSpenderPressed ? 0.98 : 1, y: this.isMaxSpenderPressed ? 0.98 : 1 })
+               .onTouch((event: TouchEvent) => {
+                 if (event.type === TouchType.Down) {
+                   if (this.isAnimationEnabled && this.isPointLightEnabled) {
+                       this.isMaxSpenderPressed = true;
+                       this.maxSpenderLight = hdsEffect.PointLightSourceType.BRIGHT;
+                   }
+                 } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                   this.isMaxSpenderPressed = false;
+                   this.maxSpenderLight = hdsEffect.PointLightSourceType.NONE;
+                 }
+               })
+               .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+               .opacity(this.animStep2 ? 1 : 0)
+               .translate({ y: this.animStep2 ? 0 : 20 })
+           }
+
+           // 4. 预估明细列表
+           Column() {
+             Text("预估明细 (月均)")
+               .fontSize(16)
+               .fontWeight(FontWeight.Bold)
+                                              .fontColor($r('app.color.text_primary'))
+
+               .width('100%')
+               .margin({ bottom: 16 })
+
+             if (data.items.length === 0) {
+               Text("暂无订阅")
+                 .fontSize(14)
+                                                .fontColor($r('app.color.text_secondary'))
+
+                 .padding({ top: 20, bottom: 20 })
+             }
+
+              ForEach(data.items, (item: ReportItem, index: number) => {
+                Row() {
+                     SubscriptionIcon({
+                        icon: item.sub.recordType === 'groupBuy' ? this.getGroupBuyIcon(item.sub) : item.sub.icon,
+                        name: item.sub.recordType === 'groupBuy' ? (item.sub.merchantName || item.sub.name) : item.sub.name,
+                        iconSize: 40,
+                        iconRadius: 8,
+                        showGroupBadge: item.sub.recordType === 'groupBuy'
+                     })
+ 
+                    Column() {
+                      Text(item.sub.recordType === 'groupBuy' ? (item.sub.merchantName || item.sub.name) : item.sub.name)
+                      .fontSize(14)
+                        .fontColor($r('app.color.text_secondary'))
+
+                     Text(this.getItemInfo(item.sub))
+                       .fontSize(11)
+                        .fontColor($r('app.color.text_secondary'))
+
+                       .margin({ top: 2 })
+                   }
+                   .margin({ left: 12 })
+                   .layoutWeight(1)
+                   .alignItems(HorizontalAlign.Start)
+
+                   Column() {
+                      Text(`¥${item.monthlyCost.toFixed(2)}`)
+                         .fontSize(15)
+                         .fontWeight(FontWeight.Bold)
+                                                       .fontColor($r('app.color.text_primary'))
+
+                      Text(item.sub.recordType === 'warranty' ? '一次性' : (item.sub.billingCycle === 'Lifetime' || item.sub.billingCycle === 'Indefinite' || item.sub.recordType === 'groupBuy' ? '一次性' : '/月'))
+                         .fontSize(11)
+                                                        .fontColor($r('app.color.text_secondary'))
+
+                   }
+               }
+               .width('100%')
+               .padding(12)
+               .backgroundColor($r('app.color.page_background'))
+               .borderRadius(12)
+               .margin({ bottom: 8 })
+               .visualEffect(new hdsEffect.HdsEffectBuilder()
+                  .pointLight({
+                    sourceType: this.pressedItemIndex === index ? hdsEffect.PointLightSourceType.BRIGHT : hdsEffect.PointLightSourceType.NONE,
+                    illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER
+                  })
+                  .buildEffect())
+               .scale({ x: this.pressedItemIndex === index ? 0.98 : 1, y: this.pressedItemIndex === index ? 0.98 : 1 })
+               .onTouch((event: TouchEvent) => {
+                  if (event.type === TouchType.Down) {
+                    if (this.isAnimationEnabled && this.isPointLightEnabled) {
+                        this.pressedItemIndex = index;
+                    }
+                  } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                    this.pressedItemIndex = -1;
+                  }
+               })
+               .animation({ duration: this.isAnimationEnabled ? 150 : 0, curve: Curve.EaseOut })
+             }, (item: ReportItem, index: number) => item?.sub?.id ? item.sub.id.toString() : index.toString())
+           }
+            .width('100%')
+            .padding(20)
+            .backgroundColor($r('app.color.card_background'))
+            .borderRadius(20)
+            .margin({ bottom: 40 })
+            .opacity(this.animStep3 ? 1 : 0)
+            .translate({ y: this.animStep3 ? 0 : 20 })
+
+           // 5. 底部 Logo
+           Row() {
+             Image($r('app.media.startIcon'))
+               .width(20)
+               .height(20)
+               .borderRadius(4)
+             Text($r('app.string.EntryAbility_label'))
+               .fontSize(12)
+               .fontWeight(FontWeight.Medium)
+               .fontColor($r('app.color.text_secondary'))
+
+               .margin({ left: 8 })
+           }
+           .width('100%')
+           .justifyContent(FlexAlign.Center)
+           .padding({ bottom: 32 })
+           .opacity(0.6)
+
+        } else {
+           LoadingProgress().width(48).height(48).color($r('app.color.brand_color'))
+>>>>>>> API23
         }
         .width('100%')
         .padding(20)
@@ -777,6 +1052,46 @@ export struct MonthlyReportSheet {
       .justifyContent(FlexAlign.Center)
     }
   }
+  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
+  @Builder MonthlyBuilder(){
+    if (this.reportData) {
+      Stack() {
+        Scroll(this.scroller) {
+          Column() {
+            // 额外顶部留白，以便内容在滚动时进入标题栏模糊区
+            Column().height(64).width('100%')
+
+            this.ReportContent(this.reportData)
+          }
+          .padding({ bottom: 40, left: 16, right: 16 })
+        }
+        .id(REPORT_List_ID)
+        .width('100%')
+        .height('100%')
+        .edgeEffect(EdgeEffect.Spring)
+        .scrollBar(BarState.Off)
+        .onDidScroll(() => {
+          this.curYOffset = this.scroller.currentOffset().yOffset;
+        })
+        .onAreaChange((oldValue, newValue) => {
+          this.listComponentWidth = newValue.width as number;
+          this.listComponentHeight = newValue.height as number;
+        })
+
+        this.SnapshotOverlay()
+      }
+      .width('100%')
+      .height('100%')
+      .alignContent(Alignment.TopStart)
+    } else {
+      Column() {
+        LoadingProgress().width(48).height(48).color($r('app.color.brand_color'))
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+    }
+  }
 
   build() {
     HdsNavigation(this.navStack) {
@@ -807,6 +1122,21 @@ export struct MonthlyReportSheet {
           ]
         }
       },
+<<<<<<< HEAD
+=======
+      style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.IMMERSIVE,
+          materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+        },
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+          blurEffectiveStartOffset: LengthMetrics.vp(0),
+          blurEffectiveEndOffset: LengthMetrics.vp(20)
+        }
+      } : undefined
+>>>>>>> API23
     })
     .titleMode(HdsNavigationTitleMode.MODAL)
     .mode(NavigationMode.Stack)

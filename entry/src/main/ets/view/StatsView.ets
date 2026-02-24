@@ -11,7 +11,11 @@ import { resolveIcon } from '../utils/MemberServiceConfig';
 import { LoginSheet } from './LoginSheet';
 import { MonthlyReportSheet } from './MonthlyReportSheet';
 import { SubscriptionIcon } from './SubscriptionIcon';
+<<<<<<< HEAD
 import { hdsEffect, HdsNavDestination, ScrollEffectType, HdsNavigationTitleBarOptions, HdsNavigationTitleBarStyle } from '@kit.UIDesignKit';
+=======
+import { hdsEffect, hdsMaterial, HdsNavDestination, ScrollEffectType, HdsNavigationTitleBarOptions, HdsNavigationTitleBarStyle } from '@kit.UIDesignKit';
+>>>>>>> API23
 
 interface RankingItem {
   sub: SubscriptionModel;
@@ -1534,6 +1538,21 @@ export struct StatsView {
     .hideBackButton(true).hideTitleBar(false).backgroundColor(Color.Transparent)
     .titleBar({
       avoidLayoutSafeArea: true,
+<<<<<<< HEAD
+=======
+      style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.IMMERSIVE,
+          materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+        },
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+          blurEffectiveStartOffset: LengthMetrics.vp(0),
+          blurEffectiveEndOffset: LengthMetrics.vp(20)
+        }
+      }: undefined,
+>>>>>>> API23
       content: {
         title: { mainTitle: '统计分析' },
       }

@@ -1,6 +1,10 @@
 import { webview } from '@kit.ArkWeb';
 import { ConfigurationConstant, common } from '@kit.AbilityKit';
+<<<<<<< HEAD
 import {   HdsNavDestination, ScrollEffectType, HdsNavigationTitleBarOptions, HdsNavigationTitleBarStyle } from '@kit.UIDesignKit';
+=======
+import { hdsMaterial, HdsNavDestination, ScrollEffectType, HdsNavigationTitleBarOptions, HdsNavigationTitleBarStyle } from '@kit.UIDesignKit';
+>>>>>>> API23
 import { LengthMetrics } from '@kit.ArkUI';
 import { deviceInfo } from '@kit.BasicServicesKit';
 
@@ -59,6 +63,7 @@ export struct WebViewPage {
           mainTitle: this.title
         }
       },
+<<<<<<< HEAD
       // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
       //   systemMaterialEffect: {
       //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
@@ -71,6 +76,20 @@ export struct WebViewPage {
       //     blurEffectiveEndOffset: LengthMetrics.vp(20)
       //   }
       // }  : undefined
+=======
+      style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.IMMERSIVE,
+          materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+        },
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+          blurEffectiveStartOffset: LengthMetrics.vp(0),
+          blurEffectiveEndOffset: LengthMetrics.vp(20)
+        }
+      }  : undefined
+>>>>>>> API23
     } as HdsNavigationTitleBarOptions)
     .backgroundColor($r('app.color.page_background'))
     .onBackPressed(() => {

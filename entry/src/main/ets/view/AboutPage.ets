@@ -1,6 +1,10 @@
 import { WebViewParam } from './WebViewPage';
 import { BackgroundWatermark } from './BackgroundWatermark';
+<<<<<<< HEAD
 import {   HdsNavDestination, ScrollEffectType, hdsEffect } from '@kit.UIDesignKit';
+=======
+import { hdsMaterial, HdsNavDestination, ScrollEffectType, hdsEffect } from '@kit.UIDesignKit';
+>>>>>>> API23
 import { curves, LengthMetrics, PromptAction, promptAction } from '@kit.ArkUI';
 import { deviceInfo, BusinessError } from '@kit.BasicServicesKit';
 import { privacyManager } from '@kit.StoreKit';
@@ -16,7 +20,11 @@ export struct AboutPage {
   @StorageLink('topRectHeight') topRectHeight: number = 0;
   @StorageLink('isNewYearTheme') isNewYearTheme: boolean = false;
   @StorageLink('isNewYearWatermarkEnabled') isNewYearWatermarkEnabled: boolean = true;
+<<<<<<< HEAD
   private appVersion: string = 'v2.0.1';
+=======
+  private appVersion: string = 'v2.0.0';
+>>>>>>> API23
   private agreementUrl: string = 'https://agreement-drcn.hispace.dbankcloud.cn/index.html?lang=zh&agreementId=1866142389635159616';
   private promptAction: PromptAction = this.getUIContext().getPromptAction();
 
@@ -208,6 +216,7 @@ export struct AboutPage {
             mainTitle: '关于应用'
           }
         },
+<<<<<<< HEAD
         // style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
         //   systemMaterialEffect: {
         //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
@@ -220,6 +229,20 @@ export struct AboutPage {
         //     blurEffectiveEndOffset: LengthMetrics.vp(20)
         //   }
         // }:undefined
+=======
+        style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+          systemMaterialEffect: {
+            materialType: hdsMaterial.MaterialType.IMMERSIVE,
+            materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+          },
+          scrollEffectOpts: {
+            enableScrollEffect: true,
+            scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+            blurEffectiveStartOffset: LengthMetrics.vp(0),
+            blurEffectiveEndOffset: LengthMetrics.vp(20)
+          }
+        }:undefined
+>>>>>>> API23
       })
       .backgroundColor($r('app.color.page_background'))
 

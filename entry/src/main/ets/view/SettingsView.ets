@@ -21,11 +21,15 @@ import { LoginSheet } from './LoginSheet';
 import { WebViewParam } from './WebViewPage';
 import { UpdateManager } from '../utils/UpdateManager';
 import { AccountMonitor } from '../utils/AccountMonitor';
+<<<<<<< HEAD
 import { hdsEffect,   HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
+=======
+import { hdsEffect, hdsMaterial, HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
+>>>>>>> API23
 import { ImportSheet } from './ImportSheet';
 import { SubscriptionModel } from '../model/SubscriptionModel';
 import { LocalNotificationManager } from '../manager/LocalNotificationManager';
-import { HarmonyShareManager } from '../utils/HarmonyShareManager';
+import { HarmonyShareManager, CustomIconItem } from '../utils/HarmonyShareManager';
 import { userAuth } from '@kit.UserAuthenticationKit';
 
 
@@ -42,10 +46,13 @@ interface SimpleSearchResponse {
 
 // Export Data Interface
 interface ExportDataWrapper {
-  version: string;
+  version: string | number;
   exportTime: string;
+  timestamp?: number;
   count: number;
-  data: SubscriptionModel[];
+  data?: SubscriptionModel[];
+  subscriptions?: SubscriptionModel[];
+  customIcons?: CustomIconItem[];
 }
 
 
@@ -881,6 +888,7 @@ export struct SettingsView {
         return;
       }
 
+<<<<<<< HEAD
       // 导出完整 SubscriptionModel 对象，保留所有字段
       const exportSubs = await Promise.all(subs.map(async (sub) => {
         const item: SubscriptionModel = JSON.parse(JSON.stringify(sub));
@@ -941,10 +949,18 @@ export struct SettingsView {
                 }
               });
             }
+=======
+      // 导出完整数据，复用 HarmonyShareManager 的压缩与图标处理能力
 
-            // 去重并有序执行
-            const finalSearchList = Array.from(new Set(searchPaths)).filter(p => !!p);
+      const ctx = getContext(this) as common.UIAbilityContext;
+      const shareManager = HarmonyShareManager.getInstance();
+      shareManager.setContext(ctx);
+>>>>>>> API23
 
+      const exportSubs = await shareManager.prepareSubscriptionsForExport(subs, true);
+      const customIcons = await shareManager.prepareIconLibraryForExport();
+
+<<<<<<< HEAD
             for (const path of finalSearchList) {
               try {
                 const res = await this.fileToBase64(path);
@@ -972,11 +988,15 @@ export struct SettingsView {
         return item;
       }));
 
+=======
+>>>>>>> API23
       const exportData: ExportDataWrapper = {
-        version: '2.0',
+        version: 2,
         exportTime: new Date().toISOString(),
+        timestamp: Date.now(),
         count: subs.length,
-        data: exportSubs
+        subscriptions: exportSubs,
+        customIcons: customIcons
       };
 
       const jsonContent = JSON.stringify(exportData, null, 2);
@@ -1145,6 +1165,7 @@ export struct SettingsView {
         (error as BusinessError).message);
     }
   }
+<<<<<<< HEAD
 
   /**
    * Helper to convert file to Base64 string safely using multiple strategies
@@ -1206,6 +1227,9 @@ export struct SettingsView {
       }
     }
   }
+=======
+
+>>>>>>> API23
 
   @Builder
   SettingHeader(text: string) {
@@ -1580,6 +1604,7 @@ export struct SettingsView {
                 Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
               }
 
+<<<<<<< HEAD
               // // 1.6.5 HDS Tabs (API 23 Features)
               // Row() {
               //   Column() {
@@ -1607,6 +1632,35 @@ export struct SettingsView {
               // .backgroundColor(Color.Transparent)
               //
               // Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
+=======
+              // 1.6.5 HDS Tabs (API 23 Features)
+              Row() {
+                Column() {
+                  Text("HarmonyOS 6.1界面风格")
+                    .fontSize(16)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor($r('app.color.text_primary'))
+                  Text("启用高级材质（会增加功耗）")
+                    .fontSize(12)
+                    .fontColor($r('app.color.text_secondary'))
+                    .margin({ top: 4 })
+                }
+                .alignItems(HorizontalAlign.Start)
+
+                Blank()
+
+                Toggle({ type: ToggleType.Switch, isOn: this.isHdsTabsEnabled })
+                  .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                  .onChange((value: boolean) => {
+                    PreferenceUtil.getInstance().saveHdsTabsEnabled(value);
+                  })
+              }
+              .width('100%')
+              .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+              .backgroundColor(Color.Transparent)
+
+              Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
+>>>>>>> API23
 
               // 1.7 App Lock (Relocated & Rewritten)
               Row() {
@@ -2158,6 +2212,7 @@ export struct SettingsView {
         title: { mainTitle: '我的' },
         menu: { value: [] }
       },
+<<<<<<< HEAD
       // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
       //   systemMaterialEffect: {
       //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
@@ -2170,6 +2225,20 @@ export struct SettingsView {
       //     blurEffectiveEndOffset: LengthMetrics.vp(20)
       //   }
       // } : undefined
+=======
+      style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.IMMERSIVE,
+          materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
+        },
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+          blurEffectiveStartOffset: LengthMetrics.vp(0),
+          blurEffectiveEndOffset: LengthMetrics.vp(20)
+        }
+      } : undefined
+>>>>>>> API23
     })
   }
 

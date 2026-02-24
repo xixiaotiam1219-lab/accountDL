@@ -192,7 +192,22 @@ export class SubscriptionRepository {
       // 附加延保服务字段 (JSON 数组存储)
       { name: 'extendedWarranties', type: 'TEXT' },
       // 提醒状态控制字段
+<<<<<<< HEAD
       { name: 'lastIgnoredBillingDate', type: 'INTEGER' }
+=======
+      { name: 'lastIgnoredBillingDate', type: 'INTEGER' },
+      // 补充缺失的迁移定义（防止从更早版本升级时缺失字段）
+      { name: 'startDate', type: 'INTEGER' },
+      { name: 'paymentMethod', type: 'TEXT DEFAULT "其他支付方式"' },
+      { name: 'icon', type: 'TEXT' },
+      { name: 'category', type: 'TEXT' },
+      { name: 'reminderDaysBefore', type: 'INTEGER DEFAULT 1' },
+      { name: 'reminderTime', type: 'TEXT DEFAULT "09:00"' },
+      { name: 'subCategory', type: 'TEXT' },
+      { name: 'isAutoRenewal', type: 'INTEGER DEFAULT 1' },
+      { name: 'lastModified', type: 'INTEGER' },
+      { name: 'isDeleted', type: 'INTEGER DEFAULT 0' }
+>>>>>>> API23
     ];
 
     try {
@@ -307,6 +322,7 @@ export class SubscriptionRepository {
     const subscriptions: SubscriptionModel[] = [];
     const now = new Date().getTime();
     const updatePromises: Promise<number>[] = [];
+<<<<<<< HEAD
 
     while (resultSet.goToNextRow()) {
       const reminderDaysIdx = resultSet.getColumnIndex('reminderDaysBefore');
@@ -345,6 +361,11 @@ export class SubscriptionRepository {
         extendedWarranties: resultSet.getColumnIndex('extendedWarranties') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('extendedWarranties')) ? resultSet.getString(resultSet.getColumnIndex('extendedWarranties')) : undefined,
         lastIgnoredBillingDate: resultSet.getColumnIndex('lastIgnoredBillingDate') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('lastIgnoredBillingDate')) ? resultSet.getLong(resultSet.getColumnIndex('lastIgnoredBillingDate')) : undefined
       };
+=======
+
+    while (resultSet.goToNextRow()) {
+      const sub: SubscriptionModel = this.mapResultSetToModel(resultSet);
+>>>>>>> API23
 
       // 自动推算过期的 nextBillingDate (永久订阅和不定周期不推算，非自动续费不推算)
       const todayStart = new Date();
@@ -527,7 +548,11 @@ export class SubscriptionRepository {
     if (resultSet.rowCount > 0) {
       // Exists -> Update
       resultSet.goToFirstRow();
+<<<<<<< HEAD
       const existingId = resultSet.getLong(resultSet.getColumnIndex('id'));
+=======
+      const existingId = this.getLongSafe(resultSet, 'id');
+>>>>>>> API23
       subscription.id = existingId; // Force use local ID
       subscription.isDeleted = false;
       result = await this.update(subscription, false, skipRefresh);
@@ -646,6 +671,7 @@ export class SubscriptionRepository {
     const resultSet = await this.rdbStore!.query(predicates);
     const subscriptions: SubscriptionModel[] = [];
     while (resultSet.goToNextRow()) {
+<<<<<<< HEAD
       const reminderDaysIdx = resultSet.getColumnIndex('reminderDaysBefore');
       const reminderTimeIdx = resultSet.getColumnIndex('reminderTime');
 
@@ -682,6 +708,9 @@ export class SubscriptionRepository {
         extendedWarranties: resultSet.getColumnIndex('extendedWarranties') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('extendedWarranties')) ? resultSet.getString(resultSet.getColumnIndex('extendedWarranties')) : undefined,
         lastIgnoredBillingDate: resultSet.getColumnIndex('lastIgnoredBillingDate') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('lastIgnoredBillingDate')) ? resultSet.getLong(resultSet.getColumnIndex('lastIgnoredBillingDate')) : undefined
       });
+=======
+      subscriptions.push(this.mapResultSetToModel(resultSet));
+>>>>>>> API23
     }
     resultSet.close();
     return subscriptions;
@@ -699,6 +728,7 @@ export class SubscriptionRepository {
       resultSet.close();
       return null;
     }
+<<<<<<< HEAD
 
     resultSet.goToFirstRow();
     const sub = this.mapResultSetToModel(resultSet);
@@ -762,6 +792,100 @@ export class SubscriptionRepository {
       extendedWarranties: resultSet.getColumnIndex('extendedWarranties') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('extendedWarranties')) ? resultSet.getString(resultSet.getColumnIndex('extendedWarranties')) : undefined,
       lastIgnoredBillingDate: resultSet.getColumnIndex('lastIgnoredBillingDate') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('lastIgnoredBillingDate')) ? resultSet.getLong(resultSet.getColumnIndex('lastIgnoredBillingDate')) : undefined
     };
+=======
+
+    resultSet.goToFirstRow();
+    const sub = this.mapResultSetToModel(resultSet);
+    resultSet.close();
+    return sub;
+>>>>>>> API23
+  }
+
+  public async findById(id: number): Promise<SubscriptionModel | null> {
+    await this.ensureInitialized();
+    if (!this.rdbStore) return null;
+
+    const predicates = new relationalStore.RdbPredicates(TABLE_NAME);
+    predicates.equalTo('id', id);
+
+    const resultSet = await this.rdbStore.query(predicates);
+    if (resultSet.rowCount === 0) {
+      resultSet.close();
+      return null;
+    }
+
+    resultSet.goToFirstRow();
+    const sub = this.mapResultSetToModel(resultSet);
+    resultSet.close();
+    return sub;
+  }
+
+  private mapResultSetToModel(resultSet: relationalStore.ResultSet): SubscriptionModel {
+    return {
+      id: this.getLongSafe(resultSet, 'id'),
+      uuid: this.getStringSafe(resultSet, 'uuid') || '',
+      name: this.getStringSafe(resultSet, 'name') || '',
+      price: this.getDoubleSafe(resultSet, 'price'),
+      currency: this.getStringSafe(resultSet, 'currency') || 'CNY',
+      billingCycle: (this.getStringSafe(resultSet, 'billingCycle') || 'Monthly') as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite',
+      nextBillingDate: this.getLongSafe(resultSet, 'nextBillingDate'),
+      icon: this.getStringSafe(resultSet, 'icon'),
+      category: this.getStringSafe(resultSet, 'category'),
+      lastModified: this.getLongSafe(resultSet, 'lastModified'),
+      isDeleted: this.getLongSafe(resultSet, 'isDeleted') === 1,
+      reminderDaysBefore: this.getLongOrUndefined(resultSet, 'reminderDaysBefore'),
+      reminderTime: this.getStringSafe(resultSet, 'reminderTime'),
+      subCategory: this.getStringSafe(resultSet, 'subCategory'),
+      startDate: this.getLongSafe(resultSet, 'startDate'),
+      isAutoRenewal: this.getLongSafe(resultSet, 'isAutoRenewal') !== 0, // Default to true if missing or 1 (since 0 is false)
+      paymentMethod: this.getStringSafe(resultSet, 'paymentMethod') || '其他支付方式',
+      // 团购券字段
+      recordType: (this.getStringSafe(resultSet, 'recordType') || 'subscription') as 'subscription' | 'groupBuy' | 'warranty',
+      platform: this.getStringSafe(resultSet, 'platform') as 'meituan' | 'douyin' | 'dianping',
+      couponCode: this.getStringSafe(resultSet, 'couponCode'),
+      usageStatus: (this.getStringSafe(resultSet, 'usageStatus') || 'unused') as 'unused' | 'used' | 'expired',
+      merchantName: this.getStringSafe(resultSet, 'merchantName'),
+      quantity: this.getLongSafe(resultSet, 'quantity') || 1,
+      couponImage: this.getStringSafe(resultSet, 'couponImage'),
+      usageTime: this.getStringSafe(resultSet, 'usageTime'),
+      realUsageTime: this.getLongOrUndefined(resultSet, 'realUsageTime'),
+      brand: this.getStringSafe(resultSet, 'brand'),
+      purchaseChannel: this.getStringSafe(resultSet, 'purchaseChannel'),
+      extendedWarranties: this.getStringSafe(resultSet, 'extendedWarranties'),
+      lastIgnoredBillingDate: this.getLongOrUndefined(resultSet, 'lastIgnoredBillingDate')
+    };
+  }
+
+  private getStringSafe(resultSet: relationalStore.ResultSet, columnName: string): string | undefined {
+    const index = resultSet.getColumnIndex(columnName);
+    if (index === -1 || resultSet.isColumnNull(index)) {
+      return undefined;
+    }
+    return resultSet.getString(index);
+  }
+
+  private getLongSafe(resultSet: relationalStore.ResultSet, columnName: string): number {
+    const index = resultSet.getColumnIndex(columnName);
+    if (index === -1 || resultSet.isColumnNull(index)) {
+      return 0;
+    }
+    return resultSet.getLong(index);
+  }
+
+  private getLongOrUndefined(resultSet: relationalStore.ResultSet, columnName: string): number | undefined {
+    const index = resultSet.getColumnIndex(columnName);
+    if (index === -1 || resultSet.isColumnNull(index)) {
+      return undefined;
+    }
+    return resultSet.getLong(index);
+  }
+
+  private getDoubleSafe(resultSet: relationalStore.ResultSet, columnName: string): number {
+    const index = resultSet.getColumnIndex(columnName);
+    if (index === -1 || resultSet.isColumnNull(index)) {
+      return 0;
+    }
+    return resultSet.getDouble(index);
   }
 
   /**
@@ -941,7 +1065,11 @@ export class SubscriptionRepository {
         if (resultSet.rowCount > 0) {
           // 存在则更新 (overwrite strategy for restore)
           resultSet.goToFirstRow();
+<<<<<<< HEAD
           const existingId = resultSet.getLong(resultSet.getColumnIndex('id'));
+=======
+          const existingId = this.getLongSafe(resultSet, 'id');
+>>>>>>> API23
           item.id = existingId;
           // 保持本地状态标记
           item.isDeleted = false;
