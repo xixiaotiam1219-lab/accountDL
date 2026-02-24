@@ -6,11 +6,7 @@ import { EVENT_SYNC_COMPLETED, EVENT_LOGOUT, EVENT_DATA_CHANGED, GlobalBus } fro
 import { resolveIcon } from '../utils/MemberServiceConfig';
 import { SubscriptionIcon } from './SubscriptionIcon';
 import { commonEventManager, deviceInfo } from '@kit.BasicServicesKit';
-<<<<<<< HEAD
-import { hdsEffect,   HdsNavDestination, HdsNavigationMenuItemOptions,
-=======
-import { hdsEffect, hdsMaterial, HdsNavDestination, HdsNavigationMenuItemOptions,
->>>>>>> API23
+import { hdsEffect, HdsNavDestination, HdsNavigationMenuItemOptions,
   ScrollEffectType } from '@kit.UIDesignKit';
 
 interface LinearGradientValue {
@@ -1662,33 +1658,6 @@ export struct CalendarView {
             ]
           }
         },
-<<<<<<< HEAD
-        // style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
-        //   systemMaterialEffect: {
-        //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
-        //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-        //   },
-        //   scrollEffectOpts: {
-        //     enableScrollEffect: true,
-        //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-        //     blurEffectiveStartOffset: LengthMetrics.vp(0),
-        //     blurEffectiveEndOffset: LengthMetrics.vp(20)
-        //   }
-        // }:undefined
-=======
-        style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
-          systemMaterialEffect: {
-            materialType: hdsMaterial.MaterialType.IMMERSIVE,
-            materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-          },
-          scrollEffectOpts: {
-            enableScrollEffect: true,
-            scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-            blurEffectiveStartOffset: LengthMetrics.vp(0),
-            blurEffectiveEndOffset: LengthMetrics.vp(20)
-          }
-        }:undefined
->>>>>>> API23
       })
 
   }

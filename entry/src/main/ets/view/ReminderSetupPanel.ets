@@ -1,20 +1,10 @@
-<<<<<<< HEAD
-import { SubscriptionModel } from '../model/SubscriptionModel';
-import { promptAction, curves, LengthMetrics } from '@kit.ArkUI';
-import { hdsEffect,
-
-=======
 import { SubscriptionModel, ExtendedWarrantyItem } from '../model/SubscriptionModel';
 import { promptAction, curves, LengthMetrics } from '@kit.ArkUI';
 import { hdsEffect,
-  hdsMaterial,
->>>>>>> API23
   HdsNavDestination, HdsNavDestinationTitleMode, HdsNavigation, HdsNavigationTitleMode,
   ScrollEffectType } from '@kit.UIDesignKit';
 import { SubscriptionIcon } from './SubscriptionIcon';
 import { deviceInfo } from '@kit.BasicServicesKit';
-<<<<<<< HEAD
-=======
 
 const TITLE_BAR_HEIGHT_MINI: number = 76;
 
@@ -29,7 +19,6 @@ interface DisplayItem {
   parentIcon?: string;
   parentName?: string;
 }
->>>>>>> API23
 
 @Component
 export struct ReminderSetupPanel {
@@ -318,15 +307,6 @@ export struct ReminderSetupPanel {
               // Buttons Footer
               Row() {
                 if (this.activeItem.reminderDaysBefore !== undefined) {
-<<<<<<< HEAD
-                  Button('关闭提醒')
-                    .backgroundColor($r('app.color.tag_bg'))
-                    .fontColor(Color.Red)
-                    .fontSize(16)
-                    .height(50)
-                    .borderRadius(25)
-                    .margin({ right: 12 })
-=======
                   Button() {
                     Column() {
                       Text(this.activeWarrantyItem ? '关闭该项提醒' : '关闭提醒')
@@ -346,7 +326,6 @@ export struct ReminderSetupPanel {
                   .height(60)
                   .borderRadius(16)
                   .margin({ right: 12 })
->>>>>>> API23
                     .scale({ x: this.isRemovePressed ? 0.95 : 1, y: this.isRemovePressed ? 0.95 : 1 })
                     .animation({
                       duration: this.isAnimationEnabled ? 150 : 0,
@@ -373,9 +352,6 @@ export struct ReminderSetupPanel {
                     })
                     .onClick(() => {
                       if (this.activeItem) {
-<<<<<<< HEAD
-                        this.onRemove(this.activeItem);
-=======
                         if (this.activeWarrantyItem && this.activeParentForWarranty) {
                             // 关闭延保子项提醒逻辑
                             try {
@@ -393,7 +369,6 @@ export struct ReminderSetupPanel {
                             this.onRemove(this.activeItem);
                         }
                         this.navStack.pop();
->>>>>>> API23
                       }
                     })
                 }
@@ -448,9 +423,6 @@ export struct ReminderSetupPanel {
                       return;
                     }
 
-<<<<<<< HEAD
-                    // Validation
-=======
                     // 1. Limit Check
                     if (!this.activeWarrantyItem) {
                         if (this.activeItem.reminderDaysBefore === undefined && this.getReminderCount() >= 30) {
@@ -460,7 +432,6 @@ export struct ReminderSetupPanel {
                     }
 
                     // 2. Validation
->>>>>>> API23
                     const targetDate = new Date(this.activeItem.nextBillingDate);
                     targetDate.setDate(targetDate.getDate() - this.selectedDays);
                     targetDate.setHours(this.selectedTime.getHours(), this.selectedTime.getMinutes(), 0, 0);
@@ -474,9 +445,6 @@ export struct ReminderSetupPanel {
                       `${this.selectedTime.getHours().toString().padStart(2, '0')}:${this.selectedTime.getMinutes()
                         .toString()
                         .padStart(2, '0')}`;
-<<<<<<< HEAD
-                    this.onSave(this.activeItem, this.selectedDays, timeStr);
-=======
 
                     if (this.activeWarrantyItem && this.activeParentForWarranty) {
                         // 更新延保子项逻辑
@@ -495,7 +463,6 @@ export struct ReminderSetupPanel {
                         this.onSave(this.activeItem, this.selectedDays, timeStr);
                     }
                     this.navStack.pop();
->>>>>>> API23
                   })
               }
               .width('100%')
@@ -532,66 +499,27 @@ export struct ReminderSetupPanel {
         }
         .titleBar({
           content: {
-<<<<<<< HEAD
-            title: { mainTitle: this.activeItem ? this.activeItem.name : '设置提醒' },
-=======
             title: { 
               mainTitle: this.activeWarrantyItem ? this.activeWarrantyItem.name : (this.activeItem ? this.activeItem.name : '设置提醒'),
               subTitle: this.activeWarrantyItem ? `来自: ${this.activeParentForWarranty?.name}` : ''
             },
->>>>>>> API23
             menu: {
               value: [
                 {
                   content: {
                     icon: $r('sys.symbol.xmark'),
                     action: () => {
-<<<<<<< HEAD
-                      this.onCancel();
-=======
                       this.closePanel();
->>>>>>> API23
                     }
                   }
                 }
               ]
             }
           },
-<<<<<<< HEAD
-          // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ?{
-          //   systemMaterialEffect: {
-          //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
-          //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-          //   },
-          //   scrollEffectOpts: {
-          //     enableScrollEffect: true,
-          //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-          //     blurEffectiveStartOffset: LengthMetrics.vp(0),
-          //     blurEffectiveEndOffset: LengthMetrics.vp(20)
-          //   }
-          // }:undefined
-=======
-          style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ?{
-            systemMaterialEffect: {
-              materialType: hdsMaterial.MaterialType.IMMERSIVE,
-              materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-            },
-            scrollEffectOpts: {
-              enableScrollEffect: true,
-              scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-              blurEffectiveStartOffset: LengthMetrics.vp(0),
-              blurEffectiveEndOffset: LengthMetrics.vp(20)
-            }
-          }:undefined
->>>>>>> API23
         })
         .titleMode(HdsNavDestinationTitleMode.MODAL)
         .onBackPressed(() => {
           this.navStack.pop();
-<<<<<<< HEAD
-          this.isSetupVisible = false;
-=======
->>>>>>> API23
           return true;
         })
 
@@ -604,58 +532,6 @@ export struct ReminderSetupPanel {
           this.ReminderEmptyState()
         } else {
           List() {
-<<<<<<< HEAD
-            ForEach(this.subscriptions.filter(s => s.billingCycle !== 'Lifetime' || s.recordType === 'warranty'),
-              (item: SubscriptionModel, idx) => {
-                ListItem() {
-                  Row() {
-                    SubscriptionIcon({
-                      icon: item.recordType === 'groupBuy' ? this.getGroupBuyIcon(item) : item.icon,
-                      name: item.recordType === 'groupBuy' ? (item.merchantName || item.name) : item.name,
-                      iconSize: 40,
-                      iconRadius: 10,
-                      showGroupBadge: item.recordType === 'groupBuy'
-                    })
-                      .margin({ right: 12 })
-
-                    Column() {
-                      Text(item.name)
-                        .fontSize(16)
-                        .fontWeight(FontWeight.Medium)
-                        .fontColor($r('app.color.text_primary'))
-                      if (item.reminderDaysBefore !== undefined) {
-                        Text(`提醒: 提前${item.reminderDaysBefore}天 ${item.reminderTime || '09:00'}`)
-                          .fontSize(13).fontColor($r('app.color.text_secondary')).margin({ top: 4 })
-                      } else {
-                        Text('未设置提醒')
-                          .fontSize(13).fontColor($r('app.color.text_hint')).margin({ top: 4 })
-                      }
-                    }
-                    .alignItems(HorizontalAlign.Start).layoutWeight(1)
-
-                    Button() {
-                      SymbolGlyph($r('sys.symbol.square_and_pencil'))
-                        .fontSize(18)
-                        .fontColor([$r('app.color.text_hint')])
-                    }
-                    .backgroundColor(Color.Transparent)
-                  }
-                  .width('100%')
-                  .padding({ top: 12, bottom: 12 })
-                  .onClick(() => {
-                    // 仅修改 activeItem，由于设置了 @Watch，它会自动处理导航 push
-                    this.activeItem = item;
-                  })
-                }
-                .opacity(this.areItemsVisible ? 1 : 0)
-                .translate({ y: this.areItemsVisible ? 0 : 20 })
-                .animation({
-                  delay: (this.isAnimationEnabled && idx) ? idx * 50 : 0,
-                  duration: this.isAnimationEnabled ? this.animationDuration : 0,
-                  curve: curves.springMotion(this.animationResponse, this.animationDamping)
-                })
-              }, (item: SubscriptionModel) => `${item.uuid}_reminder_${item.reminderDaysBefore}`)
-=======
             ListItem() {
               Column() {
                 Blank()
@@ -721,7 +597,6 @@ export struct ReminderSetupPanel {
                 curve: curves.springMotion(this.animationResponse, this.animationDamping)
               })
             }, (item: DisplayItem) => item.key)
->>>>>>> API23
           }
           .width('100%')
           .layoutWeight(1)
@@ -730,59 +605,6 @@ export struct ReminderSetupPanel {
           .scrollBar(BarState.Off)
         }
       }
-<<<<<<< HEAD
-      .padding({ top: 56 }) // TopSafeContainer simulation
-    }
-    .width('100%')
-    .height('100%')
-  }
-  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
-  build() {
-      HdsNavigation(this.navStack) {
-          this.reminderBuilder()
-      }
-      .backgroundColor(Color.Transparent)
-      .titleBar({
-        content: {
-          title: { mainTitle: "提醒管理" },
-          menu: {
-            value: [
-              {
-                content: {
-                  icon: $r('sys.symbol.xmark'),
-                  action: () => {
-                    this.onCancel();
-                  }
-                }
-              }
-            ]
-          }
-        },
-        // style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
-        //   systemMaterialEffect: {
-        //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
-        //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-        //   },
-        //   scrollEffectOpts: {
-        //     enableScrollEffect: true,
-        //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-        //     blurEffectiveStartOffset: LengthMetrics.vp(0),
-        //     blurEffectiveEndOffset: LengthMetrics.vp(20)
-        //   }
-        // }:undefined
-      })
-      .titleMode(HdsNavigationTitleMode.MODAL)
-      .navDestination(this.navDestination)
-      .mode(NavigationMode.Stack)
-      .hideBackButton(true)
-      .backgroundColor($r('app.color.page_background'))
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-      .width('100%')
-      .height('100%')
-
-
-  }
-=======
     }
     .width('100%')
     .height('100%')
@@ -819,20 +641,7 @@ export struct ReminderSetupPanel {
           ]
         }
       },
-      style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
-        systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.IMMERSIVE,
-          materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-        },
-        scrollEffectOpts: {
-          enableScrollEffect: true,
-          scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-          blurEffectiveStartOffset: LengthMetrics.vp(0),
-          blurEffectiveEndOffset: LengthMetrics.vp(20)
-        }
-      } : undefined
     })
   }
->>>>>>> API23
 
 }

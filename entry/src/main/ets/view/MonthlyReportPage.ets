@@ -1,11 +1,7 @@
 import { MonthlyReportSheet } from './MonthlyReportSheet';
 import { SubscriptionModel } from '../model/SubscriptionModel';
 import { BackgroundWatermark } from './BackgroundWatermark';
-<<<<<<< HEAD
-import {   HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
-=======
-import { hdsMaterial, HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
->>>>>>> API23
+import {  HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
 import { LengthMetrics } from '@kit.ArkUI';
 import { deviceInfo } from '@kit.BasicServicesKit';
 
@@ -62,33 +58,7 @@ struct MonthlyReportPage {
             mainTitle: '月度报告'
           }
         },
-<<<<<<< HEAD
-        // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ?{
-        //   systemMaterialEffect: {
-        //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
-        //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-        //   },
-        //   scrollEffectOpts: {
-        //     enableScrollEffect: true,
-        //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-        //     blurEffectiveStartOffset: LengthMetrics.vp(0),
-        //     blurEffectiveEndOffset: LengthMetrics.vp(20)
-        //   }
-        // }:undefined
-=======
-        style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ?{
-          systemMaterialEffect: {
-            materialType: hdsMaterial.MaterialType.IMMERSIVE,
-            materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-          },
-          scrollEffectOpts: {
-            enableScrollEffect: true,
-            scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-            blurEffectiveStartOffset: LengthMetrics.vp(0),
-            blurEffectiveEndOffset: LengthMetrics.vp(20)
-          }
-        }:undefined
->>>>>>> API23
+
       })
       .backgroundColor($r('app.color.page_background'))
   }

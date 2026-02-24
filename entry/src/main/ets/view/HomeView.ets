@@ -10,11 +10,7 @@ import { EVENT_SYNC_COMPLETED, EVENT_DATA_CHANGED, GlobalBus } from '../utils/Gl
 import { LoginSheet } from './LoginSheet';
 import { SubscriptionIcon } from './SubscriptionIcon';
 import { PreferenceUtil } from '../utils/PreferenceUtil';
-<<<<<<< HEAD
 import { hdsEffect, HdsNavDestination,
-=======
-import { hdsEffect, hdsMaterial, HdsNavDestination,
->>>>>>> API23
   HdsNavigation,
   HdsNavigationMenuItemOptions,
   HdsNavigationTitleMode,
@@ -106,11 +102,7 @@ export struct HomeView {
   @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
   @StorageLink('smartHandMode') smartHandMode: 'left' | 'right' | 'center' = 'center';
   @StorageLink('statusBarHeight') statusBarHeight: number = 0;
-<<<<<<< HEAD
-
-=======
   
->>>>>>> API23
   // Tab 交互增强相关
   @State indicatorWidth: number = 0;
   @State indicatorX: number = 0;
@@ -886,32 +878,19 @@ export struct HomeView {
 
   @Builder EmptyState() {
     Column() {
-<<<<<<< HEAD
-      SymbolGlyph(this.currentTab === 'groupBuy' ? $r('sys.symbol.bag') :
-=======
       SymbolGlyph(this.currentTab === 'groupBuy' ? $r('sys.symbol.bag') : 
->>>>>>> API23
         (this.currentTab === 'warranty' ? $r('sys.symbol.shield_checkered') : $r('sys.symbol.plus')))
         .fontSize(56)
         .fontColor([$r('app.color.text_secondary')])
         .margin({ bottom: 16 })
-<<<<<<< HEAD
-
-      Text(this.currentTab === 'groupBuy' ? "暂无团购" :
-=======
       
       Text(this.currentTab === 'groupBuy' ? "暂无团购" : 
->>>>>>> API23
         (this.currentTab === 'warranty' ? "暂无保修" : "暂无服务"))
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
         .fontColor($r('app.color.text_primary'))
         .margin({ bottom: 8 })
-<<<<<<< HEAD
-
-=======
       
->>>>>>> API23
       Text(this.isLoggedIn ? "点击下方 + 按钮开始添加" : "请先登录后添加")
         .fontSize(14)
         .fontColor($r('app.color.text_secondary'))
@@ -1002,36 +981,6 @@ export struct HomeView {
 
   @Builder SyncGuideSheet() {
     Column() {
-<<<<<<< HEAD
-      HdsNavigation(this.navStack) {
-        this.SyncGuideBuilder()
-      }
-      .backgroundColor(Color.Transparent)
-      .titleBar({
-        content: {
-          title: { mainTitle: '多端同步指南' },
-          menu: {
-            value: [
-              {
-                content: {
-                  icon: $r('sys.symbol.xmark'),
-                  action: () => {
-                    this.showSyncGuide = false;
-                  }
-                }
-              }
-            ]
-          }
-        },
-      })
-      .titleMode(HdsNavigationTitleMode.MODAL)
-      .mode(NavigationMode.Stack)
-      .hideBackButton(true)
-      .backgroundColor($r('app.color.page_background'))
-      .borderRadius({ topLeft: 24, topRight: 24 })
-      .width('100%')
-      .height('100%')
-=======
         HdsNavigation(this.navStack) {
           this.SyncGuideBuilder()
         }
@@ -1052,18 +1001,6 @@ export struct HomeView {
               ]
             }
           },
-          style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ?{
-            systemMaterialEffect: {
-              materialType: hdsMaterial.MaterialType.IMMERSIVE,
-              materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-            },
-            scrollEffectOpts: {
-              enableScrollEffect: true,
-              scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-              blurEffectiveStartOffset: LengthMetrics.vp(0),
-              blurEffectiveEndOffset: LengthMetrics.vp(20)
-            }
-          }:undefined
         })
         .titleMode(HdsNavigationTitleMode.MODAL)
         .mode(NavigationMode.Stack)
@@ -1072,7 +1009,6 @@ export struct HomeView {
         .borderRadius({ topLeft: 24, topRight: 24 })
         .width('100%')
         .height('100%')
->>>>>>> API23
 
     }
     .width('100%')
@@ -1187,11 +1123,7 @@ export struct HomeView {
     }
     .titleBar({
       content: {
-<<<<<<< HEAD
-        title: {
-=======
         title: { 
->>>>>>> API23
           mainTitle: '近期到期订阅',
           subTitle: '以下订阅即将到期'
         },
@@ -1208,21 +1140,6 @@ export struct HomeView {
           ]
         }
       },
-<<<<<<< HEAD
-=======
-      style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
-        systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.IMMERSIVE,
-          materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-        },
-        scrollEffectOpts: {
-          enableScrollEffect: true,
-          scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-          blurEffectiveStartOffset: LengthMetrics.vp(0),
-          blurEffectiveEndOffset: LengthMetrics.vp(20)
-        }
-      } : undefined
->>>>>>> API23
     })
     .titleMode(HdsNavigationTitleMode.MODAL)
     .mode(NavigationMode.Stack)
@@ -1431,11 +1348,7 @@ export struct HomeView {
 
   @Builder AgentStackBuilder() {
     Row({ space: 10 }) {
-<<<<<<< HEAD
-
-=======
       
->>>>>>> API23
       Stack() {
         FunctionComponent({
           agentId: this.agentId,
@@ -1595,11 +1508,7 @@ export struct HomeView {
                               const x = newValue.position.x as number;
                               const w = newValue.width as number;
                               this.tabAreaMap.set(item.id, { x: x, width: w });
-<<<<<<< HEAD
-
-=======
                               
->>>>>>> API23
                               // 初始化时设置默认指示器位置
                               if (this.currentTab === item.id && this.indicatorWidth === 0) {
                                 this.indicatorX = x;
@@ -1622,15 +1531,9 @@ export struct HomeView {
                     .padding(4)
                   }
                   .scrollable(ScrollDirection.Horizontal)
-<<<<<<< HEAD
-                  .scrollBar(BarState.Off)
-                  .edgeEffect(EdgeEffect.Spring) // 弹性滑动手感更好
-                  .margin({ right: 12 })
-=======
                    .scrollBar(BarState.Off)
                    .edgeEffect(EdgeEffect.Spring) // 弹性滑动手感更好
                    .margin({ right: 12 })
->>>>>>> API23
 
                   Blank()
 
@@ -1794,11 +1697,7 @@ export struct HomeView {
                               const x = newValue.position.x as number;
                               const w = newValue.width as number;
                               this.tabAreaMap.set(item.id, { x: x, width: w });
-<<<<<<< HEAD
-
-=======
                               
->>>>>>> API23
                               // 初始化时设置默认指示器位置
                               if (this.currentTab === item.id && this.indicatorWidth === 0) {
                                 this.indicatorX = x;
@@ -1985,62 +1884,6 @@ export struct HomeView {
   }
 
   build() {
-<<<<<<< HEAD
-    HdsNavDestination() {
-      this.homeBuilder()
-    }
-    .hideBackButton(true)
-    .hideTitleBar(false)
-    .backgroundColor(Color.Transparent)
-    .titleBar({
-      avoidLayoutSafeArea: true,
-      content: {
-        title: { mainTitle: '订阅概览' },
-        stackBuilder: (): void => this.AgentStackBuilder(),
-        menu: {
-          value: [
-            {
-              content: {
-                label: '提醒管理',
-                icon: $r('sys.symbol.bell'),
-                action: (): void => {
-                  getContext(this).eventHub.emit('openReminderSheet');
-                }
-              }
-            } as HdsNavigationMenuItemOptions,
-
-            {
-              content: {
-                label: '分享',
-                icon: $r('sys.symbol.share'),
-                action: (): void => {
-                  if (!this.isLoggedIn) {
-                    if (this.isWide && this.isSplitViewEnabled) {
-                      this.pageStack.removeByName('Login');
-                      this.pageStack.pushPathByName('Login', null);
-                    } else {
-                      if (this.isAnimationEnabled) {
-                        animateTo({
-                          duration: this.animationDuration,
-                          curve: curves.springMotion(this.animationResponse, this.animationDamping)
-                        }, () => {
-                          this.showLoginSheet = true;
-                        });
-                      } else {
-                        this.showLoginSheet = true;
-                      }
-                    }
-                    return;
-                  }
-                  HarmonyShareManager.getInstance().activeShare();
-                }
-              }
-            } as HdsNavigationMenuItemOptions
-          ]
-        }
-      },
-    })
-=======
       HdsNavDestination() {
         this.homeBuilder()
       }
@@ -2094,20 +1937,7 @@ export struct HomeView {
             ]
           }
         },
-        style:(deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
-          systemMaterialEffect: {
-            materialType: hdsMaterial.MaterialType.IMMERSIVE,
-            materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-          },
-          scrollEffectOpts: {
-            enableScrollEffect: true,
-            scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-            blurEffectiveStartOffset: LengthMetrics.vp(0),
-            blurEffectiveEndOffset: LengthMetrics.vp(20)
-          }
-        }:undefined
       })
->>>>>>> API23
 
   }
 

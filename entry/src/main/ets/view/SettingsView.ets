@@ -21,11 +21,7 @@ import { LoginSheet } from './LoginSheet';
 import { WebViewParam } from './WebViewPage';
 import { UpdateManager } from '../utils/UpdateManager';
 import { AccountMonitor } from '../utils/AccountMonitor';
-<<<<<<< HEAD
-import { hdsEffect,   HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
-=======
-import { hdsEffect, hdsMaterial, HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
->>>>>>> API23
+import { hdsEffect, HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
 import { ImportSheet } from './ImportSheet';
 import { SubscriptionModel } from '../model/SubscriptionModel';
 import { LocalNotificationManager } from '../manager/LocalNotificationManager';
@@ -888,108 +884,15 @@ export struct SettingsView {
         return;
       }
 
-<<<<<<< HEAD
-      // 导出完整 SubscriptionModel 对象，保留所有字段
-      const exportSubs = await Promise.all(subs.map(async (sub) => {
-        const item: SubscriptionModel = JSON.parse(JSON.stringify(sub));
-
-        // 1. 自动填充团购券图标
-        if (item.recordType === 'groupBuy' && (!item.icon || item.icon === '')) {
-          if (item.platform === 'meituan') {
-            item.icon = 'resource:meituan_logo';
-          } else if (item.platform === 'douyin') {
-            item.icon = 'resource:douyin_logo';
-          } else if (item.platform === 'dianping') {
-            item.icon = 'resource:dianping_logo';
-          }
-        }
-
-        // 2. 处理 couponImage (团购券截图)
-        if (item.couponImage && !item.couponImage.startsWith('data:')) {
-          try {
-            const originalPath = item.couponImage;
-            const filename = (originalPath.split('/').pop() || '').split('?')[0]; // 去掉可能存在的 query
-            const ctx = getContext(this);
-
-            // --- 诊断日志：列出文件目录内容 ---
-            try {
-              const list = fs.listFileSync(ctx.filesDir);
-              hilog.info(0x0000, 'SettingsView', `Files in filesDir: ${list.join(', ')}`);
-            } catch (e) {}
-
-            let base64Result: string | undefined = undefined;
-
-            // 构造极其进取的搜寻路径
-            let searchPaths: string[] = [];
-
-            // (1) 原始路径 (处理 fileUri 转换)
-            try {
-              searchPaths.push(new fileUri.FileUri(originalPath).path);
-            } catch (e) {
-              let p = originalPath;
-              if (p.startsWith('file://')) p = p.substring(7);
-              searchPaths.push(decodeURIComponent(p));
-            }
-
-            // (2) 基于文件名的全目录扫描 (处理沙箱迁移)
-            if (filename && filename.length > 5) {
-              const roots = [
-                ctx.filesDir,
-                ctx.cacheDir,
-                ctx.tempDir,
-                ctx.distributedFilesDir,
-                '/data/storage/el2/base/haps/entry/files',
-                '/data/storage/el2/base/files',
-                '/data/storage/el1/base/haps/entry/files'
-              ];
-              roots.forEach(r => {
-                if (r) {
-                  searchPaths.push(`${r}/${filename}`);
-                  searchPaths.push(`${r}/files/${filename}`); // 兼容某些层级错误
-                }
-              });
-            }
-=======
       // 导出完整数据，复用 HarmonyShareManager 的压缩与图标处理能力
 
       const ctx = getContext(this) as common.UIAbilityContext;
       const shareManager = HarmonyShareManager.getInstance();
       shareManager.setContext(ctx);
->>>>>>> API23
 
       const exportSubs = await shareManager.prepareSubscriptionsForExport(subs, true);
       const customIcons = await shareManager.prepareIconLibraryForExport();
 
-<<<<<<< HEAD
-            for (const path of finalSearchList) {
-              try {
-                const res = await this.fileToBase64(path);
-                if (res) {
-                  base64Result = res;
-                  hilog.info(0x0000, 'SettingsView', `SUCCEED: Image loaded from ${path}`);
-                  break;
-                }
-              } catch (e) {
-                // continue
-              }
-            }
-
-            if (base64Result) {
-              item.couponImage = base64Result;
-            } else {
-              hilog.error(0x0000, 'SettingsView', `FAIL: Could not find/read file ${filename} after searching ${finalSearchList.length} paths`);
-              // 保持原样，不要设置为空
-              item.couponImage = originalPath;
-            }
-          } catch (e) {
-            hilog.error(0x0000, 'SettingsView', `Global image proc error: ${JSON.stringify(e)}`);
-          }
-        }
-        return item;
-      }));
-
-=======
->>>>>>> API23
       const exportData: ExportDataWrapper = {
         version: 2,
         exportTime: new Date().toISOString(),
@@ -1165,71 +1068,7 @@ export struct SettingsView {
         (error as BusinessError).message);
     }
   }
-<<<<<<< HEAD
 
-  /**
-   * Helper to convert file to Base64 string safely using multiple strategies
-   */
-  private async fileToBase64(uriOrPath: string): Promise<string | undefined> {
-    if (!uriOrPath) return undefined;
-
-    // Strategy 1: ImageKit (Handles file:// URIs natively and handles various formats)
-    try {
-      const imageSource = image.createImageSource(uriOrPath);
-      if (imageSource) {
-        const pixelMap = await imageSource.createPixelMap();
-        const imagePacker = image.createImagePacker();
-        const buffer = await imagePacker.packing(pixelMap, { format: 'image/jpeg', quality: 90 });
-
-        const base64Str = new util.Base64Helper().encodeToStringSync(new Uint8Array(buffer));
-
-        pixelMap.release();
-        imageSource.release();
-        return `data:image/jpeg;base64,${base64Str}`;
-      }
-    } catch (e) {
-      // Fall through to manual read
-    }
-
-    // Strategy 2: Manual File System Read
-    let file: fs.File | undefined;
-    try {
-      let finalPath = uriOrPath;
-      if (finalPath.startsWith('file://')) {
-        try {
-          finalPath = new fileUri.FileUri(finalPath).path;
-        } catch (e) {
-          finalPath = finalPath.substring(7);
-        }
-      }
-      finalPath = decodeURIComponent(finalPath);
-
-      if (!fs.accessSync(finalPath)) return undefined;
-
-      file = fs.openSync(finalPath, fs.OpenMode.READ_ONLY);
-      const stat = fs.statSync(file.fd);
-      const buf = new Uint8Array(stat.size);
-      fs.readSync(file.fd, buf);
-
-      const base64Str = new util.Base64Helper().encodeToStringSync(buf);
-
-      let mime = 'image/png';
-      if (finalPath.toLowerCase().endsWith('.jpg') || finalPath.toLowerCase().endsWith('.jpeg')) mime = 'image/jpeg';
-      else if (finalPath.toLowerCase().endsWith('.webp')) mime = 'image/webp';
-
-      return `data:${mime};base64,${base64Str}`;
-    } catch (e) {
-      hilog.error(0x0000, 'SettingsView', `fileToBase64 manual failed for ${uriOrPath}: ${JSON.stringify(e)}`);
-      return undefined;
-    } finally {
-      if (file) {
-        try { fs.closeSync(file); } catch (e) {}
-      }
-    }
-  }
-=======
-
->>>>>>> API23
 
   @Builder
   SettingHeader(text: string) {
@@ -1604,7 +1443,6 @@ export struct SettingsView {
                 Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
               }
 
-<<<<<<< HEAD
               // // 1.6.5 HDS Tabs (API 23 Features)
               // Row() {
               //   Column() {
@@ -1632,35 +1470,6 @@ export struct SettingsView {
               // .backgroundColor(Color.Transparent)
               //
               // Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
-=======
-              // 1.6.5 HDS Tabs (API 23 Features)
-              Row() {
-                Column() {
-                  Text("HarmonyOS 6.1界面风格")
-                    .fontSize(16)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor($r('app.color.text_primary'))
-                  Text("启用高级材质（会增加功耗）")
-                    .fontSize(12)
-                    .fontColor($r('app.color.text_secondary'))
-                    .margin({ top: 4 })
-                }
-                .alignItems(HorizontalAlign.Start)
-
-                Blank()
-
-                Toggle({ type: ToggleType.Switch, isOn: this.isHdsTabsEnabled })
-                  .selectedColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
-                  .onChange((value: boolean) => {
-                    PreferenceUtil.getInstance().saveHdsTabsEnabled(value);
-                  })
-              }
-              .width('100%')
-              .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-              .backgroundColor(Color.Transparent)
-
-              Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
->>>>>>> API23
 
               // 1.7 App Lock (Relocated & Rewritten)
               Row() {
@@ -2212,33 +2021,6 @@ export struct SettingsView {
         title: { mainTitle: '我的' },
         menu: { value: [] }
       },
-<<<<<<< HEAD
-      // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
-      //   systemMaterialEffect: {
-      //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
-      //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-      //   },
-      //   scrollEffectOpts: {
-      //     enableScrollEffect: true,
-      //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-      //     blurEffectiveStartOffset: LengthMetrics.vp(0),
-      //     blurEffectiveEndOffset: LengthMetrics.vp(20)
-      //   }
-      // } : undefined
-=======
-      style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
-        systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.IMMERSIVE,
-          materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-        },
-        scrollEffectOpts: {
-          enableScrollEffect: true,
-          scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-          blurEffectiveStartOffset: LengthMetrics.vp(0),
-          blurEffectiveEndOffset: LengthMetrics.vp(20)
-        }
-      } : undefined
->>>>>>> API23
     })
   }
 

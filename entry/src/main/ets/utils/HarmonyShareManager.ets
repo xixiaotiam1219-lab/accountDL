@@ -316,12 +316,6 @@ export class HarmonyShareManager {
               realPath = decodeURIComponent(originalPath.substring(7));
           }
 
-<<<<<<< HEAD
-          // 核心判断：是否是内置库图标 (包括 rawfile 原始图标和本地缓存图标)
-          if (realPath.includes('/local_icons/') || realPath.includes('/icons/')) {
-            const libFilename = realPath.substring(realPath.lastIndexOf('/') + 1);
-            newItem.icon = `builtin://${libFilename}`;
-=======
           // 精准判断：内置图标库 vs 自定义导入/裁剪图标
           const isBuiltinPath = realPath.includes('/icons/') && !realPath.includes('/imported_icons/');
           const currentFilename = realPath.substring(realPath.lastIndexOf('/') + 1);
@@ -329,7 +323,6 @@ export class HarmonyShareManager {
 
           if (isBuiltinPath && !isGeneratedFile) {
             newItem.icon = `builtin://${filename}`;
->>>>>>> API23
           } else {
             // 真正自定义图标：执行多路径搜索与转换
             let foundPath = '';

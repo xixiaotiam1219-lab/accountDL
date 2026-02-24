@@ -3,11 +3,7 @@ import { PreferenceUtil } from '../utils/PreferenceUtil';
 import { WebViewParam } from './WebViewPage';
 import { http } from '@kit.NetworkKit';
 import { ZHIPU_API_BASE_URL } from '../utils/ApiConfig';
-<<<<<<< HEAD
-import { hdsEffect,   HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
-=======
-import { hdsEffect, hdsMaterial, HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
->>>>>>> API23
+import { hdsEffect, HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
 import { BackgroundWatermark } from './BackgroundWatermark';
 import { deviceInfo } from '@kit.BasicServicesKit';
 
@@ -424,33 +420,6 @@ export struct AIConfigPage {
           },
 
         },
-<<<<<<< HEAD
-        // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ?{
-        //   systemMaterialEffect: {
-        //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
-        //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-        //   },
-        //   scrollEffectOpts: {
-        //     enableScrollEffect: true,
-        //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-        //     blurEffectiveStartOffset: LengthMetrics.vp(0),
-        //     blurEffectiveEndOffset: LengthMetrics.vp(20)
-        //   }
-        // }:undefined
-=======
-        style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ?{
-          systemMaterialEffect: {
-            materialType: hdsMaterial.MaterialType.IMMERSIVE,
-            materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-          },
-          scrollEffectOpts: {
-            enableScrollEffect: true,
-            scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-            blurEffectiveStartOffset: LengthMetrics.vp(0),
-            blurEffectiveEndOffset: LengthMetrics.vp(20)
-          }
-        }:undefined
->>>>>>> API23
       })
       .backgroundColor($r('app.color.page_background'))
 

@@ -16,11 +16,7 @@ import { image } from '@kit.ImageKit';
 import { ExtendedWarrantyItem } from '../model/SubscriptionModel';
 
 import { fileIo } from '@kit.CoreFileKit';
-<<<<<<< HEAD
-import { hdsEffect,   HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
-=======
-import { hdsEffect, hdsMaterial, HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
->>>>>>> API23
+import { hdsEffect, HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
 import { ImageCropSheet } from './ImageCropPage';
 import { GlobalBus, EVENT_SYNC_COMPLETED, EVENT_DATA_CHANGED } from '../utils/GlobalBus';
 import { SubscriptionIcon } from './SubscriptionIcon';
@@ -30,11 +26,7 @@ import { PreferenceUtil } from '../utils/PreferenceUtil';
 import { AppInfo, LocalIconManager } from '../utils/LocalIconManager';
 import { WebViewParam } from './WebViewPage';
 import { WarrantyCategorySheet, WarrantyCategory } from './WarrantyCategorySheet';
-<<<<<<< HEAD
-
-=======
 import { ExtendedWarrantyItemView } from './ExtendedWarrantyItemView';
->>>>>>> API23
 @Builder
 export function AddSubscriptionBuilder() {
   AddSubscription()
@@ -89,15 +81,12 @@ export struct AddSubscription {
   // === 保修/保质期专属状态 ===
   @State brand: string = ''; // 品牌名称
   @State purchaseChannel: string = ''; // 购买渠道
-<<<<<<< HEAD
-=======
   
   // === 附加保障服务 (多项支持) ===
   @State extendedWarranties: ExtendedWarrantyItem[] = [];
   @State isExtendedWarrantyListExpanded: boolean = false;
   @State extendedWarrantyListOpacity: number = 0;
 
->>>>>>> API23
   @State isUsageTimePressed: boolean = false;
   @State usageTimeLight: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
   @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
@@ -209,10 +198,7 @@ export struct AddSubscription {
     // 保修/保质期字段
     this.brand = '';
     this.purchaseChannel = '';
-<<<<<<< HEAD
-=======
     this.extendedWarranties = [];
->>>>>>> API23
   }
 
   @State isQROnly: boolean = false; // 新增：是否仅识别二维码模式
@@ -647,11 +633,7 @@ export struct AddSubscription {
             .backgroundColor($r('app.color.page_background'))
             .borderRadius(16)
             .padding(4)
-<<<<<<< HEAD
-            // .margin({ bottom: 24 })
-=======
             .margin({ bottom: 24 })
->>>>>>> API23
             .opacity(this.animStep1 ? 1 : 0)
             .translate({ y: this.animStep1 ? 0 : 100 })
             .scale({ x: this.animStep1 ? 1 : 0.9, y: this.animStep1 ? 1 : 0.9 })
@@ -2080,19 +2062,8 @@ export struct AddSubscription {
                               this.reminderOpacity = 1;
                             })
                           } else {
-<<<<<<< HEAD
-                            animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
-                              this.reminderOpacity = 0;
-                            });
-                            setTimeout(() => {
-                              animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
-                                this.isReminderExpanded = false;
-                              });
-                            }, 200);
-=======
                             this.isReminderExpanded = true;
                             this.reminderOpacity = 1;
->>>>>>> API23
                           }
                         } else {
                           this.isReminderEnabled = false;
@@ -2328,11 +2299,7 @@ export struct AddSubscription {
               .margin({ right: 12 })
 
               Column() {
-<<<<<<< HEAD
-                Text(`${this.currency === 'USD' ? '$' : '¥'}${this.price || '0.00'}`)
-=======
                 Text(`${this.currency === 'USD' ? '$' : '¥'}${this.getTotalPrice()}`)
->>>>>>> API23
                   .fontSize(18)
                   .fontWeight(FontWeight.Bold)
                   .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
@@ -2712,9 +2679,6 @@ export struct AddSubscription {
 
                 Divider().color($r('app.color.divider_color')).opacity(0.3)
 
-<<<<<<< HEAD
-                // 7. 到期提醒
-=======
                 // 7. 附加保障服务 (可选 - 多项模式)
                 Column({ space: 0 }) {
                   Row() {
@@ -2790,7 +2754,6 @@ export struct AddSubscription {
                 Divider().color($r('app.color.divider_color')).opacity(0.3)
 
                 // 8. 到期提醒
->>>>>>> API23
                 Column({ space: 12 }) {
                   Row() {
                     Text("到期提醒")
@@ -2817,19 +2780,8 @@ export struct AddSubscription {
                               this.reminderOpacity = 1;
                             })
                           } else {
-<<<<<<< HEAD
-                            animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
-                              this.reminderOpacity = 0;
-                            });
-                            setTimeout(() => {
-                              animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
-                                this.isReminderExpanded = false;
-                              });
-                            }, 200);
-=======
                             this.isReminderExpanded = true;
                             this.reminderOpacity = 1;
->>>>>>> API23
                           }
                         } else {
                           this.isReminderEnabled = false;
@@ -3961,10 +3913,6 @@ export struct AddSubscription {
                         .switchPointColor(Color.White)
                         .onChange((isOn: boolean) => {
                           this.isReminderEnabled = isOn;
-<<<<<<< HEAD
-                          if (this.isAnimationEnabled) {
-                            if (isOn) {
-=======
                           if (isOn) {
                             // 检查上限
                             if (!this.initialReminderEnabled && this.reminderCount >= 30) {
@@ -3973,21 +3921,17 @@ export struct AddSubscription {
 
                             this.isReminderEnabled = true;
                             if (this.isAnimationEnabled) {
->>>>>>> API23
                               animateTo({ duration: this.animationDuration, curve: Curve.FastOutSlowIn }, () => {
                                 this.isReminderExpanded = true;
                                 this.reminderOpacity = 1;
                               })
                             } else {
-<<<<<<< HEAD
-=======
                               this.isReminderExpanded = true;
                               this.reminderOpacity = 1;
                             }
                           } else {
                             this.isReminderEnabled = false;
                             if (this.isAnimationEnabled) {
->>>>>>> API23
                               animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
                                 this.reminderOpacity = 0;
                               });
@@ -3996,25 +3940,16 @@ export struct AddSubscription {
                                   this.isReminderExpanded = false;
                                 });
                               }, 200);
-<<<<<<< HEAD
-                            }
-                          } else {
-                            this.isReminderExpanded = isOn;
-                            this.reminderOpacity = isOn ? 1 : 0;
-=======
                             } else {
                               this.isReminderExpanded = false;
                               this.reminderOpacity = 0;
                             }
->>>>>>> API23
                           }
                         })
                     }
                     .width('100%')
                     .alignItems(VerticalAlign.Center)
 
-<<<<<<< HEAD
-=======
                     if (this.isReminderEnabled || this.isReminderExpanded) {
                       Row() {
                         Blank()
@@ -4026,7 +3961,6 @@ export struct AddSubscription {
                       .width('100%')
                     }
 
->>>>>>> API23
                     if (this.isReminderExpanded) {
                       Row() {
                         SymbolGlyph($r('sys.symbol.info_circle'))
@@ -4342,8 +4276,6 @@ export struct AddSubscription {
                 if (!this.isDisclaimerAgreed) {
                   this.promptAction.showToast({ message: '请先阅读并勾选用户协议' });
                   return;
-<<<<<<< HEAD
-=======
                 }
 
                 // 提醒上限拦截
@@ -4351,7 +4283,6 @@ export struct AddSubscription {
                 if (predictedTotal > 30) {
                   this.promptAction.showToast({ message: `提醒数量已达上限 (30个)，当前超出 ${predictedTotal - 30} 个` });
                   return;
->>>>>>> API23
                 }
 
                 if (this.name === '' || this.price === '') {
@@ -4403,12 +4334,8 @@ export struct AddSubscription {
                   realUsageTime: this.recordType === 'groupBuy' ? this.realUsageTime : undefined,
                   // 保修/保质期字段
                   brand: this.recordType === 'warranty' ? this.brand : undefined,
-<<<<<<< HEAD
-                  purchaseChannel: this.recordType === 'warranty' ? this.purchaseChannel : undefined
-=======
                   purchaseChannel: this.recordType === 'warranty' ? this.purchaseChannel : undefined,
                   extendedWarranties: this.recordType === 'warranty' && this.extendedWarranties.length > 0 ? JSON.stringify(this.extendedWarranties) : undefined
->>>>>>> API23
                 };
 
                 if (this.editId !== -1) {
@@ -4418,10 +4345,7 @@ export struct AddSubscription {
                   await SubscriptionRepository.getInstance().insert(newSub);
                 }
                 SubscriptionRepository.getInstance().updateWidgetSnapshotSync('save');
-<<<<<<< HEAD
-=======
                 GlobalBus.publish(EVENT_DATA_CHANGED);
->>>>>>> API23
                 this.pageStack.clear();
               })
           }
@@ -4497,33 +4421,6 @@ export struct AddSubscription {
             ]
           }
         },
-<<<<<<< HEAD
-        // style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
-        //   systemMaterialEffect: {
-        //     materialType: hdsMaterial.MaterialType.IMMERSIVE,
-        //     materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-        //   },
-        //   scrollEffectOpts: {
-        //     enableScrollEffect: true,
-        //     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-        //     blurEffectiveStartOffset: LengthMetrics.vp(0),
-        //     blurEffectiveEndOffset: LengthMetrics.vp(20)
-        //   }
-        // } : undefined
-=======
-        style: (deviceInfo.distributionOSApiVersion >= 60100 && this.isHdsTabsEnabled) ? {
-          systemMaterialEffect: {
-            materialType: hdsMaterial.MaterialType.IMMERSIVE,
-            materialLevel: hdsMaterial.MaterialLevel.EXQUISITE
-          },
-          scrollEffectOpts: {
-            enableScrollEffect: true,
-            scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-            blurEffectiveStartOffset: LengthMetrics.vp(0),
-            blurEffectiveEndOffset: LengthMetrics.vp(20)
-          }
-        } : undefined
->>>>>>> API23
       })
       .backgroundColor($r('app.color.page_background'))
       .onReady((context: NavDestinationContext) => {
@@ -4602,8 +4499,6 @@ export struct AddSubscription {
             // 加载保修/保质期专属字段
             this.brand = params.brand || '';
             this.purchaseChannel = params.purchaseChannel || '';
-<<<<<<< HEAD
-=======
             if (params.extendedWarranties) {
                try {
                  const rawList = JSON.parse(params.extendedWarranties) as ExtendedWarrantyItem[];
@@ -4619,7 +4514,6 @@ export struct AddSubscription {
                  this.extendedWarranties = [];
                }
             }
->>>>>>> API23
           }
 
           if (this.recordType === 'subscription') {

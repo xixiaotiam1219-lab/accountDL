@@ -1073,8 +1073,6 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
               }
             }
             
-<<<<<<< HEAD
-=======
             let subReminderEnabled = isReminderEnabled; // 默认跟随主项
             const itemReminderRaw = item['isReminderEnabled'];
             if (itemReminderRaw !== undefined) {
@@ -1088,17 +1086,12 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
                 }
             }
             
->>>>>>> API23
             return new ExtendedWarrantyItem(
               util.generateRandomUUID(true),
               wName,
               wPrice,
               wDate,
-<<<<<<< HEAD
-              isReminderEnabled // 如果用户全局开启了提醒，延保项也默认开启
-=======
               subReminderEnabled
->>>>>>> API23
             );
           });
           hilog.info(0xFEED, TAG, `[AddCore] Parsed ${extendedWarranties.length} extended warranties.`);
@@ -1148,8 +1141,6 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         nextBillingDate = d.getTime();
       }
 
-<<<<<<< HEAD
-=======
       // ==== 4. 提醒数量限制校验 (非阻塞拦截) ====
       let isReminderLimitReached = false;
       if (isReminderEnabled) {
@@ -1165,7 +1156,6 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           }
       }
 
->>>>>>> API23
       const newSub: SubscriptionModel = {
         uuid: util.generateRandomUUID(true),
         name: name,
@@ -1269,11 +1259,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           'isReminderEnabled': reminderEnabledStr,
           'reminderDaysBefore': reminderDaysStr,
           'reminderTime': reminderTimeStr,
-<<<<<<< HEAD
-          'resultText': `已为您成功记录 ${newSub.name} 订阅，${cycleMap[newSub.billingCycle || 'Monthly']}费用为 ${newSub.price} 元。`,
-=======
           'resultText': `已为您成功记录 ${newSub.name} 订阅，${cycleMap[newSub.billingCycle || 'Monthly']}费用为 ${newSub.price} 元。${isReminderLimitReached ? '由于您的提醒数量已达上限(30个)，本次添加未开启提醒通知。' : ''}`,
->>>>>>> API23
           'dataPackage': dataPackage,
           'showPackage': "true"
         };
@@ -1292,11 +1278,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           'isReminderEnabled': reminderEnabledStr,
           'reminderDaysBefore': reminderDaysStr,
           'reminderTime': reminderTimeStr,
-<<<<<<< HEAD
-          'resultText': `已为您成功记录 ${newSub.brand || ''}${newSub.name} 的保修信息${extendedWarranties.length > 0 ? `及 ${extendedWarranties.length} 项延保服务` : ''}。`,
-=======
           'resultText': `已为您成功记录 ${newSub.brand || ''}${newSub.name} 的保修信息${extendedWarranties.length > 0 ? `及 ${extendedWarranties.length} 项延保服务` : ''}。${isReminderLimitReached ? '由于您的提醒数量已达上限(30个)，本次添加未开启提醒通知。' : ''}`,
->>>>>>> API23
           'dataPackage': dataPackage,
           'showPackage': "true"
         };
@@ -1313,11 +1295,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           'isReminderEnabled': reminderEnabledStr,
           'reminderDaysBefore': reminderDaysStr,
           'reminderTime': reminderTimeStr,
-<<<<<<< HEAD
-          'resultText': `已为您成功记录 ${newSub.merchantName || newSub.name} 的团购券，有效期至 ${DateUtil.formatDate(newSub.nextBillingDate)}。`,
-=======
           'resultText': `已为您成功记录 ${newSub.merchantName || newSub.name} 的团购券，有效期至 ${DateUtil.formatDate(newSub.nextBillingDate)}。${isReminderLimitReached ? '由于您的提醒数量已达上限(30个)，本次添加未开启提醒通知。' : ''}`,
->>>>>>> API23
           'dataPackage': dataPackage,
           'showPackage': "true"
         };
@@ -1351,8 +1329,6 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
     };
     return cycleMap[cycle] || '';
   }
-<<<<<<< HEAD
-=======
 
   private async getReminderCount(): Promise<number> {
     try {
@@ -1372,5 +1348,4 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       return 0;
     }
   }
->>>>>>> API23
 }
