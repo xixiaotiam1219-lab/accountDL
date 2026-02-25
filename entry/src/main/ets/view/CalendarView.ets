@@ -278,7 +278,7 @@ export struct CalendarView {
             targetDate.getDate() === billingDay) {
            isMatch = true; 
         }
-      } else if (sub.recordType === 'warranty') {
+      } else if (sub.recordType === 'warranty' || sub.recordType === 'card') {
         if (billingDate.getFullYear() === this.currentYear && billingDate.getMonth() === this.currentMonth) {
           isMatch = true;
         }
@@ -464,6 +464,13 @@ export struct CalendarView {
       const days = DateUtil.getDaysUntil(item.nextBillingDate);
       return days < 0 ? '已过保' : '在保中';
     }
+    if (item.recordType === 'card') {
+      let info = item.cardType || '卡证';
+      if (item.cardBalance !== undefined && item.cardBalance !== null && item.cardBalance !== 0) {
+        info += ` · 余额: ${item.cardBalance}`;
+      }
+      return info;
+    }
     let info = `¥${item.price.toFixed(2)}`;
     if (item.recordType === 'groupBuy') {
       // 如果项目名存在且与标题（商家名）不同，则在副标题显示项目名
@@ -484,6 +491,8 @@ export struct CalendarView {
     } else if (item.recordType === 'warranty') {
       const days = DateUtil.getDaysUntil(item.nextBillingDate);
       return days < 0 ? '过保' : '在保';
+    } else if (item.recordType === 'card') {
+      return '卡证';
     }
     switch (item.billingCycle) {
       case 'Monthly':
@@ -542,7 +551,10 @@ export struct CalendarView {
                   name: item.recordType === 'groupBuy' ? (item.merchantName || item.name) : item.name,
                   iconSize: 44,
                   iconRadius: 12,
-                  showGroupBadge: item.recordType === 'groupBuy'
+                  showGroupBadge: item.recordType === 'groupBuy',
+                  showWarrantyBadge: item.recordType === 'warranty',
+                  showCardBadge: item.recordType === 'card',
+                  showServiceBadge: item.recordType !== 'groupBuy' && item.recordType !== 'warranty' && item.recordType !== 'card'
                 })
 
                 Column() {
@@ -722,7 +734,7 @@ export struct CalendarView {
       // Group Buy: Forward to calculateRangeFromStartDate to show full validity even if used
       // But in Monthly/Status logic, we still respect usage status for markers.
       // Here we want the BAR to be visible for the whole validity.
-      if (sub.recordType === 'groupBuy' || sub.recordType === 'warranty') {
+      if (sub.recordType === 'groupBuy' || sub.recordType === 'warranty' || sub.recordType === 'card') {
            return this.calculateRangeFromStartDate(sub);
       }
 
@@ -1162,7 +1174,10 @@ export struct CalendarView {
                         icon: sub.recordType === 'groupBuy' ? this.getGroupBuyIcon(sub) : sub.icon,
                         name: sub.recordType === 'groupBuy' ? (sub.merchantName || sub.name) : sub.name,
                         iconSize: 28,
-                        showGroupBadge: sub.recordType === 'groupBuy'
+                        showGroupBadge: sub.recordType === 'groupBuy',
+                        showWarrantyBadge: sub.recordType === 'warranty',
+                        showCardBadge: sub.recordType === 'card',
+                        showServiceBadge: sub.recordType !== 'groupBuy' && sub.recordType !== 'warranty' && sub.recordType !== 'card'
                       })
                         .margin({ right: 8 })
 

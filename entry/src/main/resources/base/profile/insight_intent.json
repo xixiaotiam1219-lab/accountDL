@@ -379,6 +379,98 @@
                     ]
                 }
             ]
+        },
+        {
+            "intentName": "AddCard",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "cardType",
+                    "type": "string"
+                },
+                {
+                    "name": "cardBalance",
+                    "type": "string"
+                },
+                {
+                    "name": "expireDate",
+                    "type": "string"
+                },
+                {
+                    "name": "purchaseDate",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderDaysBefore",
+                    "type": "string"
+                },
+                {
+                    "name": "isReminderEnabled",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderTime",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
+                }
+            ]
+        },
+        {
+            "intentName": "QueryCard",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "cardType",
+                    "type": "string"
+                },
+                {
+                    "name": "timeRange",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
+                }
+            ]
         }
     ]
 }

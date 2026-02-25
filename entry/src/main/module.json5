@@ -127,16 +127,22 @@
             ]
           },
           {
-            "entities": [
-              "entity.system.home"
-            ],
             "actions": [
-              "ohos.want.action.viewData"
+              "ohos.want.action.viewData",
+            ],
+            "entities": [
+              "entity.system.home",
+              "entity.system.browsable",
+              "entity.system.default"
             ],
             "uris": [
               {
                 "scheme": "accountdl",
                 "host": "import"
+              },
+              {
+                "scheme": "accountdl",
+                "host": "login"
               }
             ]
           },

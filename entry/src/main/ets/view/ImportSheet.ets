@@ -66,7 +66,8 @@ struct ImportSheetItem {
         iconSize: 40,
         iconRadius: 8,
         showGroupBadge: this.item.data.recordType === 'groupBuy',
-        showWarrantyBadge: this.item.data.recordType === 'warranty'
+        showWarrantyBadge: this.item.data.recordType === 'warranty',
+        showCardBadge: this.item.data.recordType === 'card'
       })
       .margin({ right: 12 })
       .opacity(this.item.status === 'duplicate' ? 0.6 : 1)
@@ -112,6 +113,10 @@ struct ImportSheetItem {
                 .fontColor($r('app.color.text_secondary'))
             } else if (this.item.data.recordType === 'groupBuy') {
               Text(this.item.data.merchantName || '团购')
+                .fontSize(11)
+                .fontColor($r('app.color.text_secondary'))
+            } else if (this.item.data.recordType === 'card') {
+              Text(this.item.data.cardLastFour ? `卡号末位 ${this.item.data.cardLastFour}` : (this.item.data.cardBalance !== undefined ? `余额 ${this.item.data.cardBalance}` : '卡证'))
                 .fontSize(11)
                 .fontColor($r('app.color.text_secondary'))
             } else {
@@ -171,6 +176,9 @@ struct ImportSheetItem {
     }
     if (item.recordType === 'warranty') {
        return '保修';
+    }
+    if (item.recordType === 'card') {
+       return item.cardType || '卡证';
     }
     const cycle = item.billingCycle;
     switch (cycle) {
@@ -274,13 +282,15 @@ export struct ImportSheet {
           item.recordType = 'warranty';
         } else if (item.merchantName || item.couponCode) {
           item.recordType = 'groupBuy';
+        } else if (item.cardType || item.cardLastFour) {
+          item.recordType = 'card';
         }
       }
       this.calibrateStartDate(item);
 
       // --- 核心改进：在预览阶段执行图标识别逻辑，但尊重已有协议 ---
       if (item.name) {
-        const hasValidIcon = item.icon && (item.icon.startsWith('data:image') || item.icon.startsWith('builtin://'));
+        const hasValidIcon = item.icon && (item.icon.startsWith('data:image') || item.icon.startsWith('file://') || item.icon.startsWith('resource:'));
         
         if (!hasValidIcon) {
           // 只有在 icon 缺失或不规范时，才尝试从库中寻找匹配
@@ -340,7 +350,10 @@ export struct ImportSheet {
       (a.subCategory || '') === (b.subCategory || '') &&
       this.isIconIdentical(a.icon, b.icon) &&
       a.reminderDaysBefore === b.reminderDaysBefore &&
-      (a.reminderTime || '') === (b.reminderTime || '');
+      (a.reminderTime || '') === (b.reminderTime || '') &&
+      (a.cardLastFour || '') === (b.cardLastFour || '') &&
+      (a.cardBalance || 0) === (b.cardBalance || 0) &&
+      (a.cardType || '') === (b.cardType || '');
   }
 
   isIconIdentical(a: string | undefined, b: string | undefined): boolean {
@@ -377,6 +390,14 @@ export struct ImportSheet {
     if (item.recordType === 'warranty') {
       // 保修记录缺失开始时间，默认为当前时间 (避免被误设为过期时间)
       item.startDate = new Date().getTime();
+      return;
+    }
+
+    if (item.recordType === 'card') {
+      // 卡证记录如果没有开始时间，也默认为当前时间
+      if (!item.startDate) {
+        item.startDate = new Date().getTime();
+      }
       return;
     }
 

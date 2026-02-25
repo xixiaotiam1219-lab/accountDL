@@ -48,6 +48,8 @@ class Constants {
   public static INTENT_QUERY_SUBSCRIPTION = "QuerySubscription";
   public static INTENT_QUERY_VOUCHER = "QueryVoucher";
   public static INTENT_QUERY_WARRANTY = "QueryWarranty";
+  public static INTENT_ADD_CARD = "AddCard";
+  public static INTENT_QUERY_CARD = "QueryCard";
 }
 
 export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
@@ -138,6 +140,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       name === Constants.INTENT_QUERY_VOUCHER ||
       name === Constants.INTENT_QUERY_WARRANTY ||
       name === Constants.INTENT_QUERY_SUBSCRIPTION ||
+      name === Constants.INTENT_QUERY_CARD ||
       name === Constants.INTENT_QUERY_RECORD;
   }
 
@@ -149,6 +152,9 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       return this.handleQueryVoucher(param);
     } else if (name === Constants.INTENT_QUERY_WARRANTY) {
       return this.handleQueryWarranty(param);
+    } else if (name === Constants.INTENT_QUERY_CARD) {
+      param['recordTypeFilter'] = 'card';
+      return this.executeQueryCore(param);
     } else if (name === Constants.INTENT_QUERY_SUBSCRIPTION) {
       param['recordTypeFilter'] = 'subscription';
       return this.executeQueryCore(param);
@@ -165,6 +171,8 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         inferredType = 'warranty';
       } else if (rawQuery.includes('团购') || rawQuery.includes('券') || rawQuery.includes('次卡') || rawQuery.includes('返利') || rawQuery.includes('礼品') || rawQuery.includes('voucher') || rawQuery.includes('groupbuy')) {
         inferredType = 'groupBuy';
+      } else if (rawQuery.includes('卡') || rawQuery.includes('证') || rawQuery.includes('card')) {
+        inferredType = 'card';
       }
 
       if (inferredType) {
@@ -225,6 +233,9 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       case Constants.INTENT_ADD_WARRANTY:
         param['recordType'] = 'warranty';
         return this.executeAddCore(param);
+      case Constants.INTENT_ADD_CARD:
+        param['recordType'] = 'card';
+        return this.executeAddCore(param);
       default:
         hilog.warn(0xFEED, TAG, `Unknown background intent: ${name}`);
         return {
@@ -269,7 +280,6 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         : "您目前没有任何订阅或消费记录。";
 
       const resultData: Record<string, Object> = {
-        'count': totalCount,
         'resultText': resultText,
         'showPackage': totalCount > 0 ? "true" : "false", // 修改为字符串，符合项目内布尔参数习惯
         'dataPackage': dataPackage // 直接返回对象数组
@@ -435,6 +445,14 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         dateDescription = "下月";
         useRangeSummation = isExpenseQuery;
         specificMonthQuery = true;
+      } else if (timeRange === 'this_half_year' || timeRange === 'half_year' || timeRange === 'last_6_months') {
+        // [修复] 支持半年内查询。兼容小艺传来的 last_6_months 参数，统一识别为“半年内”双向窗口
+        const startOfHalfYear = isExpirationQuery ? now.getTime() : new Date(now.getFullYear(), now.getMonth() - 6, 1, 0, 0, 0, 0).getTime();
+        const endOfHalfYear = new Date(now.getFullYear(), now.getMonth() + 6, now.getDate(), 23, 59, 59, 999);
+        startDate = startOfHalfYear;
+        endDate = endOfHalfYear.getTime();
+        dateDescription = "半年内";
+        useRangeSummation = isExpenseQuery;
       } else {
         const yearMatch = timeRange.match(/^\d{4}$/);
         const quarterMatch = timeRange.match(/^(\d{4})[-/][qQ]([1-4])$/);
@@ -482,8 +500,24 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
             startDate = now.getTime();
             endDate = targetDate.getTime();
           } else {
-            startDate = targetDate.getTime();
-            endDate = now.getTime();
+            // [优化] 如果不是支出查询（即查询记录、到期、卡证等），
+            // 即使传入的是 last_ (过去)，也应该自动扩展到未来窗口，
+            // 否则用户查“去年的卡证”会漏掉还没过期的。
+            if (!isExpenseQuery) {
+              // 构造对称的未来日期
+              let futureTarget = new Date(now.getTime());
+              if (unit.startsWith('day')) futureTarget.setDate(futureTarget.getDate() + amount);
+              else if (unit.startsWith('week')) futureTarget.setDate(futureTarget.getDate() + amount * 7);
+              else if (unit.startsWith('month')) futureTarget.setMonth(futureTarget.getMonth() + amount);
+              else if (unit.startsWith('year')) futureTarget.setFullYear(futureTarget.getFullYear() + amount);
+              
+              startDate = targetDate.getTime(); // 过去 X 
+              endDate = futureTarget.getTime();  // 未来 X
+              dateDescription = `${dateDescription.replace('过去 ', '')}内`;
+            } else {
+              startDate = targetDate.getTime();
+              endDate = now.getTime();
+            }
           }
           useRangeSummation = isExpenseQuery;
 
@@ -502,6 +536,11 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
               // 保修查询默认覆盖：过去30天(兼容刚过保) 到 未来2年
               startDate = now.getTime() - 30 * 24 * 60 * 60 * 1000;
               endDate = now.getTime() + 730 * 24 * 60 * 60 * 1000;
+              dateDescription = "所有";
+            } else if (recordTypeFilter === 'card') {
+              // [修复] 卡证查询默认窗口放大，避免被 30 天限制过滤
+              startDate = now.getTime() - 365 * 24 * 60 * 60 * 1000;
+              endDate = now.getTime() + 365 * 24 * 60 * 60 * 1000;
               dateDescription = "所有";
             } else {
               startDate = now.getTime();
@@ -584,8 +623,13 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           return false;
         }
 
-        // Standard Expiration/Range Logic (No projection for certain future months)
-        if (s.billingCycle === 'Lifetime' && s.recordType !== 'warranty') return false;
+        // Standard Expiration/Range Logic
+        // 修正：允许卡证(Indefinite)和保修(Lifetime)参与到期过滤
+        if (s.billingCycle === 'Lifetime' || s.billingCycle === 'Indefinite' || s.recordType === 'groupBuy') {
+           // 对于这些类型，直接判断其 nextBillingDate (即到期日) 是否在范围内
+           if (s.nextBillingDate >= startDate && s.nextBillingDate <= endDate) return true;
+           return false;
+        }
 
         let targetRealDate = s.nextBillingDate;
         if (targetRealDate >= startDate && targetRealDate <= endDate) return true;
@@ -724,6 +768,8 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           resultText = `已为您找到${dateDescription}即将过期的团购券共 ${totalCount} 张。`;
         } else if (recordTypeFilter === 'warranty') {
           resultText = `已为您找到${dateDescription}保修记录共 ${totalCount} 条。`;
+        } else if (recordTypeFilter === 'card') {
+          resultText = `已为您找到${dateDescription}卡证记录共 ${totalCount} 条。`;
         } else {
           resultText = `已为您找到${dateDescription}即将到期的订阅共 ${totalCount} 条。`;
         }
@@ -732,6 +778,8 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           resultText = `在${dateDescription}没有找到任何团购券记录。`;
         } else if (recordTypeFilter === 'warranty') {
           resultText = `在${dateDescription}没有找到相关的保修记录。`;
+        } else if (recordTypeFilter === 'card') {
+          resultText = `在${dateDescription}没有找到相关的卡证记录。`;
         } else {
           resultText = `在${dateDescription}没有找到符合要求的记录。`;
         }
@@ -745,7 +793,6 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       }
 
       const resultData: Record<string, Object> = {
-        'count': totalCount,
         'totalAmount': totalAmount.toFixed(2),
         'resultText': resultText,
         'errorMessage': ""
@@ -831,7 +878,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       }
 
       // ==== 1. 优先判定业务类型 (recordType) ====
-      let recordType: 'subscription' | 'groupBuy' | 'warranty' = 'subscription';
+      let recordType: 'subscription' | 'groupBuy' | 'warranty' | 'card' = 'subscription';
       const recordTypeParam = param['recordType'] as string;
       if (recordTypeParam === 'groupBuy' || recordTypeParam === 'groupbuy' || recordTypeParam === 'group_buy') {
         recordType = 'groupBuy';
@@ -840,9 +887,15 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         cycle = 'Lifetime';
       } else if (recordTypeParam === 'subscription') {
         recordType = 'subscription';
+      } else if (recordTypeParam === 'card') {
+        recordType = 'card';
+        cycle = 'Indefinite';
       } else if (nameInput.toLowerCase().match(/保修|延保|碎屏险|保质期|售后|care/)) {
         recordType = 'warranty';
         cycle = 'Lifetime';
+      } else if (nameInput.toLowerCase().match(/卡$|证$/)) {
+        recordType = 'card';
+        cycle = 'Indefinite';
       }
 
       // ==== 2. 品牌与名称净化逻辑 (仅限保修) ====
@@ -913,6 +966,8 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         else if (platformParam === 'dianping') iconPath = 'builtin://大众点评.png';
       } else if (recordType === 'warranty' && (param['category'] as string)) {
         iconPath = 'warranty_icon:' + (param['category'] as string);
+      } else if (recordType === 'card') {
+        iconPath = 'builtin://卡证.png';
       }
 
       if (!iconPath) {
@@ -980,14 +1035,17 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       let startDate = new Date().getTime();
 
       if (expireDateStr) {
-        const date = new Date(expireDateStr);
+        // 兼容性处理：部分环境不支持 YYYY-MM-DD，统一转为 YYYY/MM/DD
+        const safeDateStr = expireDateStr.replace(/-/g, '/');
+        const date = new Date(safeDateStr);
         if (!isNaN(date.getTime())) {
           nextBillingDate = date.getTime();
         }
       }
 
       if (purchaseDateStr) {
-        const date = new Date(purchaseDateStr);
+        const safeDateStr = purchaseDateStr.replace(/-/g, '/');
+        const date = new Date(safeDateStr);
         if (!isNaN(date.getTime())) {
           startDate = date.getTime();
         }
@@ -1102,10 +1160,15 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
 
 
       if ((cycle === 'Lifetime' || cycle === 'Indefinite') && recordType !== 'warranty') {
-        if (purchaseDateStr) {
-          nextBillingDate = startDate;
-        } else if (expireDateStr) {
-          startDate = nextBillingDate;
+        // 如果用户没给到期日，默认到期日设为 2099-12-31 (永久)
+        if (!expireDateStr || expireDateStr === '2099-12-31') {
+           nextBillingDate = new Date('2099/12/31').getTime();
+           // 永久有效的记录不开启提醒
+           isReminderEnabled = false;
+        }
+        // 如果也没给生效日期，则生效日期 = 到期日期 (针对纯记录类)
+        if (!purchaseDateStr) {
+           startDate = nextBillingDate;
         }
       }
 
@@ -1119,6 +1182,12 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
 
       let category = param['category'] as string;
       const subCategory = param['subCategory'] as string;
+
+      // 卡证特有字段提取
+      const cardType = (param['cardType'] as string) || '其他';
+      const cardBalanceStr = (param['cardBalance'] as string) || (param['balance'] as string) || '';
+      const cardBalance = parseFloat(cardBalanceStr.replace(/[^0-9.]/g, '')) || undefined;
+
       let isAutoRenewal = recordType === 'subscription' && (cycle === 'Monthly' || cycle === 'Quarterly' || cycle === 'Yearly');
       const autoRenewalRaw = param['isAutoRenewal'];
       const autoRenewalStr = autoRenewalRaw !== undefined ? String(autoRenewalRaw).toLowerCase() : '';
@@ -1181,7 +1250,9 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
         quantity: recordType === 'groupBuy' ? quantity : undefined,
         usageStatus: recordType === 'groupBuy' ? 'unused' : undefined,
         purchaseChannel: purchaseChannel || undefined,
-        extendedWarranties: extendedWarranties.length > 0 ? JSON.stringify(extendedWarranties) : undefined
+        extendedWarranties: extendedWarranties.length > 0 ? JSON.stringify(extendedWarranties) : undefined,
+        cardType: recordType === 'card' ? cardType : undefined,
+        cardBalance: recordType === 'card' ? cardBalance : undefined
       };
 
       if (!isReminderEnabled) {
@@ -1279,6 +1350,21 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
           'reminderDaysBefore': reminderDaysStr,
           'reminderTime': reminderTimeStr,
           'resultText': `已为您成功记录 ${newSub.brand || ''}${newSub.name} 的保修信息${extendedWarranties.length > 0 ? `及 ${extendedWarranties.length} 项延保服务` : ''}。${isReminderLimitReached ? '由于您的提醒数量已达上限(30个)，本次添加未开启提醒通知。' : ''}`,
+          'dataPackage': dataPackage,
+          'showPackage': "true"
+        };
+      } else if (recordType === 'card') {
+        resultData = {
+          'name': newSub.name || defVal,
+          'cardBalance': newSub.cardBalance !== undefined ? `${newSub.cardBalance}` : "无",
+          'cardType': newSub.cardType || defVal,
+          'cardCategory': recordType,
+          'purchasedDate': DateUtil.formatDate(newSub.startDate || new Date().getTime()),
+          'expiredDate': DateUtil.formatDate(newSub.nextBillingDate),
+          'isReminderEnabled': reminderEnabledStr,
+          'reminderDaysBefore': reminderDaysStr,
+          'reminderTime': reminderTimeStr,
+          'resultText': `已为您成功记录 ${newSub.name} ${newSub.cardType}，有效期至 ${DateUtil.formatDate(newSub.nextBillingDate)}。${isReminderLimitReached ? '由于您的提醒数量已达上限(30个)，本次添加未开启提醒通知。' : ''}`,
           'dataPackage': dataPackage,
           'showPackage': "true"
         };

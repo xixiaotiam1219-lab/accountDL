@@ -12,7 +12,7 @@ const TITLE_BAR_HEIGHT_MINI: number = 76;
 interface DisplayItem {
   key: string;
   displayName: string;
-  type: 'subscription' | 'groupBuy' | 'warranty' | 'warranty_sub';
+  type: 'subscription' | 'groupBuy' | 'warranty' | 'warranty_sub' | 'card';
   raw: SubscriptionModel;
   warrantyRaw?: ExtendedWarrantyItem;
   reminderDaysBefore?: number;
@@ -156,8 +156,8 @@ export struct ReminderSetupPanel {
   private getDisplayList(): DisplayItem[] {
     const list: DisplayItem[] = [];
     this.subscriptions.forEach(s => {
-      // 1. 添加主项目 (如果是永久订阅且不是保修，则忽略)
-      if (s.billingCycle !== 'Lifetime' || s.recordType === 'warranty') {
+      // 1. 添加主项目 (如果是永久订阅且不是保修或卡证，则忽略)
+      if (s.billingCycle !== 'Lifetime' || s.recordType === 'warranty' || s.recordType === 'card') {
         list.push({
           key: `${s.uuid}_main`,
           displayName: s.name,

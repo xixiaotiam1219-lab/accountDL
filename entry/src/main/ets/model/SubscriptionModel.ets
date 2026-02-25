@@ -18,7 +18,7 @@ export interface SubscriptionModel {
   paymentMethod?: string; // 支付方式 (现金, 银行卡, 支付宝等)
 
   // === 团购券专属字段 ===
-  recordType?: 'subscription' | 'groupBuy' | 'warranty'; // 记录类型，默认 subscription
+  recordType?: 'subscription' | 'groupBuy' | 'warranty' | 'card'; // 记录类型，默认 subscription
   platform?: 'meituan' | 'douyin' | 'dianping'; // 团购平台
   couponCode?: string; // 团购券码
   usageStatus?: 'unused' | 'used' | 'expired'; // 使用状态
@@ -37,6 +37,11 @@ export interface SubscriptionModel {
 
   // === 附加延保服务 ===
   extendedWarranties?: string; // JSON 序列化后的 ExtendedWarrantyItem[]
+
+  // === 卡证专属字段 ===
+  cardLastFour?: string; // 卡号末四位（可选）
+  cardBalance?: number;  // 余额 / 积分（可选）
+  cardType?: string;     // 卡类型标签（银行卡/积分卡/会员卡/储值卡等）
 }
 
 @Observed

@@ -187,9 +187,12 @@ export default class EntryAbility extends UIAbility {
         const action = urlObject.params.get('action');
         const dataStr = urlObject.params.get('data'); // Potentially base64 data
 
-        hilog.info(DOMAIN, 'testTag', `Deep Link Action: ${action}`);
+        hilog.info(DOMAIN, 'testTag', `Deep Link Action: ${action}, Host: ${urlObject.hostname}`);
 
-        if (action === 'import' && dataStr) {
+        if (urlObject.hostname === 'login' || uri.startsWith('accountdl://login')) {
+          hilog.info(DOMAIN, 'testTag', 'Deep Link handling login action');
+          AppStorage.setOrCreate('targetAction', 'Login');
+        } else if (action === 'import' && dataStr) {
           const decodedUriData = decodeURIComponent(dataStr);
           const base64 = new util.Base64Helper();
           const decodedUint8 = base64.decodeSync(decodedUriData);
@@ -324,6 +327,7 @@ export default class EntryAbility extends UIAbility {
         fullDate: string = '';
         isGroupBuy: boolean = false;
         isWarranty: boolean = false;
+        isCard: boolean = false;
         colorStart?: string;
         colorEnd?: string;
         originalItem: string = '';
@@ -481,13 +485,16 @@ export default class EntryAbility extends UIAbility {
           cardItem.originalItem = JSON.stringify(item);
 
           const isLifetime = item.billingCycle === 'Lifetime';
-          const days = isLifetime ? 999 : DateUtil.getDaysUntil(item.nextBillingDate);
-          const dateStr = DateUtil.formatShortDate(item.nextBillingDate);
-
           const isGroupBuy = item.recordType === 'groupBuy';
           const isWarranty = item.recordType === 'warranty';
+          const isCard = item.recordType === 'card';
+          // card 类型虽然 billingCycle=Lifetime，仍需要真实到期日
+          const days = (isLifetime && !isWarranty && !isCard) ? 999 : DateUtil.getDaysUntil(item.nextBillingDate);
+          const dateStr = DateUtil.formatShortDate(item.nextBillingDate);
+
           cardItem.isGroupBuy = isGroupBuy;
           cardItem.isWarranty = isWarranty;
+          cardItem.isCard = isCard;
           cardItem.isLifetime = isLifetime;
 
           if (isGroupBuy) {
@@ -497,6 +504,9 @@ export default class EntryAbility extends UIAbility {
             const days = DateUtil.getDaysUntil(item.nextBillingDate);
             const statusStr = days < 0 ? '过保' : '在保';
             cardItem.content = `${statusStr}:${dateStr}`;
+          } else if (isCard) {
+            // 卡证：显示到期日
+            cardItem.content = days < 0 ? '已过期' : (days === 0 ? '今日到期' : `到期:${dateStr}`);
           } else {
             cardItem.content = isLifetime ? `永久买断` : `到期:${dateStr}`;
           }
@@ -513,7 +523,7 @@ export default class EntryAbility extends UIAbility {
           cardItem.colorEnd = colorEnd;
 
           let priceStr = `${item.currency === 'USD' ? '$' : '¥'}${item.price}`;
-          if (!isGroupBuy && !isWarranty) {
+          if (!isGroupBuy && !isWarranty && !isCard) {
             if (item.billingCycle === 'Monthly') priceStr += '/月';
             else if (item.billingCycle === 'Yearly') priceStr += '/年';
             else if (item.billingCycle === 'Quarterly') priceStr += '/季';
@@ -521,6 +531,10 @@ export default class EntryAbility extends UIAbility {
             else if (item.billingCycle === 'Indefinite') priceStr += '/不定';
           } else if (isWarranty) {
             priceStr = '保修';
+          } else if (isCard) {
+            priceStr = item.cardBalance !== undefined && item.cardBalance !== null
+              ? `余额 ¥${item.cardBalance.toFixed(2)}`
+              : (item.cardType || '卡证');
           }
           cardItem.price = priceStr;
           return cardItem;

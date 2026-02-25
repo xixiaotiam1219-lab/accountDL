@@ -213,6 +213,17 @@ struct Index {
         AppStorage.setOrCreate('targetAction', '');
         this.currentIndex = 2;
         this.tabsController.changeIndex(2);
+      } else if (this.targetAction === 'Login') {
+        hilog.info(0xFEED, 'Index', 'Handling Login action');
+        AppStorage.setOrCreate('targetAction', '');
+        if (!this.isLoggedIn) {
+          if (this.isWide && this.isSplitViewEnabled) {
+            this.pageStack.removeByName('Login');
+            this.pageStack.pushPathByName('Login', null);
+          } else {
+            this.showLoginSheet = true;
+          }
+        }
       }
     }, 0);
   }
@@ -604,8 +615,8 @@ struct Index {
       // 选中背景圈
       if (this.currentIndex === index) {
         Column()
-          .width(64)
-          .height(46)
+          .width(this.hdsBarStyle === HdsBarStyle.EXPAND ? 48 : 64)
+          .height(48) // 稍微统一高度为 48
           .borderRadius(40)
           .backgroundColor(this.isNewYearTheme ? 'rgba(230, 0, 0, 0.1)' : (this.showVipTheme ? 'rgba(255, 215, 0, 0.1)' : 'rgba(10, 89, 247, 0.1)'))
           .visualEffect(new hdsEffect.HdsEffectBuilder()
@@ -615,6 +626,7 @@ struct Index {
             })
             .buildEffect())
           .geometryTransition(this.getIndicatorId())
+          .animation({ curve: curves.springMotion(0.4, 0.84) })
       }
 
       Column() {
@@ -672,15 +684,102 @@ struct Index {
   @Builder
   MiniBarBuilder() {
     Stack({ alignContent: Alignment.Center }) {
-      SymbolGlyph($r('sys.symbol.plus'))
-        .fontSize(24)
+      if (this.hdsBarStyle === HdsBarStyle.COLLAPSE) {
+        // 折叠态：仅显示一个 + 号开关
+        this.MiniBarItemBuilder($r('sys.symbol.plus'), undefined, () => {
+          if (this.isAnimationEnabled) {
+            animateTo({ curve: curves.springMotion(0.4, 0.82) }, () => {
+              this.hdsBarStyle = HdsBarStyle.EXPAND;
+            });
+          } else {
+            this.hdsBarStyle = HdsBarStyle.EXPAND;
+          }
+        })
+      } else {
+        // 展开态：包含 [收起开关(箭头)] + [四个功能图标]
+        // 彻底压减间隙，收起图标专门调窄，解决“比例失调”问题
+        Row() {
+          // 1. 收起开关 (宽度调窄至 32)
+          this.MiniBarItemBuilder($r('sys.symbol.chevron_right'), undefined, () => {
+            if (this.isAnimationEnabled) {
+              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.82) }, () => {
+                this.hdsBarStyle = HdsBarStyle.COLLAPSE;
+              });
+            } else {
+              this.hdsBarStyle = HdsBarStyle.COLLAPSE;
+            }
+          }, 32)
+
+          // 功能图标区域：使用 Scroll 包装，防止紧凑
+          Scroll() {
+            Row() {
+              this.MiniBarItemBuilder($r('sys.symbol.doc_text_badge_clock'), '服务', () => {
+                const params: Record<string, Object> = { 'initialType': 'subscription' };
+                this.pageStack.pushPathByName('AddSubscription', params);
+              })
+
+              this.MiniBarItemBuilder($r('sys.symbol.bag'), '团购', () => {
+                const params: Record<string, Object> = { 'initialType': 'groupBuy' };
+                this.pageStack.pushPathByName('AddSubscription', params);
+              })
+
+              this.MiniBarItemBuilder($r('sys.symbol.shield_checkered'), '保修', () => {
+                const params: Record<string, Object> = { 'initialType': 'warranty' };
+                this.pageStack.pushPathByName('AddSubscription', params);
+              })
+
+              this.MiniBarItemBuilder($r('sys.symbol.creditcard'), '卡证', () => {
+                const params: Record<string, Object> = { 'initialType': 'card' };
+                this.pageStack.pushPathByName('AddSubscription', params);
+              })
+
+              this.MiniBarItemBuilder($r('sys.symbol.star'), '推荐', () => {
+                this.pageStack.removeByName('SubscriptionMarketplace');
+                this.pageStack.pushPathByName('SubscriptionMarketplace', null);
+              })
+            }
+          }
+          .scrollable(ScrollDirection.Horizontal)
+          .scrollBar(BarState.Off)
+          .edgeEffect(EdgeEffect.Spring)
+          .layoutWeight(1)
+          .margin({ left: 4 })
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.Center)
+        .transition(TransitionEffect.asymmetric(
+          TransitionEffect.OPACITY.combine(TransitionEffect.scale({ x: 0.9, y: 0.9 })),
+          TransitionEffect.OPACITY.combine(TransitionEffect.scale({ x: 0.9, y: 0.9 }))
+        ))
+      }
+    }
+    .width(this.hdsBarStyle === HdsBarStyle.EXPAND ? 'auto' : 56) // 折叠时固定宽度
+    .height('100%')
+  }
+
+  @Builder
+  MiniBarItemBuilder(icon: Resource, label?: string, action: () => void = () => {}, customWidth: number = 48) {
+    Column() {
+      // 图标容器
+      SymbolGlyph(icon)
+        .fontSize(20)
         .fontColor([this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))])
         .fontWeight(FontWeight.Bold)
+
+      if (label) {
+        Text(label)
+          .fontSize(10)
+          .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+          .fontWeight(FontWeight.Medium)
+          .margin({ top: 1 })
+      }
     }
-    .width('100%')
-    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .width(customWidth) // 使用自定义宽度，收起按钮为 32，功能按钮为 48
+    .height(48)
     .onClick(() => {
-      this.onAddClick();
+      action();
     })
   }
 
@@ -719,7 +818,7 @@ struct Index {
           isCompact: this.smartHandMode !== 'center',
           onSelect: () => {
             if (this.isAnimationEnabled) {
-              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
+              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.84) }, () => {
                 this.currentIndex = 0;
                 this.indicatorScale = { x: 1.3, y: 0.7 } as Scale;
               })
@@ -746,7 +845,7 @@ struct Index {
           isCompact: this.smartHandMode !== 'center',
           onSelect: () => {
             if (this.isAnimationEnabled) {
-              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
+              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.84) }, () => {
                 this.currentIndex = 1;
                 this.indicatorScale = { x: 1.3, y: 0.7 } as Scale;
               })
@@ -840,7 +939,7 @@ struct Index {
           isCompact: this.smartHandMode !== 'center',
           onSelect: () => {
             if (this.isAnimationEnabled) {
-              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
+              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.84) }, () => {
                 this.currentIndex = 2;
                 this.indicatorScale = { x: 1.3, y: 0.7 } as Scale;
               })
@@ -868,7 +967,7 @@ struct Index {
           isCompact: this.smartHandMode !== 'center',
           onSelect: () => {
             if (this.isAnimationEnabled) {
-              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.8) }, () => {
+              animateTo({ duration: 400, curve: curves.springMotion(0.4, 0.84) }, () => {
                 this.currentIndex = 3;
                 this.indicatorScale = { x: 1.3, y: 0.7 } as Scale;
               })
@@ -1145,6 +1244,7 @@ struct Index {
                   .barFloatingStyle({
                     barSideMargin: 24,
                     barBottomMargin: this.getUIContext().px2vp(this.bottomRectHeight) + 8,
+                    // barOpacity:0,
                     adaptToHandedness: this.isSmartGestureEnabled && !this.isWide, // Enable single-hand mode only on narrow screens
                     lightColor: this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')),
                     miniBar: {
@@ -1598,7 +1698,7 @@ struct TabBarItem {
             .fontColor([this.currentIndex === this.index ? (this.isNewYearTheme ? $r('app.color.new_year_red_start') : (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color'))) : $r('app.color.text_secondary')])
             .scale({ x: (this.currentIndex === this.index ? 1.05 : 1.0) * this.scaleVal, y: (this.currentIndex === this.index ? 1.05 : 1.0) * this.scaleVal })
             .fontWeight(this.currentIndex === this.index ? FontWeight.Bold : FontWeight.Normal)
-            .animation({ duration: 350, curve: curves.springMotion(0.4, 0.8) })
+            .animation({ duration: 350, curve: curves.springMotion(0.4, 0.84) })
 
           Text(this.name)
             .fontSize(this.isCompact ? 8 : 9)

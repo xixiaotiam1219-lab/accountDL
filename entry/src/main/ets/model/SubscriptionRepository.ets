@@ -71,7 +71,7 @@ interface CloudSyncResponse {
 export interface MinimalCardItem {
   id: number | string;
   uuid?: string;
-  recordType: 'subscription' | 'groupBuy' | 'warranty';
+  recordType: 'subscription' | 'groupBuy' | 'warranty' | 'card';
   usageStatus: 'unused' | 'used' | 'expired';
   isWarranty?: boolean;
   name: string;
@@ -102,6 +102,7 @@ class SnapshotItem {
   isLifetime: boolean = false;
   isGroupBuy: boolean = false;
   isWarranty: boolean = false;
+  isCard: boolean = false;
   originalItem: string = '';
 }
 
@@ -203,7 +204,11 @@ export class SubscriptionRepository {
       { name: 'subCategory', type: 'TEXT' },
       { name: 'isAutoRenewal', type: 'INTEGER DEFAULT 1' },
       { name: 'lastModified', type: 'INTEGER' },
-      { name: 'isDeleted', type: 'INTEGER DEFAULT 0' }
+      { name: 'isDeleted', type: 'INTEGER DEFAULT 0' },
+      // 卡证专属字段
+      { name: 'cardLastFour', type: 'TEXT' },
+      { name: 'cardBalance', type: 'REAL' },
+      { name: 'cardType', type: 'TEXT' }
     ];
 
     try {
@@ -284,7 +289,11 @@ export class SubscriptionRepository {
       // 附加延保服务字段 (JSON)
       extendedWarranties: subscription.extendedWarranties || null,
       // 提醒状态
-      lastIgnoredBillingDate: subscription.lastIgnoredBillingDate || null
+      lastIgnoredBillingDate: subscription.lastIgnoredBillingDate || null,
+      // 卡证字段
+      cardLastFour: subscription.cardLastFour || null,
+      cardBalance: subscription.cardBalance !== undefined ? subscription.cardBalance : null,
+      cardType: subscription.cardType || null
     };
     const rowId = await this.rdbStore.insert(TABLE_NAME, valueBucket);
 
@@ -389,10 +398,12 @@ export class SubscriptionRepository {
       // 如果是自动续费导致的日期变动，同步更新卡片快照
       this.updateWidgetSnapshotSync('auto_renewal');
     }
-    // 统一排序：按扣款日期升序，但将永久订阅的项目沉底（因为它们没有后续扣款，且不需要提醒）
+    // 统一排序：按扣款日期升序，但将永久订阅（非卡证）沉底（它们没有后续扣款）
     subscriptions.sort((a, b) => {
-      if (a.billingCycle === 'Lifetime' && b.billingCycle !== 'Lifetime') return 1;
-      if (a.billingCycle !== 'Lifetime' && b.billingCycle === 'Lifetime') return -1;
+      const aIsLifetime = a.billingCycle === 'Lifetime' && a.recordType !== 'card';
+      const bIsLifetime = b.billingCycle === 'Lifetime' && b.recordType !== 'card';
+      if (aIsLifetime && !bIsLifetime) return 1;
+      if (!aIsLifetime && bIsLifetime) return -1;
       return a.nextBillingDate - b.nextBillingDate;
     });
 
@@ -462,7 +473,11 @@ export class SubscriptionRepository {
       // 附加延保服务字段 (JSON)
       extendedWarranties: subscription.extendedWarranties || null,
       // 提醒状态
-      lastIgnoredBillingDate: subscription.lastIgnoredBillingDate || null
+      lastIgnoredBillingDate: subscription.lastIgnoredBillingDate || null,
+      // 卡证字段
+      cardLastFour: subscription.cardLastFour || null,
+      cardBalance: subscription.cardBalance !== undefined ? subscription.cardBalance : null,
+      cardType: subscription.cardType || null
     };
     const predicates = new relationalStore.RdbPredicates(TABLE_NAME);
     if (!subscription.id) {
@@ -686,7 +701,7 @@ export class SubscriptionRepository {
       isAutoRenewal: this.getLongSafe(resultSet, 'isAutoRenewal') !== 0, // Default to true if missing or 1 (since 0 is false)
       paymentMethod: this.getStringSafe(resultSet, 'paymentMethod') || '其他支付方式',
       // 团购券字段
-      recordType: (this.getStringSafe(resultSet, 'recordType') || 'subscription') as 'subscription' | 'groupBuy' | 'warranty',
+      recordType: (this.getStringSafe(resultSet, 'recordType') || 'subscription') as 'subscription' | 'groupBuy' | 'warranty' | 'card',
       platform: this.getStringSafe(resultSet, 'platform') as 'meituan' | 'douyin' | 'dianping',
       couponCode: this.getStringSafe(resultSet, 'couponCode'),
       usageStatus: (this.getStringSafe(resultSet, 'usageStatus') || 'unused') as 'unused' | 'used' | 'expired',
@@ -698,7 +713,11 @@ export class SubscriptionRepository {
       brand: this.getStringSafe(resultSet, 'brand'),
       purchaseChannel: this.getStringSafe(resultSet, 'purchaseChannel'),
       extendedWarranties: this.getStringSafe(resultSet, 'extendedWarranties'),
-      lastIgnoredBillingDate: this.getLongOrUndefined(resultSet, 'lastIgnoredBillingDate')
+      lastIgnoredBillingDate: this.getLongOrUndefined(resultSet, 'lastIgnoredBillingDate'),
+      // 卡证字段
+      cardLastFour: this.getStringSafe(resultSet, 'cardLastFour'),
+      cardBalance: this.getDoubleSafe(resultSet, 'cardBalance') || undefined,
+      cardType: this.getStringSafe(resultSet, 'cardType')
     };
   }
 
@@ -760,7 +779,11 @@ export class SubscriptionRepository {
 
         const isGroupBuy = item.recordType === 'groupBuy';
         const isWarranty = item.recordType === 'warranty';
+        const isCard = item.recordType === 'card';
         const isLifetime = item.billingCycle === 'Lifetime';
+        // 证件类型（驾照、身份证、护照等）
+        const ID_TYPES = ['驾照/行驶证', '身份证/护照', '社保卡/医保卡'];
+        const isIDCard = isCard && (item.cardType ? ID_TYPES.includes(item.cardType) : false);
 
         const snapshotItem = new SnapshotItem();
         
@@ -770,11 +793,8 @@ export class SubscriptionRepository {
            snapshotItem.content = item.merchantName ? `${item.merchantName} | ${statusText}` : statusText;
         } else if (isWarranty) {
            snapshotItem.title = item.name || '未知保修';
-           // 保修卡片无论是否设为 Lifetime，只要到期日有效就显示到期日
            snapshotItem.content = `保修:${dateStr}`;
            
-           // 预计算保修视觉 (解决跨模块隔离)
-           // 优先使用 category 作为图标查找依据，因为 name 可能是用户自定义的
            let warrantyName = item.name || '';
            if (item.category && WARRANTY_ICON_MAP_NAMES[item.category]) {
              warrantyName = item.category;
@@ -787,10 +807,20 @@ export class SubscriptionRepository {
            snapshotItem.colorStart = colors[0];
            snapshotItem.colorEnd = colors[1];
            
-           // 转换为 rawfile 路径
            const svgPath = WARRANTY_ICON_MAP_NAMES[warrantyName];
            if (svgPath) {
              snapshotItem.icon = `rawfile:${svgPath}`;
+           }
+        } else if (isCard) {
+           // 卡证类型：证件显示有效期，其他显示卡类型/余额
+           snapshotItem.title = item.name || '未知卡证';
+           if (isIDCard) {
+             // 证件类型：显示有效期
+             snapshotItem.content = `有效期至 ${dateStr}`;
+           } else if (item.cardBalance !== undefined && item.cardBalance !== null) {
+             snapshotItem.content = `${item.cardType || '卡证'} · 余额 ¥${(item.cardBalance as number).toFixed(2)}`;
+           } else {
+             snapshotItem.content = item.cardType || '卡证';
            }
         } else if (isLifetime) {
            snapshotItem.title = item.name || '未知订阅';
@@ -807,8 +837,9 @@ export class SubscriptionRepository {
         snapshotItem.isLifetime = isLifetime;
         snapshotItem.isGroupBuy = isGroupBuy;
         snapshotItem.isWarranty = isWarranty;
+        snapshotItem.isCard = isCard;
 
-        // 普通订阅和保修在剩余3天内标红；团购券如果是未使用且剩余3天内也标红
+        // 普通订阅和保修在剩余3天内标红；团购券如果是未使用且剩余3天内也标红；证件类有效期内3天标红
         if (isGroupBuy) {
             snapshotItem.isExpiring = item.usageStatus === 'unused' && days <= 3;
         } else {

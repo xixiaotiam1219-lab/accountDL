@@ -242,6 +242,10 @@ export struct MonthlyReportSheet {
   }
 
   getItemInfo(sub: SubscriptionModel): string {
+    if (sub.recordType === 'card') {
+      return '';
+    }
+
     if (sub.recordType === 'groupBuy') {
       return (sub.subCategory ? `团购券 · ${sub.subCategory}` : '团购券');
     }

@@ -48,6 +48,9 @@ export struct SubscriptionCard {
       const days = DateUtil.getDaysUntil(this.data.nextBillingDate);
       return days < 0 ? '过保' : '在保';
     }
+    if (this.data.recordType === 'card') {
+      return this.data.cardType || '卡证';
+    }
     switch (this.data.billingCycle) {
       case 'Monthly': return '月付';
       case 'Quarterly': return '季付';
@@ -126,7 +129,9 @@ export struct SubscriptionCard {
               iconSize: 52,
               iconRadius: 14,
               showGroupBadge: this.data.recordType === 'groupBuy',
-              showWarrantyBadge: this.data.recordType === 'warranty'
+              showWarrantyBadge: this.data.recordType === 'warranty',
+              showCardBadge: this.data.recordType === 'card',
+              showServiceBadge: this.data.recordType !== 'groupBuy' && this.data.recordType !== 'warranty' && this.data.recordType !== 'card'
             })
               .margin({ right: 14 })
               .flexShrink(0)
@@ -166,6 +171,13 @@ export struct SubscriptionCard {
                     Span(' · ')
                     Span(this.data.purchaseChannel)
                   }
+                } else if (this.data.recordType === 'card') {
+                  // 卡证类型：显示卡类型
+                  Span(this.data.cardType || '卡证')
+                  if (this.data.cardLastFour) {
+                    Span(' · ')
+                    Span(`尾号 ${this.data.cardLastFour}`)
+                  }
                 } else {
                   Span(this.getBillingCycleShortText())
 
@@ -191,21 +203,50 @@ export struct SubscriptionCard {
 
             // 3. 右侧价格与状态区
             Column() {
-              Row() {
-                Text(this.data.currency === 'USD' ? '$' : '¥')
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor($r('app.color.text_primary'))
-                  .margin({ right: 2, top: 2 })
-                Text(`${(this.data.price || 0).toFixed(2)}`)
-                  .fontSize(20)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.text_primary')))
+              if (this.data.recordType === 'card') {
+                // 卡证：不显示订阅价格，改为显示余额（如有）
+                if (this.data.cardBalance !== undefined && this.data.cardBalance !== null) {
+                  Row() {
+                    Text('¥')
+                      .fontSize(14)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor($r('app.color.text_primary'))
+                      .margin({ right: 2, top: 2 })
+                    Text(`${this.data.cardBalance.toFixed(2)}`)
+                      .fontSize(20)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.text_primary')))
+                  }
+                  .alignItems(VerticalAlign.Bottom)
+                  .margin({ bottom: 4 })
+                  Text('余额')
+                    .fontSize(11)
+                    .fontColor($r('app.color.text_secondary'))
+                    .margin({ bottom: 4 })
+                } else {
+                  Text(this.data.cardType || '卡证')
+                    .fontSize(16)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.text_primary')))
+                    .margin({ bottom: 4 })
+                }
+              } else {
+                Row() {
+                  Text(this.data.currency === 'USD' ? '$' : '¥')
+                    .fontSize(14)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor($r('app.color.text_primary'))
+                    .margin({ right: 2, top: 2 })
+                  Text(`${(this.data.price || 0).toFixed(2)}`)
+                    .fontSize(20)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.text_primary')))
+                }
+                .alignItems(VerticalAlign.Bottom)
+                .margin({ bottom: 4 })
               }
-              .alignItems(VerticalAlign.Bottom)
-              .margin({ bottom: 4 })
 
-              if (this.data.recordType !== 'groupBuy' && this.data.recordType !== 'warranty' && (this.data.billingCycle === 'Yearly' || this.data.billingCycle === 'Quarterly')) {
+              if (this.data.recordType !== 'groupBuy' && this.data.recordType !== 'warranty' && this.data.recordType !== 'card' && (this.data.billingCycle === 'Yearly' || this.data.billingCycle === 'Quarterly')) {
                 Text(`≈ ¥${(this.data.billingCycle === 'Yearly' ? (this.data.price || 0) / 12 : (this.data.price || 0) / 3).toFixed(2)}/月`)
                   .fontSize(10)
                   .fontColor($r('app.color.text_secondary'))
@@ -213,7 +254,8 @@ export struct SubscriptionCard {
                   .margin({ bottom: 4 })
               }
 
-              if (this.data.recordType === 'groupBuy' || this.data.recordType === 'warranty' || this.data.billingCycle !== 'Lifetime') {
+
+              if (this.data.recordType === 'groupBuy' || this.data.recordType === 'warranty' || this.data.recordType === 'card' || this.data.billingCycle !== 'Lifetime') {
                 Row() {
                   if (this.data.recordType === 'groupBuy') {
                     // 团购券状态显示
@@ -233,6 +275,15 @@ export struct SubscriptionCard {
                           (this.isNewYearTheme ? $r('app.color.sub_card_ny_text') :
                             (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.warning_color'))) :
                           $r('app.color.text_secondary')))
+                  } else if (this.data.recordType === 'card') {
+                    // 卡证到期日显示
+                    Text(DateUtil.getDaysUntil(this.data.nextBillingDate) < 0 ? '已过期' :
+                      (DateUtil.getDaysUntil(this.data.nextBillingDate) === 0 ? '今日到期' : `到期:${DateUtil.formatShortDate(this.data.nextBillingDate)}`))
+                      .fontSize(11)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor(DateUtil.getDaysUntil(this.data.nextBillingDate) <= 3
+                        ? (this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.warning_color')))
+                        : $r('app.color.text_secondary'))
                   } else {
                     if (this.data.isAutoRenewal !== false) {
                       SymbolGlyph($r('sys.symbol.repeat'))
@@ -249,7 +300,7 @@ export struct SubscriptionCard {
                         : $r('app.color.text_secondary'))
                   }
                 }
-                .opacity(this.data.recordType === 'groupBuy' || this.data.recordType === 'warranty' || DateUtil.getDaysUntil(this.data.nextBillingDate) <= 3 ? 1 : 0.8)
+                .opacity(this.data.recordType === 'groupBuy' || this.data.recordType === 'warranty' || this.data.recordType === 'card' || DateUtil.getDaysUntil(this.data.nextBillingDate) <= 3 ? 1 : 0.8)
               }
             }
             .alignItems(HorizontalAlign.End)

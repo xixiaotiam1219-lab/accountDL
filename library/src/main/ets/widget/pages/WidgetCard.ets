@@ -239,6 +239,26 @@ struct WidgetCard {
                     .borderRadius(4)
                     .padding({ left: 3, right: 3, top: 1, bottom: 1 })
                 }
+
+                if (item.isCard) {
+                  Text("卡")
+                    .fontSize(9)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(Color.White)
+                    .backgroundColor('#5856D6')
+                    .borderRadius(4)
+                    .padding({ left: 3, right: 3, top: 1, bottom: 1 })
+                }
+
+                if (!item.isGroupBuy && !item.isWarranty && !item.isCard) {
+                  Text("服")
+                    .fontSize(9)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(Color.White)
+                    .backgroundColor('#34C759')
+                    .borderRadius(4)
+                    .padding({ left: 3, right: 3, top: 1, bottom: 1 })
+                }
              }
           }
           .width('100%')
@@ -348,6 +368,7 @@ interface CardListItemData {
   isLifetime?: boolean;
   isGroupBuy?: boolean;
   isWarranty?: boolean;
+  isCard?: boolean;
   fullDate?: string;
   originalItem?: string;
 }

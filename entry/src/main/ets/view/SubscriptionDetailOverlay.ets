@@ -145,17 +145,48 @@ export struct SubscriptionDetailOverlay {
                 iconSize: 72,
                 iconRadius: 20,
                 showGroupBadge: this.data.recordType === 'groupBuy',
-                showWarrantyBadge: this.data.recordType === 'warranty'
+                showWarrantyBadge: this.data.recordType === 'warranty',
+                showCardBadge: this.data.recordType === 'card',
+                showServiceBadge: this.data.recordType !== 'groupBuy' && this.data.recordType !== 'warranty' && this.data.recordType !== 'card'
               })
                 .margin({ right: 16 })
 
-              Column() {
-                Text(this.data.name)
-                  .fontSize(24)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_title') :
-                    (this.showVipTheme ? $r('app.color.sub_card_vip_title') : $r('app.color.text_primary')))
-                  .margin({ bottom: 8 })
+              Column({ space: 6 }) {
+                // 名字 + 类型徽章
+                Row({ space: 8 }) {
+                  Text(this.data.name)
+                    .fontSize(24)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_title') :
+                      (this.showVipTheme ? $r('app.color.sub_card_vip_title') : $r('app.color.text_primary')))
+                    .layoutWeight(1)
+                    .maxLines(2)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+                  if (this.data.recordType === 'groupBuy') {
+                    Text("团购")
+                      .fontSize(11).fontWeight(FontWeight.Bold).fontColor(Color.White)
+                      .backgroundColor('#FF9500').borderRadius(6)
+                      .padding({ left: 5, right: 5, top: 2, bottom: 2 }).flexShrink(0)
+                  } else if (this.data.recordType === 'warranty') {
+                    Text("保修")
+                      .fontSize(11).fontWeight(FontWeight.Bold).fontColor(Color.White)
+                      .backgroundColor('#007AFF').borderRadius(6)
+                      .padding({ left: 5, right: 5, top: 2, bottom: 2 }).flexShrink(0)
+                  } else if (this.data.recordType === 'card') {
+                    Text("卡证")
+                      .fontSize(11).fontWeight(FontWeight.Bold).fontColor(Color.White)
+                      .backgroundColor('#5856D6').borderRadius(6)
+                      .padding({ left: 5, right: 5, top: 2, bottom: 2 }).flexShrink(0)
+                  } else {
+                    Text("服务")
+                      .fontSize(11).fontWeight(FontWeight.Bold).fontColor(Color.White)
+                      .backgroundColor('#34C759').borderRadius(6)
+                      .padding({ left: 5, right: 5, top: 2, bottom: 2 }).flexShrink(0)
+                  }
+                }
+                .width('100%')
+                .alignItems(VerticalAlign.Center)
 
                 Text(this.data.recordType === 'groupBuy' ?
                   ((this.data.merchantName ? this.data.merchantName + ' · ' : '') +
@@ -163,7 +194,9 @@ export struct SubscriptionDetailOverlay {
                       (this.data.platform === 'dianping' ? '大众点评' : '抖音'))) :
                   (this.data.recordType === 'warranty' ?
                     (((DateUtil.getDaysUntil(this.data.nextBillingDate) < 0 ? '过保' : '在保')) + (this.data.brand ? ` · ${this.data.brand}` : '') + (this.data.purchaseChannel ? ` · ${this.data.purchaseChannel}` : '')) :
-                    (this.getBillingCycleShortText() + (this.data.category ? ` · ${this.data.category}` : ''))))
+                    (this.data.recordType === 'card' ?
+                      ((this.data.cardType || '卡证') + (this.data.cardLastFour ? ` · 尾号 ${this.data.cardLastFour}` : '')) :
+                      (this.getBillingCycleShortText() + (this.data.category ? ` · ${this.data.category}` : '')))))
                   .fontSize(14)
                   .fontColor($r('app.color.text_secondary'))
                   .opacity(0.8)
@@ -182,23 +215,48 @@ export struct SubscriptionDetailOverlay {
               Column({ space: 16 }) {
                 // 价格详情
                 Row() {
-                  Text(this.data.recordType === 'groupBuy' ? '支付金额' : (this.data.recordType === 'warranty' ? '购买价格' : '价格'))
+                  Text(this.data.recordType === 'groupBuy' ? '支付金额' :
+                    (this.data.recordType === 'warranty' ? '购买价格' :
+                      (this.data.recordType === 'card' ? '卡内余额' : '价格')))
                     .fontSize(14)
                     .fontColor($r('app.color.text_secondary'))
                   Blank()
-                  Row() {
-                    Text(this.data.currency === 'USD' ? '$' : '¥')
-                      .fontSize(14)
-                      .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') :
-                        (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.text_primary')))
-                      .margin({ right: 4, top: 2 })
-                    Text((this.data.price || 0).toFixed(2))
-                      .fontSize(24)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') :
-                        (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.text_primary')))
+                  if (this.data.recordType === 'card') {
+                    // 卡证：显示余额而非订阅价格
+                    if (this.data.cardBalance !== undefined && this.data.cardBalance !== null) {
+                      Row() {
+                        Text('¥')
+                          .fontSize(14)
+                          .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') :
+                            (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.text_primary')))
+                          .margin({ right: 4, top: 2 })
+                        Text(this.data.cardBalance.toFixed(2))
+                          .fontSize(24)
+                          .fontWeight(FontWeight.Bold)
+                          .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') :
+                            (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.text_primary')))
+                      }
+                      .alignItems(VerticalAlign.Bottom)
+                    } else {
+                      Text('未设置')
+                        .fontSize(16)
+                        .fontColor($r('app.color.text_secondary'))
+                    }
+                  } else {
+                    Row() {
+                      Text(this.data.currency === 'USD' ? '$' : '¥')
+                        .fontSize(14)
+                        .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') :
+                          (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.text_primary')))
+                        .margin({ right: 4, top: 2 })
+                      Text((this.data.price || 0).toFixed(2))
+                        .fontSize(24)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') :
+                          (this.showVipTheme ? $r('app.color.sub_card_vip_text') : $r('app.color.text_primary')))
+                    }
+                    .alignItems(VerticalAlign.Bottom)
                   }
-                  .alignItems(VerticalAlign.Bottom)
                 }
                 .width('100%')
 
@@ -418,7 +476,51 @@ export struct SubscriptionDetailOverlay {
                   .margin({ top: 8 })
                 }
 
-                if (this.data.recordType !== 'groupBuy' && this.data.recordType !== 'warranty') {
+                if (this.data.recordType === 'card') {
+                  // ========== 卡证详情 ==========
+                  if (this.data.cardType) {
+                    Row() {
+                      Text('卡片类型')
+                        .fontSize(14)
+                        .fontColor($r('app.color.text_secondary'))
+                      Blank()
+                      Text(this.data.cardType)
+                        .fontSize(16)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor($r('app.color.text_primary'))
+                    }
+                    .width('100%')
+                  }
+
+                  if (this.data.cardLastFour) {
+                    Row() {
+                      Text('卡号末四位')
+                        .fontSize(14)
+                        .fontColor($r('app.color.text_secondary'))
+                      Blank()
+                      Text(`**** **** **** ${this.data.cardLastFour}`)
+                        .fontSize(16)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor($r('app.color.text_primary'))
+                    }
+                    .width('100%')
+                  }
+
+                  if (this.data.cardBalance !== undefined && this.data.cardBalance !== null) {
+                    Row() {
+                      Text('余额 / 积分')
+                        .fontSize(14)
+                        .fontColor($r('app.color.text_secondary'))
+                      Blank()
+                      Text(`¥${this.data.cardBalance.toFixed(2)}`)
+                        .fontSize(16)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor($r('app.color.text_primary'))
+                    }
+                    .width('100%')
+                  }
+
+                } else if (this.data.recordType !== 'groupBuy' && this.data.recordType !== 'warranty') {
                   // 原有订阅详情
                   // 下次扣费
                   if (this.data.billingCycle !== 'Lifetime') {
@@ -496,7 +598,7 @@ export struct SubscriptionDetailOverlay {
                 }
 
                 // 支付方式
-                if (this.data.paymentMethod && this.data.recordType !== 'warranty') {
+                if (this.data.paymentMethod && this.data.recordType !== 'warranty' && this.data.recordType !== 'card') {
                   Row() {
                     Text('支付方式')
                       .fontSize(14)

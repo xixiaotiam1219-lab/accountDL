@@ -98,7 +98,7 @@ export struct HomeView {
   @State sortOrder: string = 'date_asc'; // date_asc, date_desc, price_desc, price_asc, name_asc
   @State pendingNavigationItem: SubscriptionModel | null = null;
   @State showSyncGuide: boolean = false; // 控制同步指南显示
-  @StorageLink('homeCurrentTab') currentTab: 'all' | 'subscription' | 'groupBuy' | 'warranty' = 'all'; // 全部/订阅/团购/保修切换
+  @StorageLink('homeCurrentTab') currentTab: 'all' | 'subscription' | 'groupBuy' | 'warranty' | 'card' = 'all'; // 全部/订阅/团购/保修/卡证切换
   @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
   @StorageLink('smartHandMode') smartHandMode: 'left' | 'right' | 'center' = 'center';
   @StorageLink('statusBarHeight') statusBarHeight: number = 0;
@@ -112,7 +112,8 @@ export struct HomeView {
     { name: '全部', id: 'all' } as TabCategory,
     { name: '服务', id: 'subscription' } as TabCategory,
     { name: '团购', id: 'groupBuy' } as TabCategory,
-    { name: '保修', id: 'warranty' } as TabCategory
+    { name: '保修', id: 'warranty' } as TabCategory,
+    { name: '卡证', id: 'card' } as TabCategory
   ];
 
 
@@ -455,10 +456,10 @@ export struct HomeView {
         return false;
       }
 
-      // 永久项目（非保修非团购）无自动续费提醒，“不定周期”如果有到期日则提醒
-      // 如果关闭了自动续费（且非保修非团购），也不提示近期续费
-      if (item.billingCycle === 'Lifetime' && item.recordType !== 'warranty' && item.recordType !== 'groupBuy') return false;
-      if (item.isAutoRenewal === false && item.recordType !== 'warranty' && item.recordType !== 'groupBuy') return false;
+      // 永久项目（非保修非团购非卡证）无自动续费提醒，“不定周期”如果有到期日则提醒
+      // 如果关闭了自动续费（且非保修非团购非卡证），也不提示近期续费
+      if (item.billingCycle === 'Lifetime' && item.recordType !== 'warranty' && item.recordType !== 'groupBuy' && item.recordType !== 'card') return false;
+      if (item.isAutoRenewal === false && item.recordType !== 'warranty' && item.recordType !== 'groupBuy' && item.recordType !== 'card') return false;
 
       const days = DateUtil.getDaysUntil(item.nextBillingDate);
       return days >= 0 && days <= 3;
@@ -539,6 +540,9 @@ export struct HomeView {
     }
     if (this.currentTab === 'warranty') {
       return this.subscriptions.filter(item => item.recordType === 'warranty');
+    }
+    if (this.currentTab === 'card') {
+      return this.subscriptions.filter(item => item.recordType === 'card');
     }
     // 默认显示订阅记录（包括没有 recordType 字段的旧数据）
     return this.subscriptions.filter(item => !item.recordType || item.recordType === 'subscription');
@@ -809,9 +813,9 @@ export struct HomeView {
                 .margin({ right: 6 })
 
               Text() {
-                Span(this.getUpcomingRenewals()[0].recordType === 'groupBuy' ? '团购券 ' : (this.getUpcomingRenewals()[0].recordType === 'warranty' ? '保修 ' : '服务 '))
+                Span(this.getUpcomingRenewals()[0].recordType === 'groupBuy' ? '团购券 ' : (this.getUpcomingRenewals()[0].recordType === 'warranty' ? '保修 ' : (this.getUpcomingRenewals()[0].recordType === 'card' ? '卡证 ' : '服务 ')))
                 Span(`${this.getUpcomingRenewals()[0].name}`)
-                Span(` 等 ${this.getUpcomingRenewals().length} 项近期${(this.getUpcomingRenewals()[0].recordType === 'groupBuy' || this.getUpcomingRenewals()[0].recordType === 'warranty') ? '过期' : '续费'}`)
+                Span(` 等 ${this.getUpcomingRenewals().length} 项近期${(this.getUpcomingRenewals()[0].recordType === 'groupBuy' || this.getUpcomingRenewals()[0].recordType === 'warranty' || this.getUpcomingRenewals()[0].recordType === 'card') ? '过期' : '续费'}`)
               }
               .fontColor(this.isNewYearTheme ? $r('app.color.new_year_text_on_red') : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White))
               .fontSize(13).fontWeight(FontWeight.Medium)
@@ -879,13 +883,17 @@ export struct HomeView {
   @Builder EmptyState() {
     Column() {
       SymbolGlyph(this.currentTab === 'groupBuy' ? $r('sys.symbol.bag') : 
-        (this.currentTab === 'warranty' ? $r('sys.symbol.shield_checkered') : $r('sys.symbol.plus')))
+        (this.currentTab === 'warranty' ? $r('sys.symbol.shield_checkered') : 
+        (this.currentTab === 'card' ? $r('sys.symbol.creditcard') :
+        (this.currentTab === 'subscription' ? $r('sys.symbol.doc_text_badge_clock') : $r('sys.symbol.plus')))))
         .fontSize(56)
         .fontColor([$r('app.color.text_secondary')])
         .margin({ bottom: 16 })
       
       Text(this.currentTab === 'groupBuy' ? "暂无团购" : 
-        (this.currentTab === 'warranty' ? "暂无保修" : "暂无服务"))
+        (this.currentTab === 'warranty' ? "暂无保修" : 
+        (this.currentTab === 'card' ? "暂无卡证" :
+        (this.currentTab === 'all' ? "暂无订阅" : "暂无服务"))))
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
         .fontColor($r('app.color.text_primary'))
@@ -1059,18 +1067,20 @@ export struct HomeView {
 
                 Column() {
                   Text(DateUtil.formatDate(item.nextBillingDate)).fontSize(12).fontColor($r('app.color.text_secondary')).margin({ bottom: 4 })
-                  Row({ space: 8 }) {
-                    Button('我知道了')
-                      .fontSize(12)
-                      .height(28)
-                      .backgroundColor($r('app.color.page_background'))
-                      .fontColor($r('app.color.text_secondary'))
-                      .border({ width: 1, color: $r('app.color.divider_color') })
-                      .onClick(() => {
-                        this.ignoreReminder(item);
-                      })
+                   Row({ space: 8 }) {
+                    if (item.recordType !== 'card' && item.recordType !== 'warranty' && item.recordType !== 'groupBuy') {
+                      Button('我知道了')
+                        .fontSize(12)
+                        .height(28)
+                        .backgroundColor($r('app.color.page_background'))
+                        .fontColor($r('app.color.text_secondary'))
+                        .border({ width: 1, color: $r('app.color.divider_color') })
+                        .onClick(() => {
+                          this.ignoreReminder(item);
+                        })
+                    }
 
-                    Button(item.recordType === 'groupBuy' ? '已使用' : '已续费')
+                    Button((item.recordType === 'groupBuy' || item.recordType === 'card' || item.recordType === 'warranty') ? '我知道了' : '已续费')
                       .fontSize(12)
                       .height(28)
                       .linearGradient(this.isNewYearTheme ? {
@@ -1093,6 +1103,8 @@ export struct HomeView {
                           SubscriptionRepository.getInstance().update(item);
                           this.loadLocalData();
                           prompt.showToast({ message: `已核销 ${item.name}` });
+                        } else if (item.recordType === 'card' || item.recordType === 'warranty') {
+                          this.ignoreReminder(item);
                         } else {
                           this.manualRenew(item);
                         }

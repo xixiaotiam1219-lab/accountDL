@@ -33,8 +33,8 @@ export class LocalNotificationManager {
    * @param sub 订阅对象
    */
   public async scheduleReminder(sub: SubscriptionModel): Promise<void> {
-    // 允许 warranty 类型的 Lifetime 周期设置提醒
-    if (!sub.id || (sub.billingCycle === 'Lifetime' && sub.recordType !== 'warranty') || sub.isDeleted || sub.reminderDaysBefore === undefined || sub.reminderDaysBefore === null) {
+    // 允许 warranty 和 card 类型的 Lifetime 周期设置提醒
+    if (!sub.id || (sub.billingCycle === 'Lifetime' && sub.recordType !== 'warranty' && sub.recordType !== 'card') || sub.isDeleted || sub.reminderDaysBefore === undefined || sub.reminderDaysBefore === null) {
       if (sub.id) {
         await this.cancelReminder(sub.id);
       }
@@ -115,6 +115,9 @@ export class LocalNotificationManager {
         title = '保修到期提醒';
         content = `您的 ${sub.name} 保修即将到期`;
       }
+    } else if (sub.recordType === 'card') {
+      title = '卡证到期提醒';
+      content = `您的卡证 ${sub.name} 即将到期`;
     }
 
     const reminder: reminderAgentManager.ReminderRequestCalendar = {

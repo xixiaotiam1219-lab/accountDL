@@ -1,4 +1,5 @@
 import { formProvider } from '@kit.FormKit';
+import { appInfoManager } from '@kit.AppGalleryKit';
 import { display, promptAction, curves, LengthMetrics } from '@kit.ArkUI'; // Added import
 import { ImageCropSheet } from './ImageCropPage';
 
@@ -23,6 +24,7 @@ import { UpdateManager } from '../utils/UpdateManager';
 import { AccountMonitor } from '../utils/AccountMonitor';
 import { hdsEffect, hdsMaterial, HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
 import { ImportSheet } from './ImportSheet';
+import { DynamicIconSheet } from './DynamicIconSheet';
 import { SubscriptionModel } from '../model/SubscriptionModel';
 import { LocalNotificationManager } from '../manager/LocalNotificationManager';
 import { HarmonyShareManager, CustomIconItem } from '../utils/HarmonyShareManager';
@@ -84,6 +86,8 @@ export struct SettingsView {
 
   @State showImportSheet: boolean = false;
   @State importData: SubscriptionModel[] = [];
+  @State showDynamicIconSheet: boolean = false;
+  @State hasDynamicIcons: boolean = false;
 
 
   // 主题状态 (原 VIP 主题 -> 黑金主题)
@@ -715,11 +719,30 @@ export struct SettingsView {
     .backgroundColor($r('app.color.card_background'))
   }
 
+  @Builder DynamicIconSheetBuilder() {
+    DynamicIconSheet()
+  }
+
+  async checkDynamicIconsAvailability() {
+    try {
+      const icons = await appInfoManager.queryDynamicIcons();
+      this.hasDynamicIcons = icons && icons.length > 0;
+    } catch (e) {
+      const err = e as BusinessError;
+      if (err.code === 1006800010) {
+        this.hasDynamicIcons = false;
+      } else {
+        hilog.error(DOMAIN, 'SettingsView', "Failed to check dynamic icons: " + err.message);
+      }
+    }
+  }
+
 
   aboutToAppear() {
     this.checkPasswordLockStatus();
     this.checkBiometricSupport();
     this.initBiometricSettings();
+    this.checkDynamicIconsAvailability();
     let bundleFlags = bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT;
     bundleManager.getBundleInfoForSelf(bundleFlags).then((data) => {
       this.versionName = `v${data.versionName} (${data.versionCode})`;
@@ -1559,6 +1582,35 @@ export struct SettingsView {
               })
 
               Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
+
+              // 2.5 Dynamic Icon
+              if (this.hasDynamicIcons) {
+                Row() {
+                  Text("切换应用图标")
+                    .fontSize(16)
+                    .fontColor($r('app.color.text_primary'))
+                    .fontWeight(FontWeight.Medium)
+                    .layoutWeight(1)
+
+                  SymbolGlyph($r('sys.symbol.chevron_right'))
+                    .fontSize(16)
+                    .fontColor([$r('app.color.text_secondary')])
+                }
+                .width('100%')
+                .height(56)
+                .padding({ left: 16, right: 16 })
+                .onClick(() => {
+                  this.showDynamicIconSheet = true;
+                })
+                .bindSheet($$this.showDynamicIconSheet, this.DynamicIconSheetBuilder(), {
+                  detents: [SheetSize.FIT_CONTENT],
+                  backgroundColor: $r('app.color.card_background'),
+                  preferType: SheetType.BOTTOM,
+                  showClose: false
+                })
+
+                Divider().color($r('app.color.divider_color')).padding({ left: 16, right: 16 })
+              }
 
               // 3. AI Config
               Row() {

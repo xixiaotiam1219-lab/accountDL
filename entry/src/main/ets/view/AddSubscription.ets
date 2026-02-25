@@ -27,6 +27,8 @@ import { AppInfo, LocalIconManager } from '../utils/LocalIconManager';
 import { WebViewParam } from './WebViewPage';
 import { WarrantyCategorySheet, WarrantyCategory } from './WarrantyCategorySheet';
 import { ExtendedWarrantyItemView } from './ExtendedWarrantyItemView';
+import { CardSubscriptionForm } from './CardSubscriptionForm';
+
 @Builder
 export function AddSubscriptionBuilder() {
   AddSubscription()
@@ -69,7 +71,7 @@ export struct AddSubscription {
   @State paymentMethod: string = '其他支付方式'; // 支付方式
 
   // === 团购券/保修期相关状态 ===
-  @State recordType: 'subscription' | 'groupBuy' | 'warranty' = 'subscription'; // 记录类型
+  @State recordType: 'subscription' | 'groupBuy' | 'warranty' | 'card' = 'subscription'; // 记录类型
   @State platform: 'meituan' | 'douyin' | 'dianping' = 'dianping'; // 团购平台
   @State couponCode: string = ''; // 券码
   @State couponImage: string = ''; // 券码截图
@@ -86,6 +88,11 @@ export struct AddSubscription {
   @State extendedWarranties: ExtendedWarrantyItem[] = [];
   @State isExtendedWarrantyListExpanded: boolean = false;
   @State extendedWarrantyListOpacity: number = 0;
+
+  // === 卡证专属状态 ===
+  @State cardLastFour: string = ''; // 卡号末四位
+  @State cardBalance: string = '';  // 余额 / 积分
+  @State cardType: string = '会员卡'; // 卡类型
 
   @State isUsageTimePressed: boolean = false;
   @State usageTimeLight: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
@@ -168,6 +175,11 @@ export struct AddSubscription {
 
   @State isPlusPressed: boolean = false;
   @State isMinusPressed: boolean = false;
+  @State isCardNamePressed: boolean = false;
+  @State isCardBalancePressed: boolean = false;
+  @State isCardLastFourPressed: boolean = false;
+  @State isCardDatePressed: boolean = false;
+  @State isCardPricePressed: boolean = false;
   @State pressedUsageStatus: string = ''; // 用于识别哪个使用状态按钮正在被按压
 
   /**
@@ -199,6 +211,10 @@ export struct AddSubscription {
     this.brand = '';
     this.purchaseChannel = '';
     this.extendedWarranties = [];
+    // 卡证字段
+    this.cardLastFour = '';
+    this.cardBalance = '';
+    this.cardType = '会员卡';
   }
 
   @State isQROnly: boolean = false; // 新增：是否仅识别二维码模式
@@ -353,7 +369,7 @@ export struct AddSubscription {
     if (paramsArray && paramsArray.length > 0) {
       const params = paramsArray[paramsArray.length - 1] as Record<string, Object>;
       if (params && params['initialType']) {
-        this.recordType = params['initialType'] as 'subscription' | 'groupBuy' | 'warranty';
+        this.recordType = params['initialType'] as 'subscription' | 'groupBuy' | 'warranty' | 'card';
       }
     }
 
@@ -629,6 +645,47 @@ export struct AddSubscription {
                   }
                 });
               })
+
+              Button() {
+                Text("添加卡证")
+                  .fontSize(14)
+                  .fontWeight(this.recordType === 'card' ? FontWeight.Bold : FontWeight.Normal)
+                  .fontColor(this.recordType === 'card' ?
+                    (this.isNewYearTheme ? '#FFD700' :
+                      (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) :
+                    $r('app.color.text_secondary'))
+              }
+              .linearGradient(this.recordType === 'card' ?
+                (this.isNewYearTheme ? {
+                  angle: 135,
+                  colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]]
+                } :
+                  (this.showVipTheme ? {
+                    angle: 135,
+                    colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]]
+                  } : undefined)) : undefined)
+              .backgroundColor(this.recordType === 'card' ?
+                (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) :
+                Color.Transparent)
+              .borderRadius(14)
+              .padding({
+                left: 20,
+                right: 20,
+                top: 6,
+                bottom: 6
+              })
+              .onClick(() => {
+                animateTo({
+                  duration: this.isAnimationEnabled ? 300 : 0,
+                  curve: this.isAnimationEnabled ?
+                    curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear
+                }, () => {
+                  if (this.recordType !== 'card') {
+                    this.clearFormData();
+                    this.recordType = 'card';
+                  }
+                });
+              })
             }
             .backgroundColor($r('app.color.page_background'))
             .borderRadius(16)
@@ -640,29 +697,30 @@ export struct AddSubscription {
           }
 
           // 1. OCR 智能扫描区 - 双按钮布局
-          if (!this.hasApiKey) {
-            Row() {
-              SymbolGlyph($r('sys.symbol.info_circle'))
-                .fontSize(14)
-                .fontColor([$r('app.color.text_secondary')])
-              Text(" 您暂未配置 API Key，将使用本地OCR能力识别")
-                .fontSize(12)
-                .fontColor($r('app.color.text_secondary'))
+          if (this.recordType !== 'card') {
+            if (!this.hasApiKey) {
+              Row() {
+                SymbolGlyph($r('sys.symbol.info_circle'))
+                  .fontSize(14)
+                  .fontColor([$r('app.color.text_secondary')])
+                Text(" 您暂未配置 API Key，将使用本地OCR能力识别")
+                  .fontSize(12)
+                  .fontColor($r('app.color.text_secondary'))
+              }
+              .width('100%')
+              .justifyContent(FlexAlign.Center)
+              .margin({ bottom: 6 })
+              .onClick(() => {
+                this.pageStack.pushPathByName('AIConfig', null);
+              })
+              .opacity(this.animStep1 ? 1 : 0)
+              .translate({ y: this.animStep1 ? 0 : 100 })
+              .scale({ x: this.animStep1 ? 1 : 0.9, y: this.animStep1 ? 1 : 0.9 })
             }
-            .width('100%')
-            .justifyContent(FlexAlign.Center)
-            .margin({ bottom: 6 })
-            .onClick(() => {
-              this.pageStack.pushPathByName('AIConfig', null);
-            })
-            .opacity(this.animStep1 ? 1 : 0)
-            .translate({ y: this.animStep1 ? 0 : 100 })
-            .scale({ x: this.animStep1 ? 1 : 0.9, y: this.animStep1 ? 1 : 0.9 })
-          }
 
-          Row({ space: 12 }) {
-            // 按钮 A: 拍摄/导入
-            Button() {
+            Row({ space: 12 }) {
+              // 按钮 A: 拍摄/导入
+              Button() {
               Row() {
                 if (this.isOCRLoading) {
                   LoadingProgress()
@@ -1132,6 +1190,7 @@ export struct AddSubscription {
           .opacity(this.animStep1 ? 1 : 0)
           .translate({ y: this.animStep1 ? 0 : 100 })
           .scale({ x: this.animStep1 ? 1 : 0.9, y: this.animStep1 ? 1 : 0.9 })
+        }
 
 
           // === 根据记录类型显示不同表单 ===
@@ -2244,8 +2303,104 @@ export struct AddSubscription {
                 Curve.Linear
             }))
 
+          } else if (this.recordType === 'card') {
+            // ========== 卡证专属表单 ==========
+
+            // 预览卡片
+            Row() {
+              Stack({ alignContent: Alignment.BottomEnd }) {
+                SubscriptionIcon({
+                  icon: this.icon,
+                  name: this.name,
+                  iconSize: 56,
+                  iconRadius: 14,
+                  showGroupBadge: false
+                })
+                Row() {
+                  SymbolGlyph($r('sys.symbol.square_and_pencil'))
+                    .fontSize(10)
+                    .fontColor([Color.White])
+                }
+                .width(20)
+                .height(20)
+                .justifyContent(FlexAlign.Center)
+                .alignItems(VerticalAlign.Center)
+                .backgroundColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                  (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+                .borderRadius(10)
+                .border({ width: 2, color: $r('app.color.card_background') })
+                .offset({ x: 6, y: 6 })
+              }
+              .onClick(() => { this.showIconPickerSheet(); })
+              .margin({ right: 16 })
+
+              Column() {
+                Text(this.name || "卡片名称")
+                  .fontSize(18)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor($r('app.color.text_primary'))
+                  .margin({ bottom: 4 })
+                  .maxLines(1)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                Text(this.cardType)
+                  .fontSize(13)
+                  .fontColor($r('app.color.text_secondary'))
+              }
+              .alignItems(HorizontalAlign.Start)
+              .layoutWeight(1)
+              .margin({ right: 12 })
+
+              Column() {
+                Text(this.cardBalance ? `¥${this.cardBalance}` : '--')
+                  .fontSize(18)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(this.isNewYearTheme ? $r('app.color.new_year_red_start') :
+                    (this.showVipTheme ? $r('app.color.vip_gold') : $r('app.color.brand_color')))
+              }
+              .alignItems(HorizontalAlign.End)
+              .flexShrink(0)
+            }
+            .width('90%')
+            .padding(16)
+            .backgroundColor($r('app.color.card_background'))
+            .borderRadius(16)
+            .shadow({ radius: 20, color: '#08000000', offsetY: 4 })
+            .margin({ bottom: 20 })
+            .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).animation({
+              duration: this.isAnimationEnabled ? undefined : 0,
+              curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) :
+                Curve.Linear
+            }))
+
+            // 卡证表单卡片
+            CardSubscriptionForm({
+              name: $name,
+              cardType: $cardType,
+              cardBalance: $cardBalance,
+              nextBillingDate: $nextBillingDate,
+              billingDate: $startDate,
+              isReminderEnabled: $isReminderEnabled,
+              reminderDaysBefore: $reminderDaysBefore,
+              reminderTime: $reminderTime,
+              predictedTotalReminders: this.getPredictedTotalReminders()
+            })
+            .padding(20)
+            .backgroundColor($r('app.color.card_background'))
+            .borderRadius(24)
+            .shadow({ radius: 20, color: '#08000000', offsetY: 4 })
+            .width('90%')
+            .opacity(this.animStep2 ? 1 : 0)
+            .translate({ y: this.animStep2 ? 0 : 20 })
+            .margin({ bottom: 32 })
+            .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 20 })).animation({
+              duration: this.isAnimationEnabled ? undefined : 0,
+              curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) :
+                Curve.Linear
+            }))
+
           } else if (this.recordType === 'warranty') {
             // ========== 保修/保质期专属表单 ==========
+
 
             // 预览卡片
             Row() {
@@ -4273,7 +4428,7 @@ export struct AddSubscription {
                 }
               })
               .onClick(async () => {
-                if (!this.isDisclaimerAgreed) {
+                if (!this.isDisclaimerAgreed && this.recordType !== 'card') {
                   this.promptAction.showToast({ message: '请先阅读并勾选用户协议' });
                   return;
                 }
@@ -4285,7 +4440,12 @@ export struct AddSubscription {
                   return;
                 }
 
-                if (this.name === '' || this.price === '') {
+                if (this.name === '') {
+                  this.promptAction.showToast({ message: '请填写名称' });
+                  return;
+                }
+                // 卡证类型 price 可为空（储值卡/积分卡可以不填购买价格）
+                if (this.recordType !== 'card' && this.price === '') {
                   this.promptAction.showToast({ message: '请填写名称和金额' });
                   return;
                 }
@@ -4303,14 +4463,14 @@ export struct AddSubscription {
                 const newSub: SubscriptionModel = {
                   uuid: this.uuid || util.generateRandomUUID(),
                   name: this.name,
-                  price: parseFloat(this.price),
+                  price: parseFloat(this.price) || 0,
                   currency: this.currency,
                   // warranty 类型固定使用 Lifetime 周期（一次性购买，到期日即保修到期日）
                   // 注意：显示逻辑需要根据 recordType 为 warranty 来区分显示“保修”还是“永久”
-                  billingCycle: this.recordType === 'warranty' ? 'Lifetime' :
+                  billingCycle: (this.recordType === 'warranty' || this.recordType === 'card') ? 'Lifetime' :
                     (this.billingCycle as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite'),
                   nextBillingDate: this.nextBillingDate.getTime(),
-                  startDate: this.recordType === 'warranty' ? (this.startDate ? this.startDate.getTime() : new Date().getTime()) :
+                  startDate: (this.recordType === 'warranty' || this.recordType === 'card') ? (this.startDate ? this.startDate.getTime() : new Date().getTime()) :
                     (this.billingCycle === 'Lifetime' ? this.nextBillingDate.getTime() : this.startDate.getTime()),
                   icon: this.icon,
                   lastModified: new Date().getTime(),
@@ -4335,7 +4495,11 @@ export struct AddSubscription {
                   // 保修/保质期字段
                   brand: this.recordType === 'warranty' ? this.brand : undefined,
                   purchaseChannel: this.recordType === 'warranty' ? this.purchaseChannel : undefined,
-                  extendedWarranties: this.recordType === 'warranty' && this.extendedWarranties.length > 0 ? JSON.stringify(this.extendedWarranties) : undefined
+                  extendedWarranties: this.recordType === 'warranty' && this.extendedWarranties.length > 0 ? JSON.stringify(this.extendedWarranties) : undefined,
+                  // 卡证字段
+                  cardLastFour: this.recordType === 'card' ? this.cardLastFour : undefined,
+                  cardBalance: this.recordType === 'card' && this.cardBalance ? parseFloat(this.cardBalance) : undefined,
+                  cardType: this.recordType === 'card' ? this.cardType : undefined,
                 };
 
                 if (this.editId !== -1) {
@@ -4404,8 +4568,13 @@ export struct AddSubscription {
         avoidLayoutSafeArea: true,
         content: {
           title: {
-            mainTitle: this.editId !== -1 ? (this.recordType === 'groupBuy' ? "编辑团购" : (this.recordType === 'warranty' ? "编辑保修" : "编辑服务")) :
-              (this.recordType === 'groupBuy' ? "添加团购" : (this.recordType === 'warranty' ? "添加保修" : "添加服务"))
+            mainTitle: this.editId !== -1
+              ? (this.recordType === 'groupBuy' ? "编辑团购"
+                  : (this.recordType === 'warranty' ? "编辑保修"
+                      : (this.recordType === 'card' ? "编辑卡证" : "编辑服务")))
+              : (this.recordType === 'groupBuy' ? "添加团购"
+                  : (this.recordType === 'warranty' ? "添加保修"
+                      : (this.recordType === 'card' ? "添加卡证" : "添加服务")))
           },
           menu: {
             value: [

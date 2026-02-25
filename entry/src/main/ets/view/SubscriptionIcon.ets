@@ -18,6 +18,8 @@ export struct SubscriptionIcon {
 
   @Prop showGroupBadge: boolean = false;
   @Prop showWarrantyBadge: boolean = false;
+  @Prop showCardBadge: boolean = false;
+  @Prop showServiceBadge: boolean = false;
   
   // State to handle resource resolution status
   @State resolvedResource: Resource | null = null;
@@ -177,6 +179,32 @@ export struct SubscriptionIcon {
           .fontWeight(FontWeight.Bold)
           .fontColor(Color.White)
           .backgroundColor('#007AFF') // 保修蓝色
+          .padding({ left: 3, right: 3, top: 1, bottom: 1 })
+          .borderRadius(this.iconRadius * 0.4)
+          .margin({ right: -this.iconSize * 0.05, bottom: -this.iconSize * 0.05 })
+          .border({ width: this.iconSize * 0.03, color: $r('app.color.card_background') })
+      }
+
+      // Badge for Card
+      if (this.showCardBadge) {
+        Text('卡')
+          .fontSize(this.iconSize * 0.22)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+          .backgroundColor('#5856D6') // 卡证靖蓝
+          .padding({ left: 3, right: 3, top: 1, bottom: 1 })
+          .borderRadius(this.iconRadius * 0.4)
+          .margin({ right: -this.iconSize * 0.05, bottom: -this.iconSize * 0.05 })
+          .border({ width: this.iconSize * 0.03, color: $r('app.color.card_background') })
+      }
+
+      // Badge for Service (subscription)
+      if (this.showServiceBadge) {
+        Text('服')
+          .fontSize(this.iconSize * 0.22)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+          .backgroundColor('#34C759') // 订阅服务绿色
           .padding({ left: 3, right: 3, top: 1, bottom: 1 })
           .borderRadius(this.iconRadius * 0.4)
           .margin({ right: -this.iconSize * 0.05, bottom: -this.iconSize * 0.05 })

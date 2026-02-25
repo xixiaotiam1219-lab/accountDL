@@ -1,4 +1,4 @@
-import { formBindingData, FormExtensionAbility, formInfo, formProvider } from '@kit.FormKit';
+﻿import { formBindingData, FormExtensionAbility, formInfo, formProvider } from '@kit.FormKit';
 import { Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -24,6 +24,7 @@ class CardItemData {
   fullDate: string = '';
   isGroupBuy: boolean = false;
   isWarranty: boolean = false;
+  isCard: boolean = false;
   colorStart?: string;
   colorEnd?: string;
   originalItem: string = '';
@@ -249,23 +250,22 @@ export default class EntryFormAbility extends FormExtensionAbility {
           }
 
           const isLifetime = item.billingCycle === 'Lifetime';
-          const days = isLifetime ? 999 : DateUtil.getDaysUntil(item.nextBillingDate);
+          const isWarranty = item.recordType === 'warranty';
+          const isCard = item.recordType === 'card';
+          // card 类型虽然 billingCycle=Lifetime，仍需要真实的到期日计算
+          const days = (isLifetime && !isWarranty && !isCard) ? 999 : DateUtil.getDaysUntil(item.nextBillingDate);
           const dateStr = DateUtil.formatShortDate(item.nextBillingDate);
 
-          const isWarranty = item.recordType === 'warranty';
           const obj = new CardItemData();
-          obj.title = item.name || (isWarranty ? '未知保修' : '未知订阅');
+          obj.title = item.name || (isWarranty ? '未知保修' : (isCard ? '未知卡证' : '未知订阅'));
 
           if (isGroupBuy) {
             const statusText: string = item.usageStatus === 'used' ? '已使用' : (item.usageStatus === 'expired' ? '已过期' : (DateUtil.getDaysUntil(item.nextBillingDate) < 0 ? '已过期' : `剩 ${DateUtil.getDaysUntil(item.nextBillingDate)} 天`));
             obj.content = item.merchantName ? `${item.merchantName} | ${statusText}` : statusText;
           } else if (isWarranty) {
             const statusStr = days < 0 ? '过保' : '在保';
-            // 保修卡片无论是否为 Lifetime，只要 recordType 是 warranty 就显示保修到期
             obj.content = `${statusStr}:${dateStr}`;
 
-            // 预计算保修视觉 (解决跨模块隔离)
-            // 优先使用 category 作为图标查找依据，因为 name 可能是用户自定义的
             let warrantyName = item.name || '';
             if (item.category && WARRANTY_ICON_MAP_NAMES[item.category]) {
               warrantyName = item.category;
@@ -278,11 +278,13 @@ export default class EntryFormAbility extends FormExtensionAbility {
             obj.colorStart = colors[0];
             obj.colorEnd = colors[1];
 
-            // 转换为 rawfile 路径
             const svgPath = WARRANTY_ICON_MAP_NAMES[warrantyName];
             if (svgPath) {
               iconKey = `rawfile:${svgPath}`;
             }
+          } else if (isCard) {
+            // 卡证：显示到期日
+            obj.content = days < 0 ? '已过期' : (days === 0 ? '今日到期' : `到期:${dateStr}`);
           } else {
             obj.content = isLifetime ? `永久买断` : `到期:${dateStr}`;
           }
@@ -299,9 +301,10 @@ export default class EntryFormAbility extends FormExtensionAbility {
           obj.isLifetime = isLifetime;
           obj.isGroupBuy = isGroupBuy;
           obj.isWarranty = isWarranty;
+          obj.isCard = isCard;
 
           let priceStr = `${item.currency === 'USD' ? '$' : '¥'}${item.price}`;
-          if (!isGroupBuy && !isWarranty) {
+          if (!isGroupBuy && !isWarranty && !isCard) {
             if (item.billingCycle === 'Monthly') priceStr += '/月';
             else if (item.billingCycle === 'Yearly') priceStr += '/年';
             else if (item.billingCycle === 'Quarterly') priceStr += '/季';
@@ -310,6 +313,11 @@ export default class EntryFormAbility extends FormExtensionAbility {
           } else if (isWarranty) {
             // 保修不显示价格周期，显示“保修”字样
             priceStr = '保修';
+          } else if (isCard) {
+            // 卡证显示余额（如有）或卡类型
+            priceStr = item.cardBalance !== undefined && item.cardBalance !== null
+              ? `余额 ¥${(item.cardBalance as number).toFixed(2)}`
+              : (item.cardType || '卡证');
           }
           obj.price = priceStr;
 
