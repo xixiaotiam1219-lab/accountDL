@@ -716,7 +716,11 @@ export class SubscriptionRepository {
       lastIgnoredBillingDate: this.getLongOrUndefined(resultSet, 'lastIgnoredBillingDate'),
       // 卡证字段
       cardLastFour: this.getStringSafe(resultSet, 'cardLastFour'),
-      cardBalance: this.getDoubleSafe(resultSet, 'cardBalance') || undefined,
+      cardBalance: (() => {
+        const idx = resultSet.getColumnIndex('cardBalance');
+        if (idx === -1 || resultSet.isColumnNull(idx)) return undefined;
+        return resultSet.getDouble(idx); // 0 是合法余额，不能用 || undefined
+      })(),
       cardType: this.getStringSafe(resultSet, 'cardType')
     };
   }

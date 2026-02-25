@@ -1186,7 +1186,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
       // 卡证特有字段提取
       const cardType = (param['cardType'] as string) || '其他';
       const cardBalanceStr = (param['cardBalance'] as string) || (param['balance'] as string) || '';
-      const cardBalance = parseFloat(cardBalanceStr.replace(/[^0-9.]/g, '')) || undefined;
+      const cardBalance = cardBalanceStr !== '' ? parseFloat(cardBalanceStr.replace(/[^0-9.]/g, '')) : undefined;
 
       let isAutoRenewal = recordType === 'subscription' && (cycle === 'Monthly' || cycle === 'Quarterly' || cycle === 'Yearly');
       const autoRenewalRaw = param['isAutoRenewal'];

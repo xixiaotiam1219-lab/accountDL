@@ -753,24 +753,10 @@ export struct SettingsView {
     PreferenceUtil.getInstance().loadTheme().then(mode => {
       this.themeMode = mode;
     });
+    // 仅需本地双向绑定，全局加载由 EntryAbility 负责
     PreferenceUtil.getInstance().loadSplitViewEnabled().then(enabled => {
-      // Sync Link
       AppStorage.setOrCreate('isSplitViewEnabled', enabled);
     });
-    PreferenceUtil.getInstance().loadAnimationEnabled();
-    PreferenceUtil.getInstance().loadAnimationDamping();
-    PreferenceUtil.getInstance().loadAnimationResponse();
-    PreferenceUtil.getInstance().loadAnimationPresetMode();
-    PreferenceUtil.getInstance().loadPointLightEnabled();
-    PreferenceUtil.getInstance().loadShowVipTheme();
-    PreferenceUtil.getInstance().loadNewYearWatermarkEnabled();
-    PreferenceUtil.getInstance().loadNewYearWatermarkEnabled().then(enabled => {
-      AppStorage.setOrCreate('isNewYearWatermarkEnabled', enabled);
-    });
-    PreferenceUtil.getInstance().loadSmartGestureEnabled();
-    PreferenceUtil.getInstance().loadHdsTabsEnabled();
-    // Initialize Local Icon Manager
-    LocalIconManager.getInstance().init(getContext(this));
 
     // Sync local theme state - Delegated to PreferenceUtil
     // Legacy logic removed to allow theme switching for all users

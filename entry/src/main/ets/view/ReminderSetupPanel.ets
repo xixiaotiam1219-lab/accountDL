@@ -314,17 +314,11 @@ export struct ReminderSetupPanel {
                         .fontSize(16)
                         .fontWeight(FontWeight.Medium)
                         .fontColor(Color.Red)
-
-                      Text(this.activeWarrantyItem ? `不再提醒 ${this.activeParentForWarranty?.name} 的 [${this.activeWarrantyItem.name}] 额外保障。` : (this.activeItem?.billingCycle === 'Lifetime' || this.activeItem?.recordType === 'warranty' ? '关闭该项目的到期提醒。' : '关闭后，您将不再收到该订阅的续费和到期提醒通知。'))
-                        .fontSize(12)
-                        .fontColor($r('app.color.text_hint'))
-                        .margin({ top: 4 })
-                        .textAlign(TextAlign.Center)
                     }
                   }
                   .backgroundColor($r('app.color.tag_bg'))
                   .padding({ left: 16, right: 16 })
-                  .height(60)
+                  .height(50)
                   .borderRadius(16)
                   .margin({ right: 12 })
                     .scale({ x: this.isRemovePressed ? 0.95 : 1, y: this.isRemovePressed ? 0.95 : 1 })

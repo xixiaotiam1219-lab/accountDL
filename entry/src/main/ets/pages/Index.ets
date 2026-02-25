@@ -741,8 +741,9 @@ struct Index {
           }
           .scrollable(ScrollDirection.Horizontal)
           .scrollBar(BarState.Off)
-          .edgeEffect(EdgeEffect.Spring)
+          .edgeEffect(EdgeEffect.Fade) // Spring 会在 clip 之前溢出渲染，改用 Fade
           .layoutWeight(1)
+          .clip(true)
           .margin({ left: 4 })
         }
         .width('100%')
@@ -753,12 +754,13 @@ struct Index {
         ))
       }
     }
-    .width(this.hdsBarStyle === HdsBarStyle.EXPAND ? 'auto' : 56) // 折叠时固定宽度
+    .width(this.hdsBarStyle === HdsBarStyle.EXPAND ? '100%' : 56) // 展开时撑满父容器，折叠时固定宽度
     .height('100%')
+    .clip(true) // 防止内容溢出 tabs 边界
   }
 
   @Builder
-  MiniBarItemBuilder(icon: Resource, label?: string, action: () => void = () => {}, customWidth: number = 48) {
+  MiniBarItemBuilder(icon: Resource, label?: string, action: () => void = () => {}, customWidth: number = 44) {
     Column() {
       // 图标容器
       SymbolGlyph(icon)
@@ -776,7 +778,7 @@ struct Index {
     }
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
-    .width(customWidth) // 使用自定义宽度，收起按钮为 32，功能按钮为 48
+    .width(customWidth) // 收起按钮 32，功能按钮 44（压缩以防溢出）
     .height(48)
     .onClick(() => {
       action();

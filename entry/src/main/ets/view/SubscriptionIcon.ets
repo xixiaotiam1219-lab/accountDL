@@ -47,11 +47,31 @@ export struct SubscriptionIcon {
       }
     } else if (this.icon && this.icon.startsWith('builtin://')) {
       const appName = this.icon.substring(10).replace('.png', '');
-      let appInfo = await LocalIconManager.getInstance().getAppInfo(appName);
-      
+
+      // 关键修正：等待 LocalIconManager 初始化完成后再查询
+      // 避免 App 冷启动时图标库尚未就绪导致 loadFailed=true 且不再重试
+      const manager = LocalIconManager.getInstance();
+      if (!manager.isInitialized()) {
+        // 等待初始化完成（最多 3 秒），超时后放弃
+        await new Promise<void>(resolve => {
+          const maxWait = 3000;
+          const interval = 100;
+          let elapsed = 0;
+          const timer = setInterval(() => {
+            elapsed += interval;
+            if (manager.isInitialized() || elapsed >= maxWait) {
+              clearInterval(timer);
+              resolve();
+            }
+          }, interval);
+        });
+      }
+
+      let appInfo = await manager.getAppInfo(appName);
+
       // If exact match fails for builtin parsing, fall back to fuzzy search
       if (!appInfo) {
-        const fuzzyResults = await LocalIconManager.getInstance().searchApps(appName, 1);
+        const fuzzyResults = await manager.searchApps(appName, 1);
         if (fuzzyResults && fuzzyResults.length > 0) {
           appInfo = fuzzyResults[0];
         }

@@ -89,6 +89,10 @@ export default class EntryAbility extends UIAbility {
     // Initialize Repository (Standard Init for other uses)
     SubscriptionRepository.getInstance().init(this.context);
 
+    // 关键修正：LocalIconManager 必须立即初始化，不能延迟
+    // 否则订阅列表渲染时图标库未就绪，builtin:// 图标会退化为首字母
+    LocalIconManager.getInstance().init(this.context);
+
     // Starters - Immediate but non-blocking
     NetworkMonitor.getInstance().startMonitoring();
     AccountMonitor.getInstance().startMonitoring();
@@ -100,9 +104,6 @@ export default class EntryAbility extends UIAbility {
 
       // Initialize HuaweiAuthManager
       HuaweiAuthManager.getInstance().setContext(this.context);
-
-      // Initialize LocalIconManager
-      LocalIconManager.getInstance().init(this.context);
     }, 1500);
 
     // Load and Apply Theme & Preferences
@@ -130,6 +131,18 @@ export default class EntryAbility extends UIAbility {
       PreferenceUtil.getInstance().loadSplitViewEnabled();
       PreferenceUtil.getInstance().loadSmartGestureEnabled();
       PreferenceUtil.getInstance().loadAppLockSettingsSync(this.context);
+      // 动画参数
+      PreferenceUtil.getInstance().loadAnimationDamping();
+      PreferenceUtil.getInstance().loadAnimationResponse();
+      PreferenceUtil.getInstance().loadAnimationPresetMode();
+      // 视觉效果
+      PreferenceUtil.getInstance().loadPointLightEnabled();
+      PreferenceUtil.getInstance().loadShowVipTheme();
+      PreferenceUtil.getInstance().loadNewYearWatermarkEnabled();
+      // 自定义背景图
+      PreferenceUtil.getInstance().loadWatermarkImage();
+      PreferenceUtil.getInstance().loadWatermarkOpacity();
+      PreferenceUtil.getInstance().loadWatermarkOffset(); // 水印位置偏移
     });
 
     // Register GlobalBus Listeners for Widget Sync

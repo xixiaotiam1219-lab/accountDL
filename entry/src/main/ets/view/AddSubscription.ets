@@ -2162,7 +2162,7 @@ export struct AddSubscription {
                         .fontColor([$r('app.color.text_secondary')])
                         .margin({ right: 4 })
 
-                      Text("提示音为系统默认闹钟铃声，可能会出现铃声过大问题，可通过调整系统闹钟音量调整本应用提示音量。请合理设置提醒时间，避免过度滥用提醒功能。本应用不对因提醒失效导致的任何损失承担责任。")
+                      Text("提示音为系统默认提示音，可能会出现铃声过大问题、提示被忽略等问题，可通过调整系统闹钟音量调整本应用提示音量。请合理设置提醒时间，避免过度滥用提醒功能。本应用不对因提醒失效导致的任何损失承担责任。")
                         .fontSize(11)
                         .fontColor($r('app.color.text_secondary'))
                         .layoutWeight(1)
@@ -2977,7 +2977,7 @@ export struct AddSubscription {
                         .fontColor([$r('app.color.text_secondary')])
                         .margin({ right: 4 })
 
-                      Text("提示音为系统默认闹钟铃声，可能会出现铃声过大问题，可通过调整系统闹钟音量调整本应用提示音量。请合理设置提醒时间，避免过度滥用提醒功能。本应用不对因提醒失效导致的任何损失承担责任。")
+                      Text("提示音为系统默认提示音，可能会出现铃声过大问题、提示被忽略等问题，可通过调整系统闹钟音量调整本应用提示音量。请合理设置提醒时间，避免过度滥用提醒功能。本应用不对因提醒失效导致的任何损失承担责任。")
                         .fontSize(11)
                         .fontColor($r('app.color.text_secondary'))
                         .layoutWeight(1)
@@ -4123,7 +4123,7 @@ export struct AddSubscription {
                           .fontColor([$r('app.color.text_secondary')])
                           .margin({ right: 4 })
 
-                        Text("提示音为系统默认闹钟铃声，可能会出现铃声过大问题，可通过调整系统闹钟音量调整本应用提示音量。请合理设置提醒时间，避免过度滥用提醒功能。本应用不对因提醒失效导致的任何损失承担责任。")
+                        Text("提示音为系统默认提示音，可能会出现铃声过大问题、提示被忽略等问题，可通过调整系统闹钟音量调整本应用提示音量。请合理设置提醒时间，避免过度滥用提醒功能。本应用不对因提醒失效导致的任何损失承担责任。")
                           .fontSize(11)
                           .fontColor($r('app.color.text_secondary'))
                           .layoutWeight(1)
@@ -4498,7 +4498,7 @@ export struct AddSubscription {
                   extendedWarranties: this.recordType === 'warranty' && this.extendedWarranties.length > 0 ? JSON.stringify(this.extendedWarranties) : undefined,
                   // 卡证字段
                   cardLastFour: this.recordType === 'card' ? this.cardLastFour : undefined,
-                  cardBalance: this.recordType === 'card' && this.cardBalance ? parseFloat(this.cardBalance) : undefined,
+                  cardBalance: this.recordType === 'card' && this.cardBalance !== '' ? parseFloat(this.cardBalance) : undefined,
                   cardType: this.recordType === 'card' ? this.cardType : undefined,
                 };
 

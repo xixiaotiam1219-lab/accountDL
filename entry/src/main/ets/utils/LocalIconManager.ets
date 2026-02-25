@@ -46,6 +46,13 @@ export class LocalIconManager {
     return LocalIconManager.instance;
   }
 
+  /**
+   * 返回图标库是否已初始化完毕（可立即查询）
+   */
+  public isInitialized(): boolean {
+    return this.isLoaded;
+  }
+
   private ensureDir(path: string) {
     try {
       fs.mkdirSync(path);
