@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="coilGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </linearGradient>
+    <filter id="shadowStand" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  
+  <path d="M 60 95 L 60 110" stroke="#334155" stroke-width="4" stroke-linecap="round"/>
+
+  <ellipse cx="60" cy="95" rx="35" ry="12" fill="#0F172A" filter="url(#shadowStand)"/>
+  
+  <path d="M 35 90 L 40 20 Q 40 15 45 15 L 75 15 Q 80 15 80 20 L 85 90 Z" fill="#1E293B" filter="url(#shadowStand)"/>
+  
+  <path d="M 42 85 L 46 25 L 74 25 L 78 85 Z" fill="#334155"/>
+  
+  <circle cx="60" cy="55" r="14" fill="none" stroke="url(#coilGlow)" stroke-width="2"/>
+  <circle cx="60" cy="55" r="3" fill="#10B981"/>
+  
+  <path d="M 40 85 L 80 85 L 80 92 Q 80 96 76 96 L 44 96 Q 40 96 40 92 Z" fill="#1E293B" filter="url(#shadowStand)"/>
+  <rect x="45" y="85" width="30" height="2" rx="1" fill="#0F172A"/>
+
+  <circle cx="60" cy="100" r="2" fill="#10B981"/>
+</svg>

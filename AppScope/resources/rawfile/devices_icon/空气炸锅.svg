@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="fryerGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EF4444" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+    <filter id="shadowFryer" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  
+  <rect x="35" y="25" width="50" height="75" rx="12" fill="#1E293B" filter="url(#shadowFryer)"/>
+  
+  <path d="M 35 35 Q 60 20 85 35 L 85 45 Q 60 30 35 45 Z" fill="#334155"/>
+  
+  <circle cx="60" cy="42" r="12" fill="#0F172A"/>
+  <circle cx="60" cy="42" r="10" fill="none" stroke="url(#fryerGlow)" stroke-width="2"/>
+  <text x="60" y="44" fill="#ffffff" font-family="sans-serif" font-size="5" font-weight="bold" text-anchor="middle">200°C</text>
+
+  <rect x="39" y="58" width="42" height="38" rx="6" fill="#334155"/>
+  
+  <rect x="45" y="65" width="30" height="6" rx="3" fill="#0F172A"/>
+  <rect x="47" y="67" width="26" height="2" rx="1" fill="#475569"/>
+
+  <line x1="39" y1="56" x2="81" y2="56" stroke="#0F172A" stroke-width="1.5"/>
+</svg>

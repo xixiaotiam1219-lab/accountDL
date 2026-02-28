@@ -69,7 +69,7 @@ export struct ImageCropSheet {
       }
       
       const context = getContext(this) as common.UIAbilityContext;
-      const iconDir = `${context.filesDir}/icons`;
+      const iconDir = `${context.filesDir}/imported_icons`;
       
       try {
         await fileIo.mkdir(iconDir);

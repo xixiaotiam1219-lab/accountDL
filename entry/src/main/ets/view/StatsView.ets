@@ -1,16 +1,17 @@
-import { SubscriptionModel } from '../model/SubscriptionModel';
+import { SubscriptionModel, ExtendedWarrantyItem } from '../model/SubscriptionModel';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
 import { DateUtil } from '../utils/DateUtil';
-import { promptAction, curves } from '@kit.ArkUI';
-import { commonEventManager } from '@kit.BasicServicesKit';
+import { promptAction, curves, LengthMetrics } from '@kit.ArkUI';
+import { commonEventManager, deviceInfo } from '@kit.BasicServicesKit';
 import { GlobalBus, EVENT_SYNC_COMPLETED, EVENT_DATA_CHANGED } from '../utils/GlobalBus';
 
 import { ExpenseChart } from './ExpenseChart';
+import { PieChart, PieData } from './PieChart';
 import { resolveIcon } from '../utils/MemberServiceConfig';
 import { LoginSheet } from './LoginSheet';
 import { MonthlyReportSheet } from './MonthlyReportSheet';
 import { SubscriptionIcon } from './SubscriptionIcon';
-import { hdsEffect, HdsNavDestination } from '@kit.UIDesignKit';
+import { hdsEffect, HdsNavDestination, ScrollEffectType, HdsNavigationTitleBarOptions, HdsNavigationTitleBarStyle } from '@kit.UIDesignKit';
 
 interface RankingItem {
   sub: SubscriptionModel;
@@ -29,11 +30,19 @@ class MonthLabel {
 
 const TITLE_BAR_HEIGHT_MINI: number = 56;
 
+interface GeneratedObjectLiteralInterface_2 {
+  enableScrollEffect: boolean;
+  scrollEffectType: ScrollEffectType;
+  blurEffectiveStartOffset: LengthMetrics;
+  blurEffectiveEndOffset: LengthMetrics;
+}
+
 @Component
 export struct StatsView {
   @Consume('pageStack') pageStack: NavPathStack;
-  private syncSubscriber: commonEventManager.CommonEventSubscriber | null = null;
+  private busSubscribers: commonEventManager.CommonEventSubscriber[] = [];
   @StorageLink('topRectHeight') topRectHeight: number = 0;
+  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
   @State subscriptions: SubscriptionModel[] = [];
   @StorageProp('isInitialSyncDone') isInitialSyncDone: boolean = false;
   @StorageProp('isWide') isWide: boolean = false;
@@ -61,6 +70,7 @@ export struct StatsView {
   @StorageLink('isPointLightEnabled') isPointLightEnabled: boolean = true;
   @StorageLink('isVip') isVip: boolean = false;
   @StorageLink('showVipTheme') showVipTheme: boolean = true;
+  // @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
   @StorageLink('isNewYearTheme') isNewYearTheme: boolean = false;
   @Prop @Watch('onVisibleChange') isVisible: boolean = false;
 
@@ -75,6 +85,8 @@ export struct StatsView {
   @State rankingCardLight: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
   @State isHeatmapPressed: boolean = false;
   @State heatmapLight: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
+  @State isPiePressed: boolean = false;
+  @State pieLight: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
   @State isLoginPressed: boolean = false;
   @State loginLightSource: hdsEffect.PointLightSourceType = hdsEffect.PointLightSourceType.NONE;
   @State pressedFilterIndex: number = -1;
@@ -84,6 +96,10 @@ export struct StatsView {
 
   // Heatmap Data
   @State heatmapData: number[] = new Array(366).fill(0);
+  @State pieDataMonthly: PieData[] = [];
+  @State pieDataAnnual: PieData[] = [];
+  @State pieChartFilter: number = 0; // 0: Monthly, 1: Annual
+  @State pressedPieFilterIndex: number = -1;
   @State maxDailyCost: number = 1; 
   @State monthLabels: MonthLabel[] = [];
 
@@ -91,6 +107,7 @@ export struct StatsView {
   @State animStep1: boolean = false; // Summary Card
   @State animStep2: boolean = false; // Chart Card
   @State animStepHeatmap: boolean = false; // Heatmap Card
+  @State animStepPie: boolean = false; // Pie Chart Card
   @State animStep3: boolean = false; // Report Card
   @State animStep4: boolean = false; // Ranking Card
   @State animHeader: boolean = false; // Title Header
@@ -100,17 +117,25 @@ export struct StatsView {
      // Subscribe to data changes
      GlobalBus.subscribe(EVENT_DATA_CHANGED, () => {
         this.loadData();
-     });
+     }).then((s: commonEventManager.CommonEventSubscriber) => this.busSubscribers.push(s));
+     
      GlobalBus.subscribe(EVENT_SYNC_COMPLETED, () => {
         this.loadData();
         this.rotateAngle = 0;
-     }).then(s => this.syncSubscriber = s);
+     }).then((s: commonEventManager.CommonEventSubscriber) => this.busSubscribers.push(s));
      
      this.onVisibleChange();
     
      if (!this.isInitialSyncDone) {
        this.rotateAngle = -720; 
      }
+  }
+
+  aboutToDisappear() {
+    this.busSubscribers.forEach(subscriber => {
+      GlobalBus.unsubscribe(subscriber);
+    });
+    this.busSubscribers = [];
   }
 
   onVisibleChange() {
@@ -120,31 +145,38 @@ export struct StatsView {
       
       if (this.isAnimationEnabled) {
         // 第一梯队: 头部 + 概览
-        animateTo({ curve: springCurve }, () => {
-          this.animHeader = true;
-          this.animStep1 = true;
-        });
+        setTimeout(() => {
+          if (!this.isVisible) return;
+          animateTo({ curve: springCurve }, () => {
+            this.animHeader = true;
+            this.animStep1 = true;
+          });
+        }, 50);
         
         // 第二梯队: 趋势图 + 热力图
         setTimeout(() => {
+          if (!this.isVisible) return;
           animateTo({ curve: springCurve }, () => {
             this.animStep2 = true;
             this.animStepHeatmap = true;
+            this.animStepPie = true;
           })
-        }, interval);
+        }, 50 + interval);
         
         // 第三梯队: 报告 + 排行
         setTimeout(() => {
+          if (!this.isVisible) return;
           animateTo({ curve: springCurve }, () => {
             this.animStep3 = true;
             this.animStep4 = true;
           })
-        }, interval * 2);
+        }, 50 + interval * 2);
       } else {
         this.animHeader = true;
         this.animStep1 = true;
         this.animStep2 = true;
         this.animStepHeatmap = true;
+        this.animStepPie = true;
         this.animStep3 = true;
         this.animStep4 = true;
       }
@@ -154,6 +186,7 @@ export struct StatsView {
       this.animStep1 = false;
       this.animStep2 = false;
       this.animStepHeatmap = false;
+      this.animStepPie = false;
       this.animStep3 = false;
       this.animStep4 = false;
     }
@@ -179,6 +212,97 @@ export struct StatsView {
     this.calculateChartData();
     this.calculateQuarterlyChartData();
     this.calculateHeatmapData();
+    this.calculatePieData();
+  }
+
+  calculatePieData() {
+    const monthlyMap = new Map<string, number>();
+    const annualMap = new Map<string, number>();
+    const now = new Date();
+    
+    this.subscriptions.forEach(sub => {
+      let monthlyCost = 0;
+      let annualCost = 0;
+      
+      if (sub.billingCycle === 'Lifetime' || sub.billingCycle === 'Indefinite' || sub.recordType === 'groupBuy') {
+         if (sub.recordType === 'groupBuy') {
+             const days = DateUtil.getDaysUntil(sub.nextBillingDate);
+             if (sub.usageStatus === 'expired' || (sub.usageStatus !== 'used' && days < 0)) return;
+         }
+         
+         const targetDate = sub.recordType === 'groupBuy' ? 
+            (sub.realUsageTime ? new Date(sub.realUsageTime) : new Date(sub.nextBillingDate)) : 
+            new Date(sub.startDate || sub.nextBillingDate);
+         
+         let extendedCost = 0;
+         if (sub.extendedWarranties) {
+           try {
+             const warranties = JSON.parse(sub.extendedWarranties) as ExtendedWarrantyItem[];
+             warranties.forEach(w => {
+               const p = Number(w.price);
+               if (!isNaN(p) && p > 0) extendedCost += p;
+             });
+           } catch (e) {}
+         }
+         const fullCost = Number(sub.price) + extendedCost;
+
+         if (targetDate.getFullYear() === now.getFullYear()) {
+            annualCost = fullCost;
+         }
+         if (DateUtil.isSameMonth(targetDate, now)) {
+            monthlyCost = fullCost;
+         }
+      } else {
+        const price = Number(sub.price);
+        // Annual
+        if (sub.billingCycle === 'Monthly') annualCost = price * 12;
+        else if (sub.billingCycle === 'Quarterly') annualCost = price * 4;
+        else if (sub.billingCycle === 'Yearly') annualCost = price;
+        
+        // Monthly
+        if (sub.billingCycle === 'Monthly') monthlyCost = price;
+        else if (sub.billingCycle === 'Quarterly') monthlyCost = price / 3;
+        else if (sub.billingCycle === 'Yearly') monthlyCost = price / 12;
+      }
+      
+      const category = sub.subCategory || sub.category || '未分类';
+      if (annualCost > 0) annualMap.set(category, (annualMap.get(category) || 0) + annualCost);
+      if (monthlyCost > 0) monthlyMap.set(category, (monthlyMap.get(category) || 0) + monthlyCost);
+    });
+
+    this.pieDataAnnual = this.processPieMap(annualMap);
+    this.pieDataMonthly = this.processPieMap(monthlyMap);
+  }
+
+  processPieMap(map: Map<string, number>): PieData[] {
+    let data: PieData[] = [];
+    let total = 0;
+    map.forEach((value, key) => {
+      total += value;
+      data.push({ name: key, value: value, color: '', percentage: 0 });
+    });
+
+    data.sort((a, b) => b.value - a.value);
+
+    const colors = [
+      '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', 
+      '#FF9F40', '#8AC926', '#1982C4', '#6A4C93', '#F15BB5'
+    ];
+
+    if (data.length > 6) {
+      const top5 = data.slice(0, 5);
+      const others = data.slice(5);
+      const otherValue = others.reduce((sum, item) => sum + item.value, 0);
+      top5.push({ name: '其他', value: otherValue, color: '#C9CBCF', percentage: 0 });
+      data = top5;
+    }
+
+    data.forEach((item, index) => {
+      item.percentage = (item.value / total) * 100;
+      item.color = item.name === '其他' ? '#C9CBCF' : colors[index % colors.length];
+    });
+    
+    return data;
   }
 
   calculateHeatmapData() {
@@ -285,7 +409,19 @@ export struct StatsView {
                   const dayOfYear = DateUtil.getDayOfYear(targetDate);
                   if (dayOfYear >= 0 && dayOfYear < 366) {
                       const index = dayOfYear + paddingCount;
-                      data[index] += price;
+                      
+                      let extendedCost = 0;
+                      if (sub.extendedWarranties) {
+                        try {
+                          const warranties = JSON.parse(sub.extendedWarranties) as ExtendedWarrantyItem[];
+                          warranties.forEach(w => {
+                            const p = Number(w.price);
+                            if (!isNaN(p) && p > 0) extendedCost += p;
+                          });
+                        } catch (e) {}
+                      }
+
+                      data[index] += price + extendedCost;
                       if (data[index] > maxCost) maxCost = data[index];
                   }
               }
@@ -389,7 +525,17 @@ export struct StatsView {
             const diffMonths = (targetDate.getFullYear() - startOfCurrentMonth.getFullYear()) * 12 + 
                                (targetDate.getMonth() - startOfCurrentMonth.getMonth());
             if (diffMonths >= 0 && diffMonths < 12) {
-                data[diffMonths] += price;
+                let extendedCost = 0;
+                if (sub.extendedWarranties) {
+                  try {
+                    const warranties = JSON.parse(sub.extendedWarranties) as ExtendedWarrantyItem[];
+                    warranties.forEach(w => {
+                      const p = Number(w.price);
+                      if (!isNaN(p) && p > 0) extendedCost += p;
+                    });
+                  } catch (e) {}
+                }
+                data[diffMonths] += price + extendedCost;
             }
             return;
         }
@@ -518,11 +664,21 @@ export struct StatsView {
          if (sub.recordType === 'groupBuy') {
              targetDate = sub.realUsageTime ? new Date(sub.realUsageTime) : new Date(sub.nextBillingDate);
          } else {
-             targetDate = new Date(sub.nextBillingDate); 
+             targetDate = new Date(sub.startDate || sub.nextBillingDate); 
          }
 
          if (DateUtil.isSameMonth(targetDate, now)) {
-            total += sub.price;
+            let extendedCost = 0;
+            if (sub.extendedWarranties) {
+              try {
+                const warranties = JSON.parse(sub.extendedWarranties) as ExtendedWarrantyItem[];
+                warranties.forEach(w => {
+                  const p = Number(w.price);
+                  if (!isNaN(p) && p > 0) extendedCost += p;
+                });
+              } catch (e) {}
+            }
+            total += sub.price + extendedCost;
          }
          return;
       }
@@ -553,10 +709,20 @@ export struct StatsView {
          
          const targetDate = sub.recordType === 'groupBuy' ? 
             (sub.realUsageTime ? new Date(sub.realUsageTime) : new Date(sub.nextBillingDate)) : 
-            new Date(sub.nextBillingDate);
+            new Date(sub.startDate || sub.nextBillingDate);
          
          if (targetDate.getFullYear() === now.getFullYear()) {
-            total += sub.price;
+            let extendedCost = 0;
+            if (sub.extendedWarranties) {
+              try {
+                const warranties = JSON.parse(sub.extendedWarranties) as ExtendedWarrantyItem[];
+                warranties.forEach(w => {
+                  const p = Number(w.price);
+                  if (!isNaN(p) && p > 0) extendedCost += p;
+                });
+              } catch (e) {}
+            }
+            total += sub.price + extendedCost;
          }
          return;
       }
@@ -649,22 +815,33 @@ export struct StatsView {
         
         const now = new Date();
         
+        let extendedCost = 0;
+        if (sub.extendedWarranties) {
+          try {
+            const warranties = JSON.parse(sub.extendedWarranties) as ExtendedWarrantyItem[];
+            warranties.forEach(w => {
+              const p = Number(w.price);
+              if (!isNaN(p) && p > 0) extendedCost += p;
+            });
+          } catch (e) {}
+        }
+        
         if (this.rankingFilter === 0) {
            // 月度: 如果是本月过期/购买，计入全额
            if (billingDate.getFullYear() === now.getFullYear() && billingDate.getMonth() === now.getMonth()) {
-               calcPrice = price;
+               calcPrice = price + extendedCost;
            }
         } else if (this.rankingFilter === 1) {
            // 季度: 如果是本季度过期/购买，计入全额
            const currentQuarter = Math.floor(now.getMonth() / 3);
            const billingQuarter = Math.floor(billingDate.getMonth() / 3);
            if (billingDate.getFullYear() === now.getFullYear() && currentQuarter === billingQuarter) {
-               calcPrice = price;
+               calcPrice = price + extendedCost;
            }
         } else {
            // 年度: 如果是今年过期/购买，计入全额
            if (billingDate.getFullYear() === now.getFullYear()) {
-               calcPrice = price;
+               calcPrice = price + extendedCost;
            }
         }
       } else {
@@ -708,7 +885,8 @@ export struct StatsView {
 
   getUpcomingSoon(): SubscriptionModel[] {
     return this.subscriptions.filter(sub => {
-      if (sub.billingCycle === 'Lifetime') return false;
+      // warranty 类型虽然 billingCycle 为 Lifetime，但也需要显示即将到期
+      if (sub.billingCycle === 'Lifetime' && sub.recordType !== 'warranty') return false;
       const days = DateUtil.getDaysUntil(sub.nextBillingDate);
       return days >= 0 && days <= 7;
     }).sort((a, b) => a.nextBillingDate - b.nextBillingDate);
@@ -716,7 +894,8 @@ export struct StatsView {
 
   getExpiringThisMonth(): SubscriptionModel[] {
     return this.subscriptions.filter(sub => {
-      if (sub.billingCycle === 'Lifetime') return false;
+      // warranty 类型虽然 billingCycle 为 Lifetime，但也需要显示即将到期
+      if (sub.billingCycle === 'Lifetime' && sub.recordType !== 'warranty') return false;
       const days = DateUtil.getDaysUntil(sub.nextBillingDate);
       return days >= 0 && days <= 30;
     });
@@ -726,6 +905,8 @@ export struct StatsView {
     let cycleText = '';
     if (sub.recordType === 'groupBuy') {
       cycleText = '团购';
+    } else if (sub.recordType === 'warranty') {
+      cycleText = '保修';
     } else {
       switch (sub.billingCycle) {
       case 'Monthly':
@@ -746,6 +927,9 @@ export struct StatsView {
       }
     }
     
+    if (sub.recordType === 'warranty' && sub.brand) {
+      return `${cycleText} · ${sub.brand}`;
+    }
     if (sub.subCategory) {
       return `${cycleText} · ${sub.subCategory}`;
     }
@@ -753,7 +937,7 @@ export struct StatsView {
   }
 
   getRankingSubtitle(sub: SubscriptionModel): string {
-    if (sub.billingCycle === 'Lifetime' || sub.billingCycle === 'Indefinite' || sub.recordType === 'groupBuy') {
+    if (sub.billingCycle === 'Lifetime' || sub.billingCycle === 'Indefinite' || sub.recordType === 'groupBuy' || sub.recordType === 'warranty') {
         if (this.rankingFilter === 0) return '本月支出';
         if (this.rankingFilter === 1) return '本季支出';
         return '年度支出';
@@ -1047,6 +1231,97 @@ export struct StatsView {
   }
 
   @Builder
+  PieChartCardBuilder() {
+    Column() {
+      Row() {
+        Text(this.pieChartFilter === 0 ? "支出构成 (月度)" : "支出构成 (年度)").fontSize(16).fontWeight(FontWeight.Bold).fontColor($r('app.color.text_primary'))
+        Blank()
+        Row() {
+          ForEach(["月度", "年度"], (label: string, index: number) => {
+            Button() {
+              Text(label).fontSize(12).fontWeight(this.pieChartFilter === index ? FontWeight.Bold : FontWeight.Normal)
+                .fontColor(this.pieChartFilter === index ? (this.isNewYearTheme ? '#FFD700' : (this.showVipTheme ? $r('app.color.vip_text_on_gold') : Color.White)) : $r('app.color.text_secondary'))
+            }
+            .type(ButtonType.Normal).layoutWeight(1).height('100%')
+            .linearGradient(this.pieChartFilter === index ?
+              (this.isNewYearTheme ? { angle: 135, colors: [[$r('app.color.new_year_red_start'), 0.0], [$r('app.color.new_year_red_end'), 1.0]] } :
+              (this.showVipTheme ? { angle: 135, colors: [[$r('app.color.vip_gold_start'), 0.0], [$r('app.color.vip_gold_end'), 1.0]] } : undefined)) : undefined)
+            .backgroundColor(this.pieChartFilter === index ? (this.isNewYearTheme || this.showVipTheme ? Color.Transparent : $r('app.color.brand_color')) : Color.Transparent)
+            .borderRadius(12).scale({ x: this.pressedPieFilterIndex === index ? 0.95 : 1, y: this.pressedPieFilterIndex === index ? 0.95 : 1 })
+            .onTouch((event: TouchEvent) => {
+              if (event.type === TouchType.Down) {
+                if (this.isAnimationEnabled && this.isPointLightEnabled) {
+                  this.pressedPieFilterIndex = index;
+                }
+              } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                this.pressedPieFilterIndex = -1;
+              }
+            })
+            .onClick(() => {
+                if (this.isAnimationEnabled) {
+                  animateTo({ curve: curves.springMotion(this.animationResponse, this.animationDamping) }, () => { this.pieChartFilter = index; })
+                } else {
+                  this.pieChartFilter = index;
+                }
+            })
+          })
+        }.backgroundColor($r('app.color.page_background')).borderRadius(14).width(132).height(32).padding(2)
+      }
+      .width('100%').margin({ bottom: 12 })
+      
+      Stack() {
+        if (this.pieChartFilter === 0) {
+          if (this.pieDataMonthly.length === 0) {
+            Text("暂无数据").fontSize(14).fontColor($r('app.color.text_secondary')).margin({ top: 20, bottom: 20 }).alignSelf(ItemAlign.Center)
+            .transition(TransitionEffect.OPACITY.animation({ duration: 300 }))
+          } else {
+            PieChart({
+              data: this.pieDataMonthly,
+              isNewYearTheme: this.isNewYearTheme,
+              showVipTheme: this.showVipTheme
+            })
+            .transition(TransitionEffect.asymmetric(
+              TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: 20 })),
+              TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: -20 }))
+            ))
+          }
+        } else {
+          if (this.pieDataAnnual.length === 0) {
+            Text("暂无数据").fontSize(14).fontColor($r('app.color.text_secondary')).margin({ top: 20, bottom: 20 }).alignSelf(ItemAlign.Center)
+            .transition(TransitionEffect.OPACITY.animation({ duration: 300 }))
+          } else {
+            PieChart({
+              data: this.pieDataAnnual,
+              isNewYearTheme: this.isNewYearTheme,
+              showVipTheme: this.showVipTheme
+            })
+            .transition(TransitionEffect.asymmetric(
+              TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: 20 })),
+              TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: -20 }))
+            ))
+          }
+        }
+      }
+      .width('100%')
+    }
+    .padding(16).backgroundColor($r('app.color.card_background')).borderRadius(16)
+    .visualEffect(new hdsEffect.HdsEffectBuilder().pointLight({ sourceType: this.pieLight, illuminatedType: hdsEffect.PointLightIlluminatedType.BORDER }).buildEffect())
+    .scale({ x: this.isPiePressed ? 0.98 : 1, y: this.isPiePressed ? 0.98 : 1 })
+    .animation({ curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear, duration: this.isAnimationEnabled ? undefined : 0 })
+    .onTouch((event: TouchEvent) => {
+      if (event.type === TouchType.Down) {
+        if (this.isAnimationEnabled && this.isPointLightEnabled) {
+          this.isPiePressed = true;
+          this.pieLight = hdsEffect.PointLightSourceType.BRIGHT;
+        }
+      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+        this.isPiePressed = false;
+        this.pieLight = hdsEffect.PointLightSourceType.NONE;
+      }
+    })
+  }
+
+  @Builder
   MonthlyReportCardBuilder() {
     Row() {
       Column() {
@@ -1125,7 +1400,7 @@ export struct StatsView {
 
       ForEach(this.getRankingList(), (item: RankingItem, index: number) => {
         this.RankingItemAnimated(item, index)
-      }, (item: RankingItem) => `${item.sub.uuid}_${this.rankingFilter}_${item.sub.icon}`)
+      }, (item: RankingItem) => `${item.sub.uuid}_${this.rankingFilter}_${item.sub.lastModified}`)
     }
     .padding(16).backgroundColor($r('app.color.card_background'))
     .borderRadius(16)
@@ -1168,35 +1443,81 @@ export struct StatsView {
     .transition(TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 30 })).combine(TransitionEffect.scale({ x: 0.95, y: 0.95 }))
       .animation({ curve: this.isAnimationEnabled ? curves.springMotion(this.animationResponse, this.animationDamping) : Curve.Linear, duration: this.isAnimationEnabled ? undefined : 0, delay: this.isAnimationEnabled ? index * 50 : 0 }))
   }
+@Builder StatsBuilder(){
+  Stack({ alignContent: Alignment.Top }) {
+    if (!this.isLoggedIn) {
+      this.LoginPlaceholderBuilder()
+    } else {
+      List() {
+        ListItem() {
+          Column().height(56 + this.getUIContext().px2vp(this.topRectHeight))
+        }
 
-  build() {
-    HdsNavDestination() {
-      Stack({ alignContent: Alignment.Top }) {
-        if (!this.isLoggedIn) {
-          this.LoginPlaceholderBuilder()
-        } else {
-          List() {
-            ListItem() { Column().height(56 + this.getUIContext().px2vp(this.topRectHeight)) }
-            ListItem() { this.SummaryCardBuilder() }.padding({ left: 24, right: 24, bottom: 16 }).opacity(this.animStep1 ? 1 : 0).translate({ y: this.animStep1 ? 0 : 50 })
-            ListItem() { this.TrendChartBuilder() }.padding({ left: 24, right: 24, bottom: 16 }).opacity(this.animStep2 ? 1 : 0).translate({ y: this.animStep2 ? 0 : 50 })
-            ListItem() { this.HeatmapBuilder() }.padding({ left: 24, right: 24, bottom: 16 }).opacity(this.animStepHeatmap ? 1 : 0).translate({ y: this.animStepHeatmap ? 0 : 50 })
-            ListItem() { this.MonthlyReportCardBuilder() }.padding({ left: 24, right: 24, bottom: 16 }).opacity(this.animStep3 ? 1 : 0).translate({ y: this.animStep3 ? 0 : 50 })
-            ListItem() { this.RankingCardBuilder() }.padding({ left: 24, right: 24, bottom: 16 }).opacity(this.animStep4 ? 1 : 0).translate({ y: this.animStep4 ? 0 : 50 })
-            ListItem() { Row().height(120) }
-          }
-          .width('100%').layoutWeight(1).scrollBar(BarState.Off)
+        ListItem() {
+          this.SummaryCardBuilder()
+        }
+        .padding({ left: 24, right: 24, bottom: 16 })
+        .opacity(this.animStep1 ? 1 : 0)
+        .translate({ y: this.animStep1 ? 0 : 50 })
+
+        ListItem() {
+          this.TrendChartBuilder()
+        }
+        .padding({ left: 24, right: 24, bottom: 16 })
+        .opacity(this.animStep2 ? 1 : 0)
+        .translate({ y: this.animStep2 ? 0 : 50 })
+
+        ListItem() {
+          this.HeatmapBuilder()
+        }
+        .padding({ left: 24, right: 24, bottom: 16 })
+        .opacity(this.animStepHeatmap ? 1 : 0)
+        .translate({ y: this.animStepHeatmap ? 0 : 50 })
+
+        ListItem() {
+          this.PieChartCardBuilder()
+        }
+        .padding({ left: 24, right: 24, bottom: 16 })
+        .opacity(this.animStepPie ? 1 : 0)
+        .translate({ y: this.animStepPie ? 0 : 50 })
+
+        ListItem() {
+          this.MonthlyReportCardBuilder()
+        }
+        .padding({ left: 24, right: 24, bottom: 16 })
+        .opacity(this.animStep3 ? 1 : 0)
+        .translate({ y: this.animStep3 ? 0 : 50 })
+
+        ListItem() {
+          this.RankingCardBuilder()
+        }
+        .padding({ left: 24, right: 24, bottom: 16 })
+        .opacity(this.animStep4 ? 1 : 0)
+        .translate({ y: this.animStep4 ? 0 : 50 })
+
+        ListItem() {
+          Row().height(120)
         }
       }
-      .width('100%').height('100%').backgroundColor(Color.Transparent)
+      .width('100%').layoutWeight(1).scrollBar(BarState.Off)
+    }
+  }
+  .width('100%').height('100%').backgroundColor(Color.Transparent)
+}
+  build() {
+    HdsNavDestination() {
+      this.StatsBuilder()
+
       Column()
         .bindSheet($$this.showReport, this.ReportSheetBuilder(), {
           height: SheetSize.LARGE,
           backgroundColor: $r('app.color.page_background'),
           dragBar: true,
           showClose: true,
-          title:{title:'月度预估报告'},
-          onDisappear: () => { this.showReport = false },
-          preferType:SheetType.BOTTOM
+          onDisappear: () => {
+            this.showReport = false
+          },
+          preferType: SheetType.BOTTOM
         })
       Column()
         .bindSheet($$this.showLoginSheet, this.LoginSheetBuilder(), {
@@ -1205,11 +1526,20 @@ export struct StatsView {
           showClose: true,
           preferType: SheetType.BOTTOM,
           title: { title: '登录', subtitle: '使用华为账号登录' },
-          onDisappear: () => { this.showLoginSheet = false }
+          onDisappear: () => {
+            this.showLoginSheet = false
+          }
         })
     }
     .hideBackButton(true).hideTitleBar(false).backgroundColor(Color.Transparent)
-    .titleBar({ avoidLayoutSafeArea: true, content: { title: { mainTitle: '统计分析' }, menu: { value: [] } } })
+    .titleBar({
+      avoidLayoutSafeArea: true,
+      content: {
+        title: { mainTitle: '统计分析' },
+      }
+    } as HdsNavigationTitleBarOptions)
+
+
 
   }
 

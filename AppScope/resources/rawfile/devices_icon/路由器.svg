@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="ledRouter" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </linearGradient>
+    <filter id="shadowRouter" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  <rect x="30" y="25" width="6" height="50" rx="3" fill="#334155" filter="url(#shadowRouter)"/>
+  <rect x="57" y="15" width="6" height="60" rx="3" fill="#334155" filter="url(#shadowRouter)"/>
+  <rect x="84" y="25" width="6" height="50" rx="3" fill="#334155" filter="url(#shadowRouter)"/>
+  <polygon points="20,85 30,65 90,65 100,85" fill="#1E293B" filter="url(#shadowRouter)"/>
+  <rect x="20" y="85" width="80" height="15" fill="#0F172A" rx="2"/>
+  <line x1="40" y1="70" x2="80" y2="70" stroke="#334155" stroke-width="2" stroke-linecap="round"/>
+  <line x1="35" y1="75" x2="85" y2="75" stroke="#334155" stroke-width="2" stroke-linecap="round"/>
+  <line x1="30" y1="80" x2="90" y2="80" stroke="#334155" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="50" cy="92.5" r="2.5" fill="url(#ledRouter)"/>
+  <circle cx="60" cy="92.5" r="2.5" fill="url(#ledRouter)"/>
+  <circle cx="70" cy="92.5" r="2.5" fill="url(#ledRouter)"/>
+</svg>

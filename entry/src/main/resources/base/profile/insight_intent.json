@@ -1,0 +1,384 @@
+{
+    "insightIntents": [
+        {
+            "intentName": "AddSubscription",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "price",
+                    "type": "string"
+                },
+                {
+                    "name": "billingCycle",
+                    "type": "string"
+                },
+                {
+                    "name": "expireDate",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderDaysBefore",
+                    "type": "string"
+                },
+                {
+                    "name": "isReminderEnabled",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderTime",
+                    "type": "string"
+                },
+                {
+                    "name": "subCategory",
+                    "type": "string"
+                },
+                {
+                    "name": "purchaseDate",
+                    "type": "string"
+                },
+                {
+                    "name": "isAutoRenewal",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
+                }
+            ]
+        },
+        {
+            "intentName": "AddVoucher",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "price",
+                    "type": "string"
+                },
+                {
+                    "name": "platform",
+                    "type": "string"
+                },
+                {
+                    "name": "purchaseDate",
+                    "type": "string"
+                },
+                {
+                    "name": "expireDate",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderDaysBefore",
+                    "type": "string"
+                },
+                {
+                    "name": "isReminderEnabled",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderTime",
+                    "type": "string"
+                },
+                {
+                    "name": "merchantName",
+                    "type": "string"
+                },
+                {
+                    "name": "couponCode",
+                    "type": "string"
+                },
+                {
+                    "name": "usageTime",
+                    "type": "string"
+                },
+                {
+                    "name": "quantity",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
+                }
+            ]
+        },
+        {
+            "intentName": "AddWarranty",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "price",
+                    "type": "string"
+                },
+                {
+                    "name": "brand",
+                    "type": "string"
+                },
+                {
+                    "name": "purchaseDate",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderDaysBefore",
+                    "type": "string"
+                },
+                {
+                    "name": "isReminderEnabled",
+                    "type": "string"
+                },
+                {
+                    "name": "reminderTime",
+                    "type": "string"
+                },
+                {
+                    "name": "category",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
+                }
+            ]
+        },
+        {
+            "intentName": "QueryRecord",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "queryType",
+                    "type": "string"
+                },
+                {
+                    "name": "timeRange",
+                    "type": "string"
+                },
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "brand",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
+                }
+            ]
+        },
+        {
+            "intentName": "GetAllRecords",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "timeRange",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
+                }
+            ]
+        },
+        {
+            "intentName": "QuerySubscription",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "queryType",
+                    "type": "string"
+                },
+                {
+                    "name": "timeRange",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
+                }
+            ]
+        },
+        {
+            "intentName": "QueryVoucher",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "timeRange",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
+                }
+            ]
+        },
+        {
+            "intentName": "QueryWarranty",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "inputParams": [
+                {
+                    "name": "productName",
+                    "type": "string"
+                },
+                {
+                    "name": "timeRange",
+                    "type": "string"
+                }
+            ],
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object"
+                }
+            ]
+        },
+        {
+            "intentName": "CheckLogin",
+            "domain": "",
+            "intentVersion": "1.0.0",
+            "srcEntry": "./ets/entryability/InsightIntentExecutorImpl.ets",
+            "uiAbility": {
+                "ability": "EntryAbility",
+                "executeMode": [
+                    "background"
+                ]
+            },
+            "outputParams": [
+                {
+                    "name": "code",
+                    "type": "number"
+                },
+                {
+                    "name": "result",
+                    "type": "object",
+                    "property": [
+                        {
+                            "name": "resultCode",
+                            "type": "boolean"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

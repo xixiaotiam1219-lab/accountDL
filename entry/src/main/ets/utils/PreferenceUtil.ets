@@ -3,6 +3,7 @@ import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { formBindingData, formProvider, formInfo } from '@kit.FormKit';
+import { deviceInfo } from '@kit.BasicServicesKit';
 
 const TAG = 'PreferenceUtil';
 const DOMAIN = 0x0000;
@@ -47,6 +48,7 @@ export class PreferenceUtil {
   private static readonly KEY_ANIMATION_RESPONSE = 'animation_response';
   private static readonly KEY_ANIMATION_PRESET_MODE = 'animation_preset_mode';
   private static readonly KEY_NEW_YEAR_REMINDER_DISABLED = 'new_year_reminder_disabled';
+  private static readonly KEY_HDS_TABS_ENABLED = 'hds_tabs_enabled';
   private static instance: PreferenceUtil;
   private pref: preferences.Preferences | null = null;
   private context: common.Context | null = null;
@@ -581,6 +583,85 @@ export class PreferenceUtil {
     }
   }
 
+  async saveHdsTabsEnabled(enabled: boolean) {
+    await this.ensureInitialized();
+    if (!this.pref) return;
+    try {
+      await this.pref.put(PreferenceUtil.KEY_HDS_TABS_ENABLED, enabled);
+      await this.pref.flush();
+      AppStorage.setOrCreate('isHdsTabsEnabled', enabled);
+    } catch (err) {
+      hilog.error(DOMAIN, TAG, `Failed to save HdsTabs enabled: ${err}`);
+    }
+  }
+
+  async loadHdsTabsEnabled(): Promise<boolean> {
+    await this.ensureInitialized();
+    const isApiSupported = deviceInfo.distributionOSApiVersion >= 60100;
+    AppStorage.setOrCreate('isHdsTabsSupported', isApiSupported);
+    
+    if (!isApiSupported) {
+      AppStorage.setOrCreate('isHdsTabsEnabled', false);
+      return false;
+    }
+
+    if (!this.pref) {
+      AppStorage.setOrCreate('isHdsTabsEnabled', false);
+      return false;
+    }
+    
+    try {
+      const enabled = await this.pref.get(PreferenceUtil.KEY_HDS_TABS_ENABLED, false);
+      AppStorage.setOrCreate('isHdsTabsEnabled', enabled);
+      return enabled as boolean;
+    } catch (err) {
+      hilog.error(DOMAIN, TAG, `Failed to load HdsTabs enabled: ${err}`);
+      AppStorage.setOrCreate('isHdsTabsEnabled', false);
+      return false;
+    }
+  }
+
+  public async saveSmartGestureEnabled(enabled: boolean) {
+    await this.ensureInitialized();
+    if (!this.pref) return;
+    try {
+      await this.pref.put(PreferenceUtil.KEY_SMART_GESTURE_ENABLED, enabled);
+      await this.pref.flush();
+      AppStorage.setOrCreate('isSmartGestureEnabled', enabled);
+    } catch (err) {
+      hilog.error(DOMAIN, TAG, `Failed to save smart gesture enabled: ${err}`);
+    }
+  }
+
+  public async loadSmartGestureEnabled(): Promise<boolean> {
+    await this.ensureInitialized();
+    if (!this.pref) return false; // Default to false
+    try {
+      const enabled = await this.pref.get(PreferenceUtil.KEY_SMART_GESTURE_ENABLED, false);
+      AppStorage.setOrCreate('isSmartGestureEnabled', enabled);
+      return enabled as boolean;
+    } catch (err) {
+      hilog.error(DOMAIN, TAG, `Failed to load smart gesture enabled: ${err}`);
+      return false;
+    }
+  }
+
+  /**
+   * Synchronous load for Ability Initialization (Critical for launch animation)
+   */
+  loadSmartGestureEnabledSync(context: common.Context): boolean {
+    try {
+        const pref = preferences.getPreferencesSync(context, { name: PREFERENCES_NAME });
+        const enabled = pref.getSync(PreferenceUtil.KEY_SMART_GESTURE_ENABLED, false) as boolean; // Default false
+        AppStorage.setOrCreate('isSmartGestureEnabled', enabled);
+        hilog.info(DOMAIN, TAG, `loadSmartGestureEnabledSync: ${enabled}`);
+        return enabled;
+    } catch (e) {
+        hilog.error(DOMAIN, TAG, `loadSmartGestureEnabledSync failed: ${JSON.stringify(e)}`);
+        return false;
+    }
+  }
+
   /**
    * Synchronous load for Ability Initialization (Critical for launch animation)
    */
@@ -594,6 +675,30 @@ export class PreferenceUtil {
     } catch (e) {
         hilog.error(DOMAIN, TAG, `loadSplitViewEnabledSync failed: ${JSON.stringify(e)}`);
         return false;
+    }
+  }
+
+  /**
+   * Synchronous load for Ability Initialization (Critical for launch animation)
+   */
+  loadHdsTabsEnabledSync(context: common.Context): boolean {
+    try {
+      const isApiSupported = deviceInfo.distributionOSApiVersion >= 60100;
+      AppStorage.setOrCreate('isHdsTabsSupported', isApiSupported);
+
+      if (!isApiSupported) {
+        AppStorage.setOrCreate('isHdsTabsEnabled', false);
+        return false;
+      }
+
+      const pref = preferences.getPreferencesSync(context, { name: PREFERENCES_NAME });
+      const enabled = pref.getSync(PreferenceUtil.KEY_HDS_TABS_ENABLED, false) as boolean; // Default false
+      AppStorage.setOrCreate('isHdsTabsEnabled', enabled);
+      hilog.info(DOMAIN, TAG, `loadHdsTabsEnabledSync: ${enabled}`);
+      return enabled;
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, `loadHdsTabsEnabledSync failed: ${JSON.stringify(e)}`);
+      return false;
     }
   }
 
@@ -1136,22 +1241,36 @@ export class PreferenceUtil {
     await this.ensureInitialized();
     if (!this.pref) return;
     try {
-      await this.pref.put(`reminder_map_${subId}`, reminderId);
-      await this.pref.flush();
+      const existingIds = await this.getReminderIds(subId);
+      if (!existingIds.includes(reminderId)) {
+        existingIds.push(reminderId);
+        await this.pref.put(`reminder_map_${subId}`, JSON.stringify(existingIds));
+        await this.pref.flush();
+      }
     } catch (err) {
-      hilog.error(DOMAIN, TAG, `Failed to save reminder map: ${err}`);
+      hilog.error(DOMAIN, TAG, `Failed to save reminder map for sub ${subId}: ${err}`);
     }
   }
 
-  public async getReminderId(subId: number): Promise<number> {
+  public async getReminderIds(subId: number): Promise<number[]> {
     await this.ensureInitialized();
-    if (!this.pref) return -1;
+    if (!this.pref) return [];
     try {
-      const id = await this.pref.get(`reminder_map_${subId}`, -1);
-      return id as number;
+      const val = await this.pref.get(`reminder_map_${subId}`, '[]');
+      if (typeof val === 'number') {
+        // 兼容旧版本单 ID 格式
+        return val === -1 ? [] : [val];
+      }
+      return JSON.parse(val as string) as number[];
     } catch (err) {
-      return -1;
+      return [];
     }
+  }
+
+  // 保留原有方法名兼容接口，返回第一个 ID (通常为主周期提醒)
+  public async getReminderId(subId: number): Promise<number> {
+    const ids = await this.getReminderIds(subId);
+    return ids.length > 0 ? ids[0] : -1;
   }
 
   public async saveSortOrder(order: string) {
@@ -1189,29 +1308,26 @@ export class PreferenceUtil {
       hilog.error(DOMAIN, TAG, `Failed to remove reminder map: ${err}`);
     }
   }
-  public async loadSmartGestureEnabled(): Promise<boolean> {
-    await this.ensureInitialized();
-    if (!this.pref) return false; // Default to false
-    try {
-      const val = await this.pref.get(PreferenceUtil.KEY_SMART_GESTURE_ENABLED, false);
-      AppStorage.setOrCreate('isSmartGestureEnabled', val);
-      return val as boolean;
-    } catch (err) {
-      return false;
-    }
-  }
 
-  public async saveSmartGestureEnabled(enabled: boolean) {
+  public async removeSpecificReminderId(subId: number, reminderId: number) {
     await this.ensureInitialized();
     if (!this.pref) return;
     try {
-      await this.pref.put(PreferenceUtil.KEY_SMART_GESTURE_ENABLED, enabled);
-      await this.pref.flush();
-      AppStorage.setOrCreate('isSmartGestureEnabled', enabled);
+      let ids = await this.getReminderIds(subId);
+      if (ids.includes(reminderId)) {
+        ids = ids.filter(id => id !== reminderId);
+        if (ids.length > 0) {
+          await this.pref.put(`reminder_map_${subId}`, JSON.stringify(ids));
+        } else {
+          await this.pref.delete(`reminder_map_${subId}`);
+        }
+        await this.pref.flush();
+      }
     } catch (err) {
-      hilog.error(DOMAIN, TAG, `Failed to save smart gesture enabled: ${err}`);
+      hilog.error(DOMAIN, TAG, `Failed to remove specific reminder id for sub ${subId}: ${err}`);
     }
   }
+
 
   public async saveLastKnownVersion(version: string) {
     await this.ensureInitialized();

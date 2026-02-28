@@ -8,6 +8,7 @@ import { DateUtil } from '../utils/DateUtil';
 import { PreferenceUtil } from '../utils/PreferenceUtil';
 import { LocalNotificationManager } from '../manager/LocalNotificationManager';
 import { util } from '@kit.ArkTS';
+import { WARRANTY_ICON_MAP_NAMES, WARRANTY_THEME_MAP, getWarrantyThemeColors } from '../utils/WarrantyConstants';
 
 const STORE_CONFIG: relationalStore.StoreConfig = {
   name: 'SubscriptionTracker.db',
@@ -69,16 +70,38 @@ interface CloudSyncResponse {
  */
 export interface MinimalCardItem {
   id: number | string;
-  recordType: 'subscription' | 'groupBuy';
+  uuid?: string;
+  recordType: 'subscription' | 'groupBuy' | 'warranty';
   usageStatus: 'unused' | 'used' | 'expired';
+  isWarranty?: boolean;
   name: string;
+  price?: number;
+  currency?: string;
+  platform?: string;
+  billingCycle: 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite';
+  icon?: string;
+  category?: string;
+  subCategory?: string;
+  isAutoRenewal?: boolean;
+  paymentMethod?: string;
+  startDate?: number;
+  brand?: string;
+  purchaseChannel?: string;
+  merchantName?: string;
+  nextBillingDate?: number;
 }
 
 class SnapshotItem {
+  id: string = '';
   title: string = '';
   content: string = '';
   icon: string = '';
+  colorStart?: string;
+  colorEnd?: string;
   isExpiring: boolean = false;
+  isLifetime: boolean = false;
+  isGroupBuy: boolean = false;
+  isWarranty: boolean = false;
   originalItem: string = '';
 }
 
@@ -108,7 +131,7 @@ export class SubscriptionRepository {
 
   public init(context: common.Context): Promise<void> {
     if (this.initPromise) {
-       return this.initPromise;
+      return this.initPromise;
     }
 
     this.initPromise = new Promise((resolve, reject) => {
@@ -121,29 +144,29 @@ export class SubscriptionRepository {
         }
         this.rdbStore = store;
         try {
-            await this.rdbStore.executeSql(SQL_CREATE_TABLE); 
-            // 数据库迁移逻辑：为旧版本数据库添加新字段
-            await this.migrate(this.rdbStore);
-            console.info('RdbStore initialized');
+          await this.rdbStore.executeSql(SQL_CREATE_TABLE);
+          // 数据库迁移逻辑：为旧版本数据库添加新字段
+          await this.migrate(this.rdbStore);
+          console.info('RdbStore initialized');
 
-            // 监听主题修改事件，同步更新快照
-            GlobalBus.subscribe(EVENT_THEME_CHANGED, () => {
-                // hilog.info( 'SubscriptionRepository', 'Theme changed event received, updating widget snapshot');
-                this.updateWidgetSnapshotSync('theme');
-            });
+          // 监听主题修改事件，同步更新快照
+          GlobalBus.subscribe(EVENT_THEME_CHANGED, () => {
+            // hilog.info( 'SubscriptionRepository', 'Theme changed event received, updating widget snapshot');
+            this.updateWidgetSnapshotSync('theme');
+          });
 
-            // [核心增强] 监听通知权限授予事件，触发全量提醒重同步
-            // 解决换机/迁移场景下权限开启后的提醒恢复问题
-            GlobalBus.subscribe(EVENT_NOTIFY_PERMISSION_GRANTED, async () => {
-                hilog.info(0x0000, 'SubscriptionRepository', 'Notification permission granted event received, resyncing all reminders...');
-                const subs = await this.queryAllInternal(true); // 包含已删除的（Manager 会过滤）或仅查询有效的
-                const activeSubs = subs.filter(s => !s.isDeleted);
-                await LocalNotificationManager.getInstance().resyncReminders(activeSubs);
-            });
+          // [核心增强] 监听通知权限授予事件，触发全量提醒重同步
+          // 解决换机/迁移场景下权限开启后的提醒恢复问题
+          GlobalBus.subscribe(EVENT_NOTIFY_PERMISSION_GRANTED, async () => {
+            hilog.info(0x0000, 'SubscriptionRepository', 'Notification permission granted event received, resyncing all reminders...');
+            const subs = await this.queryAllInternal(true); // 包含已删除的（Manager 会过滤）或仅查询有效的
+            const activeSubs = subs.filter(s => !s.isDeleted);
+            await LocalNotificationManager.getInstance().resyncReminders(activeSubs);
+          });
 
-            resolve();
+          resolve();
         } catch (e) {
-            reject(e);
+          reject(e);
         }
       })
     })
@@ -162,35 +185,53 @@ export class SubscriptionRepository {
       { name: 'quantity', type: 'INTEGER DEFAULT 1' },
       { name: 'couponImage', type: 'TEXT' },
       { name: 'usageTime', type: 'TEXT' },
-      { name: 'realUsageTime', type: 'INTEGER' }
+      { name: 'realUsageTime', type: 'INTEGER' },
+      // 保修/保质期专属字段
+      { name: 'brand', type: 'TEXT' },
+      { name: 'purchaseChannel', type: 'TEXT' },
+      // 附加延保服务字段 (JSON 数组存储)
+      { name: 'extendedWarranties', type: 'TEXT' },
+      // 提醒状态控制字段
+      { name: 'lastIgnoredBillingDate', type: 'INTEGER' },
+      // 补充缺失的迁移定义（防止从更早版本升级时缺失字段）
+      { name: 'startDate', type: 'INTEGER' },
+      { name: 'paymentMethod', type: 'TEXT DEFAULT "其他支付方式"' },
+      { name: 'icon', type: 'TEXT' },
+      { name: 'category', type: 'TEXT' },
+      { name: 'reminderDaysBefore', type: 'INTEGER DEFAULT 1' },
+      { name: 'reminderTime', type: 'TEXT DEFAULT "09:00"' },
+      { name: 'subCategory', type: 'TEXT' },
+      { name: 'isAutoRenewal', type: 'INTEGER DEFAULT 1' },
+      { name: 'lastModified', type: 'INTEGER' },
+      { name: 'isDeleted', type: 'INTEGER DEFAULT 0' }
     ];
-    
-    try {
-        const resultSet = await db.querySql(`PRAGMA table_info(${TABLE_NAME})`);
-        const existingColumns: string[] = [];
-        while (resultSet.goToNextRow()) {
-            existingColumns.push(resultSet.getString(resultSet.getColumnIndex('name')));
-        }
-        resultSet.close();
 
-        for (const col of columns) {
-            if (!existingColumns.includes(col.name)) {
-                try {
-                    await db.executeSql(`ALTER TABLE ${TABLE_NAME} ADD COLUMN ${col.name} ${col.type}`);
-                    console.info(`Added column ${col.name} to ${TABLE_NAME}`);
-                } catch (err) {
-                    // Ignore
-                }
-            }
+    try {
+      const resultSet = await db.querySql(`PRAGMA table_info(${TABLE_NAME})`);
+      const existingColumns: string[] = [];
+      while (resultSet.goToNextRow()) {
+        existingColumns.push(resultSet.getString(resultSet.getColumnIndex('name')));
+      }
+      resultSet.close();
+
+      for (const col of columns) {
+        if (!existingColumns.includes(col.name)) {
+          try {
+            await db.executeSql(`ALTER TABLE ${TABLE_NAME} ADD COLUMN ${col.name} ${col.type}`);
+            console.info(`Added column ${col.name} to ${TABLE_NAME}`);
+          } catch (err) {
+            // Ignore
+          }
         }
-        
-        // 修正旧数据：如果没有开通时间，默认为当前时间 (For user upgraded from old version)
-        // 仅当 data is null 时更新 (Check isn't easy in pure SQL blindly, but update with where clause is safe)
-        const now = new Date().getTime();
-        await db.executeSql(`UPDATE ${TABLE_NAME} SET startDate = ? WHERE startDate IS NULL OR startDate = 0`, [now]);
+      }
+
+      // 修正旧数据：如果没有开通时间，默认为当前时间 (For user upgraded from old version)
+      // 仅当 data is null 时更新 (Check isn't easy in pure SQL blindly, but update with where clause is safe)
+      const now = new Date().getTime();
+      await db.executeSql(`UPDATE ${TABLE_NAME} SET startDate = ? WHERE startDate IS NULL OR startDate = 0`, [now]);
 
     } catch (e) {
-        console.error('Migration failed:', JSON.stringify(e));
+      console.error('Migration failed:', JSON.stringify(e));
     }
   }
 
@@ -236,21 +277,28 @@ export class SubscriptionRepository {
       quantity: subscription.quantity || 1,
       couponImage: subscription.couponImage || null,
       usageTime: subscription.usageTime || null,
-      realUsageTime: subscription.realUsageTime || null
+      realUsageTime: subscription.realUsageTime || null,
+      // 保修/保质期字段
+      brand: subscription.brand || null,
+      purchaseChannel: subscription.purchaseChannel || null,
+      // 附加延保服务字段 (JSON)
+      extendedWarranties: subscription.extendedWarranties || null,
+      // 提醒状态
+      lastIgnoredBillingDate: subscription.lastIgnoredBillingDate || null
     };
     const rowId = await this.rdbStore.insert(TABLE_NAME, valueBucket);
-    
+
     // Ensure ID is set for reminder scheduling
-    subscription.id = rowId; 
-    
+    subscription.id = rowId;
+
     // Always schedule/update reminders to ensure local notification consistency
     LocalNotificationManager.getInstance().scheduleReminder(subscription);
 
     if (!fromSync && !skipRefresh) {
-        this.updateWidgetSnapshotSync('insert');
-        this.syncWithCloud();
-        // Notify UI/Widget immediately for better UX
-        GlobalBus.publish(EVENT_SYNC_COMPLETED);
+      this.updateWidgetSnapshotSync('insert');
+      this.syncWithCloud();
+      // Notify UI/Widget immediately for better UX
+      GlobalBus.publish(EVENT_SYNC_COMPLETED);
     }
     return rowId;
   }
@@ -270,98 +318,76 @@ export class SubscriptionRepository {
     const subscriptions: SubscriptionModel[] = [];
     const now = new Date().getTime();
     const updatePromises: Promise<number>[] = [];
-    
-    while (resultSet.goToNextRow()) {
-      const reminderDaysIdx = resultSet.getColumnIndex('reminderDaysBefore');
-      const reminderTimeIdx = resultSet.getColumnIndex('reminderTime');
 
-      const sub: SubscriptionModel = {
-        id: resultSet.getLong(resultSet.getColumnIndex('id')),
-        uuid: resultSet.getString(resultSet.getColumnIndex('uuid')),
-        name: resultSet.getString(resultSet.getColumnIndex('name')),
-        price: resultSet.getDouble(resultSet.getColumnIndex('price')),
-        currency: resultSet.getString(resultSet.getColumnIndex('currency')),
-        billingCycle: resultSet.getString(resultSet.getColumnIndex('billingCycle')) as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite',
-        nextBillingDate: resultSet.getLong(resultSet.getColumnIndex('nextBillingDate')),
-        icon: resultSet.getString(resultSet.getColumnIndex('icon')),
-        category: resultSet.getString(resultSet.getColumnIndex('category')),
-        lastModified: resultSet.getLong(resultSet.getColumnIndex('lastModified')),
-        isDeleted: resultSet.getLong(resultSet.getColumnIndex('isDeleted')) === 1,
-        reminderDaysBefore: resultSet.isColumnNull(reminderDaysIdx) ? undefined : resultSet.getLong(reminderDaysIdx),
-        reminderTime: resultSet.isColumnNull(reminderTimeIdx) ? undefined : resultSet.getString(reminderTimeIdx),
-        subCategory: resultSet.getString(resultSet.getColumnIndex('subCategory')),
-        startDate: resultSet.getLong(resultSet.getColumnIndex('startDate')),
-        isAutoRenewal: resultSet.getColumnIndex('isAutoRenewal') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('isAutoRenewal')) === 1 : true,
-        paymentMethod: resultSet.getColumnIndex('paymentMethod') !== -1 ? resultSet.getString(resultSet.getColumnIndex('paymentMethod')) : '其他支付方式',
-        // 团购券字段
-        recordType: (resultSet.getColumnIndex('recordType') !== -1 ? resultSet.getString(resultSet.getColumnIndex('recordType')) : 'subscription') as 'subscription' | 'groupBuy',
-        platform: resultSet.getColumnIndex('platform') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('platform')) ? resultSet.getString(resultSet.getColumnIndex('platform')) as 'meituan' | 'douyin' | 'dianping' : undefined,
-        couponCode: resultSet.getColumnIndex('couponCode') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponCode')) ? resultSet.getString(resultSet.getColumnIndex('couponCode')) : undefined,
-        usageStatus: resultSet.getColumnIndex('usageStatus') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageStatus')) ? resultSet.getString(resultSet.getColumnIndex('usageStatus')) as 'unused' | 'used' | 'expired' : 'unused',
-        merchantName: resultSet.getColumnIndex('merchantName') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('merchantName')) ? resultSet.getString(resultSet.getColumnIndex('merchantName')) : undefined,
-        quantity: resultSet.getColumnIndex('quantity') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('quantity')) : 1,
-        couponImage: resultSet.getColumnIndex('couponImage') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponImage')) ? resultSet.getString(resultSet.getColumnIndex('couponImage')) : undefined,
-        usageTime: resultSet.getColumnIndex('usageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageTime')) ? resultSet.getString(resultSet.getColumnIndex('usageTime')) : undefined,
-        realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined
-      };
-      
+    while (resultSet.goToNextRow()) {
+      const sub: SubscriptionModel = this.mapResultSetToModel(resultSet);
+
       // 自动推算过期的 nextBillingDate (永久订阅和不定周期不推算，非自动续费不推算)
-      if (sub.billingCycle !== 'Lifetime' && sub.billingCycle !== 'Indefinite' && sub.isAutoRenewal !== false && sub.nextBillingDate > 0 && sub.nextBillingDate < now) {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      if (sub.billingCycle !== 'Lifetime' && sub.billingCycle !== 'Indefinite' && sub.isAutoRenewal !== false && sub.nextBillingDate > 0 && sub.nextBillingDate < todayStart.getTime()) {
         const updatedDate = this.calculateNextBillingDate(sub.nextBillingDate, sub.billingCycle);
         sub.nextBillingDate = updatedDate;
         sub.lastModified = now;
         // 异步更新数据库，不阻塞查询
         updatePromises.push(this.update(sub, true)); // fromSync=true 避免触发云同步循环
-        
+
         // 关键修复: 自动续费后，必须重新注册提醒，否则下个周期不会提醒
         // update(..., true) 会跳过提醒注册，所以这里手动调用
         if (sub.reminderDaysBefore !== undefined) {
-             LocalNotificationManager.getInstance().scheduleReminder(sub);
+          LocalNotificationManager.getInstance().scheduleReminder(sub);
         }
+      } else if (sub.recordType === 'groupBuy' && sub.usageStatus === 'unused' && sub.nextBillingDate > 0 && sub.nextBillingDate < todayStart.getTime()) {
+        // 团购券过期逻辑：如果已过有效期，自动标记为已过期
+        sub.usageStatus = 'expired';
+        // 清除提醒设置
+        sub.reminderDaysBefore = undefined;
+        sub.reminderTime = undefined;
+        sub.lastModified = now;
+        updatePromises.push(this.update(sub, true));
       } else {
         // [New Feature] 如果提醒时间已过（且未触发自动续费，说明处于“已提醒但未到期”区间），自动关闭提醒开关
         if (sub.reminderDaysBefore !== undefined && sub.nextBillingDate > now) {
-            const reminderDays = sub.reminderDaysBefore || 1;
-            const reminderTimeStr = sub.reminderTime || '09:00';
-            const timeParts = reminderTimeStr.split(':');
-            let hour = 9;
-            let minute = 0;
-            if (timeParts.length >= 2) {
-              hour = Number(timeParts[0]);
-              minute = Number(timeParts[1]);
-            }
-            const targetDate = new Date(sub.nextBillingDate);
-            targetDate.setDate(targetDate.getDate() - reminderDays);
-            targetDate.setHours(hour, minute, 0, 0);
+          const reminderDays = sub.reminderDaysBefore || 1;
+          const reminderTimeStr = sub.reminderTime || '09:00';
+          const timeParts = reminderTimeStr.split(':');
+          let hour = 9;
+          let minute = 0;
+          if (timeParts.length >= 2) {
+            hour = Number(timeParts[0]);
+            minute = Number(timeParts[1]);
+          }
+          const targetDate = new Date(sub.nextBillingDate);
+          targetDate.setDate(targetDate.getDate() - reminderDays);
+          targetDate.setHours(hour, minute, 0, 0);
 
-            // 如果提醒时间已过
-            if (targetDate.getTime() < now) {
-                // 自动关闭提醒
-                sub.reminderDaysBefore = undefined;
-                sub.reminderTime = undefined;
-                sub.lastModified = now;
-                updatePromises.push(this.update(sub, true)); // Persist change
-                // Also cancel notification just in case (though it should be done by update logic but we passed fromSync=true)
-                // Actually update(true) does NOT call schedule/cancel.
-                // So we should manually cancel if needed? 
-                // Wait, if it triggered, it's gone from system (one-shot).
-                // If we want to be safe: 
-                LocalNotificationManager.getInstance().cancelReminder(sub.id!);
-            }
+          // 如果提醒时间已过
+          if (targetDate.getTime() < now) {
+            // 自动关闭提醒
+            sub.reminderDaysBefore = undefined;
+            sub.reminderTime = undefined;
+            sub.lastModified = now;
+            updatePromises.push(this.update(sub, true)); // Persist change
+            // Also cancel notification just in case (though it should be done by update logic but we passed fromSync=true)
+            // Actually update(true) does NOT call schedule/cancel.
+            // So we should manually cancel if needed?
+            // Wait, if it triggered, it's gone from system (one-shot).
+            // If we want to be safe:
+            LocalNotificationManager.getInstance().cancelReminder(sub.id!);
+          }
         }
       }
-      
+
       subscriptions.push(sub);
     }
     resultSet.close();
-    
-    // 如果有更新，触发一次云同步
+
+    // 如果有更新，同步等待更新完成，防止后台意图过早退出导致更新中断
     if (updatePromises.length > 0) {
-      Promise.all(updatePromises).then(() => {
-        this.syncWithCloud();
-        // 如果是自动续费导致的日期变动，同步更新卡片快照
-        this.updateWidgetSnapshotSync('auto_renewal');
-      });
+      await Promise.all(updatePromises);
+      this.syncWithCloud();
+      // 如果是自动续费导致的日期变动，同步更新卡片快照
+      this.updateWidgetSnapshotSync('auto_renewal');
     }
     // 统一排序：按扣款日期升序，但将永久订阅的项目沉底（因为它们没有后续扣款，且不需要提醒）
     subscriptions.sort((a, b) => {
@@ -369,10 +395,10 @@ export class SubscriptionRepository {
       if (a.billingCycle !== 'Lifetime' && b.billingCycle === 'Lifetime') return -1;
       return a.nextBillingDate - b.nextBillingDate;
     });
-    
+
     return subscriptions;
   }
-  
+
   /**
    * 计算下一个扣款日期
    * 将过期日期推算到下一个周期
@@ -380,12 +406,12 @@ export class SubscriptionRepository {
   private calculateNextBillingDate(currentDate: number, billingCycle: 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite'): number {
     const nextDate = new Date(currentDate);
     const nowCursor = new Date();
-    
+
     // 如果是永久会员或不定周期,无需更新日期
     if (billingCycle === 'Lifetime' || billingCycle === 'Indefinite') {
       return currentDate;
     }
-    
+
     // 循环增加周期直到大于当前时间
     while (nextDate.getTime() <= nowCursor.getTime()) {
       if (billingCycle === 'Monthly') {
@@ -396,7 +422,7 @@ export class SubscriptionRepository {
         nextDate.setFullYear(nextDate.getFullYear() + 1);
       }
     }
-    
+
     return nextDate.getTime();
   }
   public async update(subscription: SubscriptionModel, fromSync: boolean = false, skipRefresh: boolean = false): Promise<number> {
@@ -429,25 +455,32 @@ export class SubscriptionRepository {
       quantity: subscription.quantity || 1,
       couponImage: subscription.couponImage || null,
       usageTime: subscription.usageTime || null,
-      realUsageTime: subscription.realUsageTime || null
+      realUsageTime: subscription.realUsageTime || null,
+      // 保修/保质期字段
+      brand: subscription.brand || null,
+      purchaseChannel: subscription.purchaseChannel || null,
+      // 附加延保服务字段 (JSON)
+      extendedWarranties: subscription.extendedWarranties || null,
+      // 提醒状态
+      lastIgnoredBillingDate: subscription.lastIgnoredBillingDate || null
     };
     const predicates = new relationalStore.RdbPredicates(TABLE_NAME);
     if (!subscription.id) {
-       return Promise.reject('Subscription ID is missing for update');
+      return Promise.reject('Subscription ID is missing for update');
     }
     predicates.equalTo('id', subscription.id);
     const rows = await this.rdbStore.update(valueBucket, predicates);
-        
+
     if (rows > 0) {
-        // Always schedule/update reminders to ensure local notification consistency
-        LocalNotificationManager.getInstance().scheduleReminder(subscription);
-        
-        if (!fromSync && !skipRefresh) {
-            this.updateWidgetSnapshotSync('update');
-            this.syncWithCloud();
-            // Notify UI/Widget immediately for better UX
-            GlobalBus.publish(EVENT_SYNC_COMPLETED);
-        }
+      // Always schedule/update reminders to ensure local notification consistency
+      LocalNotificationManager.getInstance().scheduleReminder(subscription);
+
+      if (!fromSync && !skipRefresh) {
+        this.updateWidgetSnapshotSync('update');
+        this.syncWithCloud();
+        // Notify UI/Widget immediately for better UX
+        GlobalBus.publish(EVENT_SYNC_COMPLETED);
+      }
     }
     return rows;
   }
@@ -459,26 +492,26 @@ export class SubscriptionRepository {
   public async upsert(subscription: SubscriptionModel, skipRefresh: boolean = false): Promise<number> {
     await this.ensureInitialized();
     if (!subscription.uuid) {
-        subscription.uuid = util.generateRandomUUID(true);
+      subscription.uuid = util.generateRandomUUID(true);
     }
 
     const predicates = new relationalStore.RdbPredicates(TABLE_NAME);
     predicates.equalTo('uuid', subscription.uuid);
     const resultSet = await this.rdbStore!.query(predicates);
-    
+
     let result = 0;
     if (resultSet.rowCount > 0) {
-        // Exists -> Update
-        resultSet.goToFirstRow();
-        const existingId = resultSet.getLong(resultSet.getColumnIndex('id'));
-        subscription.id = existingId; // Force use local ID
-        subscription.isDeleted = false; 
-        result = await this.update(subscription, false, skipRefresh);
+      // Exists -> Update
+      resultSet.goToFirstRow();
+      const existingId = this.getLongSafe(resultSet, 'id');
+      subscription.id = existingId; // Force use local ID
+      subscription.isDeleted = false;
+      result = await this.update(subscription, false, skipRefresh);
     } else {
-        // New -> Insert
-        subscription.id = undefined; // Ensure ID is undefined so DB autocreates it
-        subscription.isDeleted = false;
-        result = await this.insert(subscription, false, skipRefresh);
+      // New -> Insert
+      subscription.id = undefined; // Ensure ID is undefined so DB autocreates it
+      subscription.isDeleted = false;
+      result = await this.insert(subscription, false, skipRefresh);
     }
     resultSet.close();
     return result;
@@ -500,13 +533,13 @@ export class SubscriptionRepository {
 
     // always cancel reminder on delete
     if (rows > 0) {
-        LocalNotificationManager.getInstance().cancelReminder(id);
+      LocalNotificationManager.getInstance().cancelReminder(id);
     }
 
     if (rows > 0 && !fromSync) {
-        this.updateWidgetSnapshotSync('delete');
-        // Notify UI/Widget immediately for better UX
-        GlobalBus.publish(EVENT_SYNC_COMPLETED);
+      this.updateWidgetSnapshotSync('delete');
+      // Notify UI/Widget immediately for better UX
+      GlobalBus.publish(EVENT_SYNC_COMPLETED);
     }
     return rows;
   }
@@ -516,6 +549,21 @@ export class SubscriptionRepository {
     if (!this.rdbStore) {
       return Promise.reject('RdbStore not initialized');
     }
+
+    try {
+      // 1. 在彻底清空本地数据前，先批量取消所有系统级排程提醒，防止提醒泄漏
+      const subs = await this.queryAll();
+      if (subs && subs.length > 0) {
+        await LocalNotificationManager.getInstance().cancelAllReminders(subs);
+      } else {
+        // 如果没有普通订阅，也确保取消新年提醒
+        await LocalNotificationManager.getInstance().cancelNewYearReminder();
+      }
+    } catch (e) {
+      console.error(`Failed to cancel reminders during clearAllData: ${(e as Error).message}`);
+    }
+
+    // 2. 清空数据库列表
     const predicates = new relationalStore.RdbPredicates(TABLE_NAME);
     await this.rdbStore.delete(predicates);
     console.info('All local data cleared');
@@ -549,18 +597,18 @@ export class SubscriptionRepository {
     await this.ensureInitialized();
     const predicates = new relationalStore.RdbPredicates(TABLE_NAME);
     predicates.beginsWith('icon', 'file://');
-    
+
     const valueBucket: relationalStore.ValuesBucket = {
-        'icon': ''
+      'icon': ''
     };
-    
+
     const rows = await this.rdbStore!.update(valueBucket, predicates);
-    
+
     if (rows > 0) {
-        // 触发更新
-        this.updateWidgetSnapshotSync('update');
-        this.syncWithCloud();
-        GlobalBus.publish(EVENT_SYNC_COMPLETED);
+      // 触发更新
+      this.updateWidgetSnapshotSync('update');
+      this.syncWithCloud();
+      GlobalBus.publish(EVENT_SYNC_COMPLETED);
     }
     return rows;
   }
@@ -570,42 +618,11 @@ export class SubscriptionRepository {
     if (!includeDeleted) {
       predicates.equalTo('isDeleted', 0);
     }
-    
+
     const resultSet = await this.rdbStore!.query(predicates);
     const subscriptions: SubscriptionModel[] = [];
     while (resultSet.goToNextRow()) {
-      const reminderDaysIdx = resultSet.getColumnIndex('reminderDaysBefore');
-      const reminderTimeIdx = resultSet.getColumnIndex('reminderTime');
-
-      subscriptions.push({
-        id: resultSet.getLong(resultSet.getColumnIndex('id')),
-        uuid: resultSet.getString(resultSet.getColumnIndex('uuid')),
-        name: resultSet.getString(resultSet.getColumnIndex('name')),
-        price: resultSet.getDouble(resultSet.getColumnIndex('price')),
-        currency: resultSet.getString(resultSet.getColumnIndex('currency')),
-        billingCycle: resultSet.getString(resultSet.getColumnIndex('billingCycle')) as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite',
-        nextBillingDate: resultSet.getLong(resultSet.getColumnIndex('nextBillingDate')),
-        icon: resultSet.getString(resultSet.getColumnIndex('icon')),
-        category: resultSet.getString(resultSet.getColumnIndex('category')),
-        lastModified: resultSet.getLong(resultSet.getColumnIndex('lastModified')),
-        isDeleted: resultSet.getLong(resultSet.getColumnIndex('isDeleted')) === 1,
-        reminderDaysBefore: resultSet.isColumnNull(reminderDaysIdx) ? undefined : resultSet.getLong(reminderDaysIdx),
-        reminderTime: resultSet.isColumnNull(reminderTimeIdx) ? undefined : resultSet.getString(reminderTimeIdx),
-        subCategory: resultSet.getString(resultSet.getColumnIndex('subCategory')),
-        startDate: resultSet.getLong(resultSet.getColumnIndex('startDate')),
-        isAutoRenewal: resultSet.getColumnIndex('isAutoRenewal') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('isAutoRenewal')) === 1 : true,
-        paymentMethod: resultSet.getColumnIndex('paymentMethod') !== -1 ? resultSet.getString(resultSet.getColumnIndex('paymentMethod')) : '其他支付方式',
-        // 团购券字段
-        recordType: (resultSet.getColumnIndex('recordType') !== -1 ? resultSet.getString(resultSet.getColumnIndex('recordType')) : 'subscription') as 'subscription' | 'groupBuy',
-        platform: resultSet.getColumnIndex('platform') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('platform')) ? resultSet.getString(resultSet.getColumnIndex('platform')) as 'meituan' | 'douyin' | 'dianping' : undefined,
-        couponCode: resultSet.getColumnIndex('couponCode') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponCode')) ? resultSet.getString(resultSet.getColumnIndex('couponCode')) : undefined,
-        usageStatus: resultSet.getColumnIndex('usageStatus') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageStatus')) ? resultSet.getString(resultSet.getColumnIndex('usageStatus')) as 'unused' | 'used' | 'expired' : 'unused',
-        merchantName: resultSet.getColumnIndex('merchantName') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('merchantName')) ? resultSet.getString(resultSet.getColumnIndex('merchantName')) : undefined,
-        quantity: resultSet.getColumnIndex('quantity') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('quantity')) : 1,
-        couponImage: resultSet.getColumnIndex('couponImage') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponImage')) ? resultSet.getString(resultSet.getColumnIndex('couponImage')) : undefined,
-        usageTime: resultSet.getColumnIndex('usageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageTime')) ? resultSet.getString(resultSet.getColumnIndex('usageTime')) : undefined,
-        realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined
-      });
+      subscriptions.push(this.mapResultSetToModel(resultSet));
     }
     resultSet.close();
     return subscriptions;
@@ -614,52 +631,107 @@ export class SubscriptionRepository {
   public async findByUuid(uuid: string): Promise<SubscriptionModel | null> {
     await this.ensureInitialized();
     if (!this.rdbStore) return null;
-    
+
     const predicates = new relationalStore.RdbPredicates(TABLE_NAME);
     predicates.equalTo('uuid', uuid);
-    
+
     const resultSet = await this.rdbStore.query(predicates);
     if (resultSet.rowCount === 0) {
-        resultSet.close();
-        return null;
+      resultSet.close();
+      return null;
     }
-    
-    resultSet.goToFirstRow();
-    
-    const reminderDaysIdx = resultSet.getColumnIndex('reminderDaysBefore');
-    const reminderTimeIdx = resultSet.getColumnIndex('reminderTime');
 
-    const sub: SubscriptionModel = {
-        id: resultSet.getLong(resultSet.getColumnIndex('id')),
-        uuid: resultSet.getString(resultSet.getColumnIndex('uuid')),
-        name: resultSet.getString(resultSet.getColumnIndex('name')),
-        price: resultSet.getDouble(resultSet.getColumnIndex('price')),
-        currency: resultSet.getString(resultSet.getColumnIndex('currency')),
-        billingCycle: resultSet.getString(resultSet.getColumnIndex('billingCycle')) as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite',
-        nextBillingDate: resultSet.getLong(resultSet.getColumnIndex('nextBillingDate')),
-        icon: resultSet.getString(resultSet.getColumnIndex('icon')),
-        category: resultSet.getString(resultSet.getColumnIndex('category')),
-        lastModified: resultSet.getLong(resultSet.getColumnIndex('lastModified')),
-        isDeleted: resultSet.getLong(resultSet.getColumnIndex('isDeleted')) === 1,
-        reminderDaysBefore: resultSet.isColumnNull(reminderDaysIdx) ? undefined : resultSet.getLong(reminderDaysIdx),
-        reminderTime: resultSet.isColumnNull(reminderTimeIdx) ? undefined : resultSet.getString(reminderTimeIdx),
-        subCategory: resultSet.getString(resultSet.getColumnIndex('subCategory')),
-        startDate: resultSet.getLong(resultSet.getColumnIndex('startDate')),
-        isAutoRenewal: resultSet.getColumnIndex('isAutoRenewal') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('isAutoRenewal')) === 1 : true,
-        paymentMethod: resultSet.getColumnIndex('paymentMethod') !== -1 ? resultSet.getString(resultSet.getColumnIndex('paymentMethod')) : '其他支付方式',
-        // 团购券字段
-        recordType: (resultSet.getColumnIndex('recordType') !== -1 ? resultSet.getString(resultSet.getColumnIndex('recordType')) : 'subscription') as 'subscription' | 'groupBuy',
-        platform: resultSet.getColumnIndex('platform') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('platform')) ? resultSet.getString(resultSet.getColumnIndex('platform')) as 'meituan' | 'douyin' | 'dianping' : undefined,
-        couponCode: resultSet.getColumnIndex('couponCode') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponCode')) ? resultSet.getString(resultSet.getColumnIndex('couponCode')) : undefined,
-        usageStatus: resultSet.getColumnIndex('usageStatus') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageStatus')) ? resultSet.getString(resultSet.getColumnIndex('usageStatus')) as 'unused' | 'used' | 'expired' : 'unused',
-        merchantName: resultSet.getColumnIndex('merchantName') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('merchantName')) ? resultSet.getString(resultSet.getColumnIndex('merchantName')) : undefined,
-        quantity: resultSet.getColumnIndex('quantity') !== -1 ? resultSet.getLong(resultSet.getColumnIndex('quantity')) : 1,
-        couponImage: resultSet.getColumnIndex('couponImage') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('couponImage')) ? resultSet.getString(resultSet.getColumnIndex('couponImage')) : undefined,
-        usageTime: resultSet.getColumnIndex('usageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('usageTime')) ? resultSet.getString(resultSet.getColumnIndex('usageTime')) : undefined,
-        realUsageTime: resultSet.getColumnIndex('realUsageTime') !== -1 && !resultSet.isColumnNull(resultSet.getColumnIndex('realUsageTime')) ? resultSet.getLong(resultSet.getColumnIndex('realUsageTime')) : undefined
-    };
+    resultSet.goToFirstRow();
+    const sub = this.mapResultSetToModel(resultSet);
     resultSet.close();
     return sub;
+  }
+
+  public async findById(id: number): Promise<SubscriptionModel | null> {
+    await this.ensureInitialized();
+    if (!this.rdbStore) return null;
+
+    const predicates = new relationalStore.RdbPredicates(TABLE_NAME);
+    predicates.equalTo('id', id);
+
+    const resultSet = await this.rdbStore.query(predicates);
+    if (resultSet.rowCount === 0) {
+      resultSet.close();
+      return null;
+    }
+
+    resultSet.goToFirstRow();
+    const sub = this.mapResultSetToModel(resultSet);
+    resultSet.close();
+    return sub;
+  }
+
+  private mapResultSetToModel(resultSet: relationalStore.ResultSet): SubscriptionModel {
+    return {
+      id: this.getLongSafe(resultSet, 'id'),
+      uuid: this.getStringSafe(resultSet, 'uuid') || '',
+      name: this.getStringSafe(resultSet, 'name') || '',
+      price: this.getDoubleSafe(resultSet, 'price'),
+      currency: this.getStringSafe(resultSet, 'currency') || 'CNY',
+      billingCycle: (this.getStringSafe(resultSet, 'billingCycle') || 'Monthly') as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite',
+      nextBillingDate: this.getLongSafe(resultSet, 'nextBillingDate'),
+      icon: this.getStringSafe(resultSet, 'icon'),
+      category: this.getStringSafe(resultSet, 'category'),
+      lastModified: this.getLongSafe(resultSet, 'lastModified'),
+      isDeleted: this.getLongSafe(resultSet, 'isDeleted') === 1,
+      reminderDaysBefore: this.getLongOrUndefined(resultSet, 'reminderDaysBefore'),
+      reminderTime: this.getStringSafe(resultSet, 'reminderTime'),
+      subCategory: this.getStringSafe(resultSet, 'subCategory'),
+      startDate: this.getLongSafe(resultSet, 'startDate'),
+      isAutoRenewal: this.getLongSafe(resultSet, 'isAutoRenewal') !== 0, // Default to true if missing or 1 (since 0 is false)
+      paymentMethod: this.getStringSafe(resultSet, 'paymentMethod') || '其他支付方式',
+      // 团购券字段
+      recordType: (this.getStringSafe(resultSet, 'recordType') || 'subscription') as 'subscription' | 'groupBuy' | 'warranty',
+      platform: this.getStringSafe(resultSet, 'platform') as 'meituan' | 'douyin' | 'dianping',
+      couponCode: this.getStringSafe(resultSet, 'couponCode'),
+      usageStatus: (this.getStringSafe(resultSet, 'usageStatus') || 'unused') as 'unused' | 'used' | 'expired',
+      merchantName: this.getStringSafe(resultSet, 'merchantName'),
+      quantity: this.getLongSafe(resultSet, 'quantity') || 1,
+      couponImage: this.getStringSafe(resultSet, 'couponImage'),
+      usageTime: this.getStringSafe(resultSet, 'usageTime'),
+      realUsageTime: this.getLongOrUndefined(resultSet, 'realUsageTime'),
+      brand: this.getStringSafe(resultSet, 'brand'),
+      purchaseChannel: this.getStringSafe(resultSet, 'purchaseChannel'),
+      extendedWarranties: this.getStringSafe(resultSet, 'extendedWarranties'),
+      lastIgnoredBillingDate: this.getLongOrUndefined(resultSet, 'lastIgnoredBillingDate')
+    };
+  }
+
+  private getStringSafe(resultSet: relationalStore.ResultSet, columnName: string): string | undefined {
+    const index = resultSet.getColumnIndex(columnName);
+    if (index === -1 || resultSet.isColumnNull(index)) {
+      return undefined;
+    }
+    return resultSet.getString(index);
+  }
+
+  private getLongSafe(resultSet: relationalStore.ResultSet, columnName: string): number {
+    const index = resultSet.getColumnIndex(columnName);
+    if (index === -1 || resultSet.isColumnNull(index)) {
+      return 0;
+    }
+    return resultSet.getLong(index);
+  }
+
+  private getLongOrUndefined(resultSet: relationalStore.ResultSet, columnName: string): number | undefined {
+    const index = resultSet.getColumnIndex(columnName);
+    if (index === -1 || resultSet.isColumnNull(index)) {
+      return undefined;
+    }
+    return resultSet.getLong(index);
+  }
+
+  private getDoubleSafe(resultSet: relationalStore.ResultSet, columnName: string): number {
+    const index = resultSet.getColumnIndex(columnName);
+    if (index === -1 || resultSet.isColumnNull(index)) {
+      return 0;
+    }
+    return resultSet.getDouble(index);
   }
 
   /**
@@ -667,74 +739,140 @@ export class SubscriptionRepository {
    * 供 FormAbility.onAddForm 同步读取，实现“秒开”
    */
   public async updateWidgetSnapshotSync(action: string) {
-      hilog.info(0x0000, 'SubscriptionRepository', `Updating widget snapshot due to ${action}`);
-      try {
-          const subs = await this.queryAllInternal(false);
-          // 仅取前10条，防止快照文件过大且符合桌面卡片建议展示数量
-          const topSubs = subs.slice(0, 10);
-          
-          let isLoggedIn = true; // Simplified: Snapshot UI always shows content overlay if exists
+    hilog.info(0x0000, 'SubscriptionRepository', `Updating widget snapshot due to ${action}`);
+    try {
+      const subs = await this.queryAllInternal(false);
+      // 移除 .slice(0, 10) 限制，允许展示更多项目
+      // const topSubs = subs.slice(0, 10);
+      const topSubs = subs;
 
-          const widgetList: SnapshotItem[] = topSubs.map(item => {
-              let iconKey = item.icon || '';
-              // 如果没有图标，使用名称首字母作为兜底
-              if (!iconKey && item.name && item.name.length > 0) {
-                  iconKey = item.name.charAt(0).toUpperCase();
-              }
-              
-              const days = DateUtil.getDaysUntil(item.nextBillingDate);
-              const dateStr = DateUtil.formatShortDate(item.nextBillingDate);
-              
-              const isGroupBuy = item.recordType === 'groupBuy';
-              
-              const snapshotItem = new SnapshotItem();
-              snapshotItem.title = item.name || (isGroupBuy ? '未知团购' : '未知订阅');
-              snapshotItem.content = isGroupBuy ? (item.merchantName ? `${item.merchantName}` : '团购券') : `到期:${dateStr}`;
-              snapshotItem.icon = iconKey;
-              snapshotItem.isExpiring = days <= 3;
-              
-              const minimalItem: MinimalCardItem = {
-                  id: item.id || 0,
-                  recordType: item.recordType || 'subscription',
-                  usageStatus: item.usageStatus || 'unused',
-                  name: item.name || ''
-              };
-              snapshotItem.originalItem = JSON.stringify(minimalItem);
-              return snapshotItem;
-          });
+      let isLoggedIn = true; // Simplified: Snapshot UI always shows content overlay if exists
 
-          const snapshot = new SnapshotData();
-          snapshot.widgetData = widgetList;
-          snapshot.isLoggedIn = isLoggedIn;
-          snapshot.totalCount = subs.length;
-          snapshot.activeThemeId = PreferenceUtil.getInstance().getThemeId();
-          snapshot.timestamp = new Date().getTime();
+      const widgetList: SnapshotItem[] = topSubs.map(item => {
+        let iconKey = item.icon || '';
+        // 如果没有图标，使用名称首字母作为兜底
+        if (!iconKey && item.name && item.name.length > 0) {
+          iconKey = item.name.charAt(0).toUpperCase();
+        }
 
-          if (!this.context) {
-              hilog.error(0x0000, 'SubscriptionRepository', 'Cannot save snapshot: context is missing');
-              return;
-          }
+        const days = DateUtil.getDaysUntil(item.nextBillingDate);
+        const dateStr = DateUtil.formatShortDate(item.nextBillingDate);
 
-          const filePath = this.context.filesDir + '/widget_snapshot.json';
-          const tmpPath = filePath + '.tmp';
-          const content = JSON.stringify(snapshot);
-          
-          // Atomic write: write to tmp then rename
-          let file = fs.openSync(tmpPath, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
-          fs.writeSync(file.fd, content);
-          fs.closeSync(file);
-          
-          // Rename tmp to official path
-          if (fs.accessSync(filePath)) {
-              fs.unlinkSync(filePath);
-          }
-          fs.renameSync(tmpPath, filePath);
-          
-          hilog.info(0x0000, 'SubscriptionRepository', `Widget snapshot updated: items=${widgetList.length}, login=${isLoggedIn}`);
-      } catch (err) {
-          const error: BusinessError = err as BusinessError;
-          hilog.error(0x0000, 'SubscriptionRepository', `Failed to update widget snapshot: ${error.code} ${error.message}`);
+        const isGroupBuy = item.recordType === 'groupBuy';
+        const isWarranty = item.recordType === 'warranty';
+        const isLifetime = item.billingCycle === 'Lifetime';
+
+        const snapshotItem = new SnapshotItem();
+        
+        if (isGroupBuy) {
+           snapshotItem.title = item.name || '未知团购';
+           const statusText: string = item.usageStatus === 'used' ? '已使用' : (item.usageStatus === 'expired' ? '已过期' : `剩 ${days} 天`);
+           snapshotItem.content = item.merchantName ? `${item.merchantName} | ${statusText}` : statusText;
+        } else if (isWarranty) {
+           snapshotItem.title = item.name || '未知保修';
+           // 保修卡片无论是否设为 Lifetime，只要到期日有效就显示到期日
+           snapshotItem.content = `保修:${dateStr}`;
+           
+           // 预计算保修视觉 (解决跨模块隔离)
+           // 优先使用 category 作为图标查找依据，因为 name 可能是用户自定义的
+           let warrantyName = item.name || '';
+           if (item.category && WARRANTY_ICON_MAP_NAMES[item.category]) {
+             warrantyName = item.category;
+           } else if (item.subCategory && WARRANTY_ICON_MAP_NAMES[item.subCategory]) {
+             warrantyName = item.subCategory;
+           }
+
+           const theme = WARRANTY_THEME_MAP[warrantyName] || 'blue';
+           const colors = getWarrantyThemeColors(theme);
+           snapshotItem.colorStart = colors[0];
+           snapshotItem.colorEnd = colors[1];
+           
+           // 转换为 rawfile 路径
+           const svgPath = WARRANTY_ICON_MAP_NAMES[warrantyName];
+           if (svgPath) {
+             snapshotItem.icon = `rawfile:${svgPath}`;
+           }
+        } else if (isLifetime) {
+           snapshotItem.title = item.name || '未知订阅';
+           snapshotItem.content = `永久买断`;
+        } else {
+           snapshotItem.title = item.name || '未知订阅';
+           snapshotItem.content = `到期:${dateStr}`;
+        }
+        
+        if (!snapshotItem.icon) {
+          snapshotItem.icon = iconKey;
+        }
+        snapshotItem.id = item.uuid || item.id?.toString() || '';
+        snapshotItem.isLifetime = isLifetime;
+        snapshotItem.isGroupBuy = isGroupBuy;
+        snapshotItem.isWarranty = isWarranty;
+
+        // 普通订阅和保修在剩余3天内标红；团购券如果是未使用且剩余3天内也标红
+        if (isGroupBuy) {
+            snapshotItem.isExpiring = item.usageStatus === 'unused' && days <= 3;
+        } else {
+            snapshotItem.isExpiring = days <= 3;
+        }
+
+        const minimalItem: MinimalCardItem = {
+          id: item.id || 0,
+          uuid: item.uuid,
+          recordType: item.recordType || 'subscription',
+          usageStatus: item.usageStatus || 'unused',
+          isWarranty: isWarranty,
+          name: item.name || '',
+          price: item.price,
+          currency: item.currency,
+          platform: item.platform,
+          merchantName: item.merchantName,
+          nextBillingDate: item.nextBillingDate,
+          billingCycle: (item.billingCycle as 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime' | 'Indefinite') || 'Monthly',
+          icon: item.icon,
+          category: item.category,
+          subCategory: item.subCategory,
+          isAutoRenewal: item.isAutoRenewal,
+          paymentMethod: item.paymentMethod,
+          startDate: item.startDate,
+          brand: item.brand,
+          purchaseChannel: item.purchaseChannel
+        };
+        snapshotItem.originalItem = JSON.stringify(minimalItem);
+        return snapshotItem;
+      });
+
+      const snapshot = new SnapshotData();
+      snapshot.widgetData = widgetList;
+      snapshot.isLoggedIn = isLoggedIn;
+      snapshot.totalCount = subs.length;
+      snapshot.activeThemeId = PreferenceUtil.getInstance().getThemeId();
+      snapshot.timestamp = new Date().getTime();
+
+      if (!this.context) {
+        hilog.error(0x0000, 'SubscriptionRepository', 'Cannot save snapshot: context is missing');
+        return;
       }
+
+      const filePath = this.context.filesDir + '/widget_snapshot.json';
+      const tmpPath = filePath + '.tmp';
+      const content = JSON.stringify(snapshot);
+
+      // Atomic write: write to tmp then rename
+      let file = fs.openSync(tmpPath, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      fs.writeSync(file.fd, content);
+      fs.closeSync(file);
+
+      // Rename tmp to official path
+      if (fs.accessSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      fs.renameSync(tmpPath, filePath);
+
+      hilog.info(0x0000, 'SubscriptionRepository', `Widget snapshot updated: items=${widgetList.length}, login=${isLoggedIn}`);
+    } catch (err) {
+      const error: BusinessError = err as BusinessError;
+      hilog.error(0x0000, 'SubscriptionRepository', `Failed to update widget snapshot: ${error.code} ${error.message}`);
+    }
   }
 
   /**
@@ -769,29 +907,29 @@ export class SubscriptionRepository {
         const predicates = new relationalStore.RdbPredicates(TABLE_NAME);
         predicates.equalTo('uuid', item.uuid);
         const resultSet = await this.rdbStore!.query(predicates);
-        
+
         if (resultSet.rowCount > 0) {
-           // 存在则更新 (overwrite strategy for restore)
-           resultSet.goToFirstRow();
-           const existingId = resultSet.getLong(resultSet.getColumnIndex('id'));
-           item.id = existingId;
-           // 保持本地状态标记
-           item.isDeleted = false; 
-           await this.update(item, true); // fromSync=true to avoid double sync logic
+          // 存在则更新 (overwrite strategy for restore)
+          resultSet.goToFirstRow();
+          const existingId = this.getLongSafe(resultSet, 'id');
+          item.id = existingId;
+          // 保持本地状态标记
+          item.isDeleted = false;
+          await this.update(item, true); // fromSync=true to avoid double sync logic
         } else {
-           // 不存在则插入
-           item.id = undefined; // Let DB auto-increment
-           item.isDeleted = false;
-           await this.insert(item, true);
+          // 不存在则插入
+          item.id = undefined; // Let DB auto-increment
+          item.isDeleted = false;
+          await this.insert(item, true);
         }
         resultSet.close();
         count++;
       }
-      
+
       // 完成后触发一次全局刷新
       this.updateWidgetSnapshotSync('import_completed');
       GlobalBus.publish(EVENT_SYNC_COMPLETED);
-      
+
       return count;
     } catch (e) {
       hilog.error(0x0000, 'SubscriptionRepository', `Import failed: ${JSON.stringify(e)}`);

@@ -162,58 +162,72 @@ struct WidgetCard4x4 {
                .margin({ right: 8 })
 
             // 图标保持在最右侧
-             Stack({ alignContent: Alignment.BottomEnd }) {
-               if (item.icon && item.icon.startsWith('memory://')) {
+              Stack({ alignContent: Alignment.BottomEnd }) {
+                if (item.icon && item.icon.startsWith('memory://')) {
                   Image(item.icon)
                     .width($r('app.float.item_image_size'))
                     .height($r('app.float.item_image_size'))
                     .borderRadius(12)
                     .objectFit(ImageFit.Contain)
-               } else if (item.icon && (item.icon.startsWith('http://') || item.icon.startsWith('https://'))) {
+                } else if (item.icon && (item.icon.startsWith('http://') || item.icon.startsWith('https://'))) {
                   Image(item.icon)
                     .width($r('app.float.item_image_size'))
                     .height($r('app.float.item_image_size'))
                     .objectFit(ImageFit.Contain)
                     .borderRadius(12)
-               } else if (item.icon && item.icon.startsWith('resource:')) {
-
-                      Stack() {
-                        Text(item.title ? item.title.charAt(0).toUpperCase() : '?')
-                          .fontSize(20)
-                          .fontWeight(FontWeight.Bold)
-                          .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.isVipTheme ? $r('app.color.sub_card_vip_text') : $r('sys.color.ohos_id_color_emphasize')))
-                      }
-                      .width($r('app.float.item_image_size'))
-                      .height($r('app.float.item_image_size'))
-                      .backgroundColor(this.isNewYearTheme ? '#1AFF2400' : (this.isVipTheme ? '#20EDC269' : $r('app.color.list_item_count_background')))
-                      .borderRadius(12)
-                      .clip(true)
-
-               } else if (item.icon && item.icon.length === 1) {
+                } else if (item.icon && item.icon.startsWith('rawfile:')) {
+                  // 保修图标渲染 (通过 Snapshot 注入 colors)
                   Stack() {
-                         Text(item.icon)
-                           .fontSize(20)
-                           .fontWeight(FontWeight.Bold)
-                           .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.isVipTheme ? $r('app.color.sub_card_vip_text') : $r('sys.color.ohos_id_color_emphasize')))
+                    Image($rawfile(item.icon.substring(8))) // rawfile: Length is 8
+                      .width(36)
+                      .height(36)
+                      .objectFit(ImageFit.Contain)
+                  }
+                  .width($r('app.float.item_image_size'))
+                  .height($r('app.float.item_image_size'))
+                  .linearGradient(item.colorStart && item.colorEnd ? {
+                    angle: 135,
+                    colors: [[item.colorStart, 0.0], [item.colorEnd, 1.0]]
+                  } : undefined)
+                  .borderRadius(12)
+                  .clip(true)
+                } else if (item.icon && item.icon.startsWith('resource:')) {
+                  Stack() {
+                    Text(item.title ? item.title.charAt(0).toUpperCase() : '?')
+                      .fontSize(20)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.isVipTheme ? $r('app.color.sub_card_vip_text') : $r('sys.color.ohos_id_color_emphasize')))
                   }
                   .width($r('app.float.item_image_size'))
                   .height($r('app.float.item_image_size'))
                   .backgroundColor(this.isNewYearTheme ? '#1AFF2400' : (this.isVipTheme ? '#20EDC269' : $r('app.color.list_item_count_background')))
                   .borderRadius(12)
                   .clip(true)
-               } else {
+                } else if (item.icon && item.icon.length === 1) {
                   Stack() {
-                         Text(item.title ? item.title.charAt(0).toUpperCase() : '?')
-                           .fontSize(20)
-                           .fontWeight(FontWeight.Bold)
-                           .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.isVipTheme ? $r('app.color.sub_card_vip_text') : $r('sys.color.ohos_id_color_emphasize')))
+                    Text(item.icon)
+                      .fontSize(20)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.isVipTheme ? $r('app.color.sub_card_vip_text') : $r('sys.color.ohos_id_color_emphasize')))
                   }
                   .width($r('app.float.item_image_size'))
                   .height($r('app.float.item_image_size'))
                   .backgroundColor(this.isNewYearTheme ? '#1AFF2400' : (this.isVipTheme ? '#20EDC269' : $r('app.color.list_item_count_background')))
                   .borderRadius(12)
                   .clip(true)
-               }
+                } else {
+                  Stack() {
+                    Text(item.title ? item.title.charAt(0).toUpperCase() : '?')
+                      .fontSize(20)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor(this.isNewYearTheme ? $r('app.color.sub_card_ny_text') : (this.isVipTheme ? $r('app.color.sub_card_vip_text') : $r('sys.color.ohos_id_color_emphasize')))
+                  }
+                  .width($r('app.float.item_image_size'))
+                  .height($r('app.float.item_image_size'))
+                  .backgroundColor(this.isNewYearTheme ? '#1AFF2400' : (this.isVipTheme ? '#20EDC269' : $r('app.color.list_item_count_background')))
+                  .borderRadius(12)
+                  .clip(true)
+                }
 
                if (item.isGroupBuy) {
                  Text("团")
@@ -221,6 +235,16 @@ struct WidgetCard4x4 {
                    .fontWeight(FontWeight.Bold)
                    .fontColor(Color.White)
                    .backgroundColor('#FFA500')
+                   .borderRadius(4)
+                   .padding({ left: 3, right: 3, top: 1, bottom: 1 })
+               }
+
+               if (item.isWarranty) {
+                 Text("保")
+                   .fontSize(9)
+                   .fontWeight(FontWeight.Bold)
+                   .fontColor(Color.White)
+                   .backgroundColor('#007AFF')
                    .borderRadius(4)
                    .padding({ left: 3, right: 3, top: 1, bottom: 1 })
                }
@@ -327,10 +351,13 @@ interface CardListItemData {
   title: string;
   content: string;
   icon?: string;
+  colorStart?: string;
+  colorEnd?: string;
   originalItem?: string;
   isExpiring?: boolean;
   price?: string;
   fullDate?: string;
   isLifetime?: boolean;
   isGroupBuy?: boolean;
+  isWarranty?: boolean;
 }

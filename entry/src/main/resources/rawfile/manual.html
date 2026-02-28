@@ -192,149 +192,159 @@
 </head>
 
 <body>
-    <header>
-        <img src="logo.png" alt="Logo" width="64" height="64" style="border-radius: 16px; margin-bottom: 16px;">
-        <h1>记得订阅</h1>
-        <div class="subtitle">让订阅管理更简单、更透明</div>
-    </header>
+<header>
+    <img src="logo.png" alt="Logo" width="64" height="64" style="border-radius: 16px; margin-bottom: 16px;">
+    <h1>记得订阅</h1>
+    <div class="subtitle">让订阅管理更简单、更透明</div>
+</header>
 
-    <h2>1. 核心计算逻辑</h2>
-    <div class="card">
-        <p>应用提供两种不同视角的财务统计，帮助您全面掌控预算与现金流。</p>
+<h2>1. 核心计算逻辑</h2>
+<div class="card">
+    <p>应用提供两种不同视角的财务统计，帮助您全面掌控预算与支出趋势。</p>
 
-        <h3>A. 首页 - 均摊法（预估月支出）</h3>
-        <p>适合衡量每月的真实“负担感”。无论续费周期多长，均分折算到每月。</p>
+    <h3>A. 首页 - 均摊法（预估月支出）</h3>
+    <p>适合衡量每月的真实“负担感”。无论续费周期多长，均分折算到每月。</p>
 
-        <table>
-            <tr>
-                <th>周期</th>
-                <th>计算公式</th>
-                <th>示例</th>
-            </tr>
-            <tr>
-                <td><span class="tag badge-monthly">月付</span></td>
-                <td>直接计入</td>
-                <td>¥10 → 月支 ¥10</td>
-            </tr>
-            <tr>
-                <td><span class="tag badge-quarterly">季付</span></td>
-                <td>价格 ÷ 3</td>
-                <td>¥30 → 月支 ¥10</td>
-            </tr>
-            <tr>
-                <td><span class="tag badge-yearly">年付</span></td>
-                <td>价格 ÷ 12</td>
-                <td>¥120 → 月支 ¥10</td>
-            </tr>
-            <tr>
-                <td><span class="tag badge-groupbuy" style="background: #FCE4EC; color: #D81B60;">团购</span></td>
-                <td class="important">按需计入</td>
-                <td>仅在<strong>标记使用</strong>或<strong>到期</strong>当月计入</td>
-            </tr>
-            <tr>
-                <td><span class="tag badge-lifetime">永久</span></td>
-                <td class="important">特殊规则</td>
-                <td>仅在<strong>购买当月</strong>全额计入</td>
-            </tr>
-        </table>
+    <table>
+        <tr>
+            <th>周期</th>
+            <th>计算公式</th>
+            <th>示例</th>
+        </tr>
+        <tr>
+            <td><span class="tag badge-monthly">月付</span></td>
+            <td>直接计入</td>
+            <td>¥10 → 月支 ¥10</td>
+        </tr>
+        <tr>
+            <td><span class="tag badge-quarterly">季付</span></td>
+            <td>价格 ÷ 3</td>
+            <td>¥30 → 月支 ¥10</td>
+        </tr>
+        <tr>
+            <td><span class="tag badge-yearly">年付</span></td>
+            <td>价格 ÷ 12</td>
+            <td>¥120 → 月支 ¥10</td>
+        </tr>
+        <tr>
+            <td><span class="tag badge-groupbuy" style="background: #FCE4EC; color: #D81B60;">团购</span></td>
+            <td class="important">按需计入</td>
+            <td>仅在<strong>标记使用</strong>或<strong>到期</strong>当月计入</td>
+        </tr>
+        <tr>
+            <td><span class="tag badge-lifetime">永久</span></td>
+            <td class="important">特殊规则</td>
+            <td>仅在<strong>购买当月</strong>全额计入</td>
+        </tr>
+    </table>
 
-        <h3>B. 统计与日历 - 实际支出法</h3>
-        <p>展示未来的真实扣款趋势。应用会根据您的续费周期，为您推演未来 <strong>12个月</strong> 的资金流向。算法具备“智能回溯”功能——即使本月已成功扣费，统计依然会将其计入本月开支，确保账单不漏记。</p>
-        <p>对于<strong>团购券</strong>，当您在详情页点击“标记为已使用”后，该笔支出将精准归属到实际操作的日期，为您提供最真实的消费还原。</p>
-        <p>在订阅日历中，您可以使用<strong>时间轴 (Timeline)</strong> 视角，轴线将以分子级的精度（基于当前系统时间）动态定位在当天的时刻，让您实时感知扣费进度。</p>
-    </div>
+    <h3>B. 统计与日历 - 实际支出法</h3>
+    <p>展示未来的真实扣款趋势。应用会根据您的续费周期，为您推演未来 <strong>12个月</strong> 的资金流向。算法具备“智能回溯”功能——即使本月已成功扣费，统计依然会将其计入本月开支，确保记录不漏记。</p>
+    <p>对于<strong>团购券</strong>，当您在详情页点击“标记为已使用”后，该笔支出将精准归属到实际操作的日期，为您提供最真实的消费还原。</p>
+    <p>在订阅日历中，您可以使用<strong>时间轴 (Timeline)</strong> 视角，轴线将以分子级的精度（基于当前系统时间）动态定位在当天的时刻，让您实时感知扣费进度。</p>
+</div>
 
-    <h2>2. 团购券管理 (Group Buy)</h2>
-    <div class="card">
-        <p>针对“非周期性、按次消费”的团购券，我们设计了专属的管理流程：</p>
-        <ul>
-            <li><strong>连续绘制，色差区分</strong>：在时间轴视图中，团购券的展示条是连续的。其中<strong>亮色区域</strong>表示该项目当前“可用”的日期（如：周一至周五），<strong>淡色区域</strong>表示不可用日期。
-            </li>
-            <li><strong>实时状态管理</strong>：您可以随时在订阅详情中将团购券标记为“已使用”。标记后，系统会自动取消关联的提醒闹钟，并将支出锁定在此时。</li>
-        </ul>
-    </div>
+<h2>2. 团购券管理 (Group Buy)</h2>
+<div class="card">
+    <p>针对“非周期性、按次消费”的团购券，我们设计了专属的管理流程：</p>
+    <ul>
+        <li><strong>连续绘制，色差区分</strong>：在时间轴视图中，团购券的展示条是连续的。其中<strong>亮色区域</strong>表示该项目当前“可用”的日期（如：周一至周五），<strong>淡色区域</strong>表示不可用日期。
+        </li>
+        <li><strong>实时状态管理</strong>：您可以随时在详情中将团购券标记为“已使用”。标记后，系统会自动取消关联的提醒闹钟，并将订阅记录锁定在此时。</li>
+    </ul>
+</div>
 
-    <h2>3. AI 智能识别与隐私</h2>
-    <div class="card">
-        <p>我们深知订单截图包含隐私，因此构建了高效且安全的识别体系：</p>
-        <ul>
-            <li><strong>OCR 识别身份</strong>：采用纯本地 OCR 引擎识别截图文字，用于精准定位订阅的应用名称。识别过程<strong>无需联网</strong>，绝不上传您的截图。</li>
-            <li><strong>AI 精准解析价格</strong>：在配置 AI 密钥后，系统将利用大模型深度解析复杂的账单价格与币种。若未配置 AI，系统则由本地引擎尝试初步解析。</li>
-            <li><strong>闪控球截屏</strong>：开启闪控球后，在其他 App 的订阅界面点击悬浮球，即可实现“一键抓取 -> 全自动智能填单”。</li>
-            <li><strong>团购券安全策略</strong>：为保证您的财产安全，<strong>团购券识别不使用 AI 识别</strong>，仅依赖本地 OCR 提取基础信息。识别结果仅供参考，请务必人工核对。
-            </li>
-        </ul>
-    </div>
+<h2>3. 保修信息管理 (Warranty)</h2>
+<div class="card">
+    <p>除了常规订阅，我们还支持多种设备资产的精细化保修记录：</p>
+    <ul>
+        <li><strong>全类别覆盖</strong>：支持记录手机、电脑、耳机、家电等上百种设备的保修信息。</li>
+        <li><strong>到期预测</strong>：您可以记录购买日期及保修时长，系统将为您精准预测保修到期日。</li>
+        <li><strong>智能分类</strong>：内置数十种设备分类，添加时仅需输入设备名称，系统即可智能匹配最佳图标。</li>
+    </ul>
+</div>
 
-    <h2>4. 提醒管理系统</h2>
-    <div class="card">
-        <p>不再错过任何一个免费试用期或续费日。</p>
-        <ul>
-            <li><strong>自定义提醒</strong>：支持设置“提前 X 天”及“精准时间点”触发推送。</li>
-            <li><strong>快速配置</strong>：点击首页订阅卡片进入详情，即可一键修改提醒策略。</li>
-            <li><strong>空状态引导</strong>：对于“永久项目”或“已标记使用的团购券”，系统会自动隐藏无效的提醒设置，保持界面整洁。</li>
-        </ul>
-    </div>
+<h2>4. AI 智能识别与隐私</h2>
+<div class="card">
+    <p>我们构建了高效且安全的识别体系，保护您的隐私：</p>
+    <ul>
+        <li><strong>OCR 识别身份</strong>：采用纯本地 OCR 引擎识别截图文字，用于精准定位订阅的应用名称。识别过程<strong>无需联网</strong>，绝不上传您的截图。</li>
+        <li><strong>AI 精准解析价格</strong>：在配置 AI 密钥后，系统将利用大模型深度解析复杂的订阅价格与币种。若未配置 AI，系统则由本地引擎尝试初步解析。</li>
+        <li><strong>闪控球截屏</strong>：开启闪控球后，在其他 App 的订阅界面点击悬浮球，即可实现“一键抓取 -> 全自动智能填单”。</li>
+        <li><strong>小艺集成</strong>：深度适配 HarmonyOS 智能意图。您可以对着手机说“记一个包月华为音乐”或“查一下最近要过期的订阅”，动动嘴就能快捷管理。</li>
+        <li><strong>团购券安全策略</strong>：为保证您的财产安全，团购券识别不使用 AI 解析，仅依赖本地 OCR。</li>
+    </ul>
+</div>
 
-    <h2>5. 华为分享同步 </h2>
-    <div class="card">
-        <p>基于 HarmonyOS NEXT 原生能力，实现极致的跨设备同步。</p>
-        <ul>
-            <li><strong>碰一碰 (Knock)</strong>：将两台手机顶部靠近，像刷卡一样轻碰（Knock），即可瞬时弹出数据对比框。</li>
-            <li><strong>隔空传送 (Gestures)</strong>：在屏幕前做“抓取”手势，数据即可跨屏流转。</li>
-            <li><strong>华为分享（HUAWEI Share）</strong>：使用华为分享同步订阅数据。</li>
-        </ul>
-        <p class="formula-box">
-            <span class="important">⚠️ 关键说明：</span><br>
-            为了确保同步成功，<strong>请务必确认双方设备均已安装了最新版本的“记得订阅”应用</strong>。老版本可能无法识别新版的数据协议。
-        </p>
-    </div>
+<h2>5. 提醒管理系统</h2>
+<div class="card">
+    <p>不再错过任何一个免费试用期或续费日。</p>
+    <ul>
+        <li><strong>自定义提醒</strong>：支持设置“提前 X 天”及“精准时间点”触发推送。</li>
+        <li><strong>快速配置</strong>：点击首页订阅卡片进入详情，即可一键修改提醒策略。</li>
+        <li><strong>空状态引导</strong>：对于“永久项目”或“已标记使用的团购券”，系统会自动隐藏无效的提醒设置，保持界面整洁。</li>
+    </ul>
+</div>
 
-    <h2>6. 美学与交互</h2>
-    <div class="card">
-        <p>应用适配了全套系统级动效与主题：</p>
-        <ul>
-            <li><strong>黑金主题</strong>：深邃优雅，复刻高级会员质感。在时间轴下，选中日期会自动适配高对比度配色（金色背景配深色文字），确保视觉清晰。</li>
-            <li><strong>新年主题</strong>：灵动喜庆，伴随专属水印与渐变氛围。</li>
-            <li><strong>交互增强</strong>：时间轴支持<strong>独立滑动动画</strong>。即便在关闭系统全局动画时，时间轴切换视图、跳转日期依然保持丝滑的物理感。</li>
-            <li><strong>点光源动效</strong>：所有按钮与卡片均支持 HDS 点光源追随效果，触控更具灵性。</li>
-        </ul>
-    </div>
+<h2>6. 华为分享同步 </h2>
+<div class="card">
+    <p>基于 HarmonyOS NEXT 原生能力，实现极致的跨设备同步。</p>
+    <ul>
+        <li><strong>碰一碰 (Knock)</strong>：将两台手机顶部靠近，像刷卡一样轻碰（Knock），即可瞬时弹出数据对比框。</li>
+        <li><strong>隔空传送 (Gestures)</strong>：在屏幕前做“抓取”手势，数据即可跨屏流转。</li>
+        <li><strong>华为分享（HUAWEI Share）</strong>：使用华为分享同步订阅数据。</li>
+    </ul>
+    <p class="formula-box">
+        <span class="important">⚠️ 关键说明：</span><br>
+        为了确保同步成功，<strong>请务必确认双方设备均已安装了最新版本的“记得订阅”应用</strong>。老版本可能无法识别新版的数据协议。
+    </p>
+</div>
 
-    <h2>7. 支付方式管理</h2>
-    <div class="card">
-        <p>帮助您清晰记录每一个订阅的“钱从哪儿扣”。</p>
-        <ul>
-            <li><strong>全渠道覆盖</strong>：支持记录支付宝、微信支付、云闪付、数字人民币、华为支付、Apple Pay、PayPal、信用卡及现金等十余种主流支付方式。</li>
-            <li><strong>隐私与审美平衡</strong>：为了保持首页列表的绝对纯净与高审美，支付方式仅在“长按订阅卡片”进入的<strong>详情面板</strong>中展示。</li>
-        </ul>
-    </div>
+<h2>7. 智感握姿与交互美学</h2>
+<div class="card">
+    <p>应用适配了全套 HDS 系统级动效与交互优化：</p>
+    <ul>
+        <li><strong>智感握姿 (Smart Hand Mode)</strong>：智能感知您的持机姿势（左/右手）。Tab 栏与核心交互按钮将根据握姿自动对齐偏移，确保单手操作始终处于舒适区。</li>
+        <li><strong>点光源动效</strong>：所有按钮与卡片均支持 HDS 点光源追随效果，触控更具灵性。</li>
+        <li><strong>主题适配</strong>：支持黑金主题与新年主题。在黑金主题下，时间轴会自动适配高对比度金色配色，确保视觉清晰。</li>
+        <li><strong>交互增强</strong>：时间轴支持独立滑动动画，即便在关闭系统全局动画时，依然保持丝滑的物理感。</li>
+    </ul>
+</div>
 
-    <h2>8. 安全增强（应用锁）</h2>
-    <div class="card">
-        <p>为了保护您的账单隐私，我们提供了应用级的安全加锁功能：</p>
-        <ul>
-            <li><strong>开启路径</strong>：进入“设置”——“安全”——点击“应用锁”。</li>
-            <li><strong>验证方式</strong>：支持数字密码、手势密码，并完美适配华为系统的指纹及人脸身份验证。</li>
-            <li><strong>忘记密码处理</strong>：<span class="important">⚠️
-                    特别提示：</span>本应用为纯本地运行，不具备云端密码找回功能。若您忘记了独立设置的应用锁密码，且未配置生物识别（指纹/人脸），开发者无法协助您找回密码。在此情况下，您只能通过系统设置清空应用数据或卸载重装来恢复使用，但此操作将清空您所有的本地记录，请务必牢记密码。
-            </li>
-        </ul>
-    </div>
+<h2>8. 支付方式记录</h2>
+<div class="card">
+    <p>帮助您清晰记录每一个订阅的“钱从哪儿扣”。</p>
+    <ul>
+        <li><strong>全渠道覆盖</strong>：支持记录支付宝、微信支付、云闪付、数字人民币、华为支付、Apple Pay、PayPal、信用卡及现金等十余种主流支付方式。</li>
+        <li><strong>隐私与审美平衡</strong>：为了保持首页列表的绝对纯净，支付方式仅在“长按订阅卡片”进入的<strong>详情面板</strong>中展示。</li>
+    </ul>
+</div>
 
-    <h2>9. 推荐服务模板</h2>
-    <div class="card">
-        <p>为了让您更快地开启订阅记录，我们内置了丰富的服务模板库：</p>
-        <ul>
-            <li><strong>快速填单</strong>：点击首页“+”按钮 -> “推荐服务模板”，即可浏览并选择主流的订阅服务。</li>
-            <li><strong>全类别覆盖</strong>：涵盖影视、音乐、办公、云空间、社交、生活等 10+ 大类，包含国内外数百款知名应用。</li>
-            <li><strong>智能预设</strong>：选择模板后，系统会自动为您填入服务名称、精选图标、所属分类和默认续费周期（如京东 PLUS 默认为年付），您只需输入金额即可完成。</li>
-        </ul>
-    </div>
+<h2>9. 安全增强（应用锁）</h2>
+<div class="card">
+    <p>为了保护您的订阅隐私，我们提供了应用级的安全加锁功能：</p>
+    <ul>
+        <li><strong>开启路径</strong>：进入“设置”——“安全”——点击“应用锁”。</li>
+        <li><strong>验证方式</strong>：支持数字密码、手势密码，并完美适配华为系统的指纹及人脸身份验证。</li>
+        <li><strong>忘记密码处理</strong>：<span class="important">⚠️
+                    特别提示：</span>本应用为纯本地运行，不具备云端密码找回功能。若您忘记了应用锁密码，且未配置生物识别（指纹/人脸），开发者无法协助您找回。在此情况下，您只能通过系统设置清空应用数据或卸载重装来恢复使用，但此操作将清空您所有的本地记录。
+        </li>
+    </ul>
+</div>
 
-    <div class="footer">
-        2026 记得订阅 v1.0.3 | Designed for HarmonyOS Next
-    </div>
+<h2>10. 推荐服务模板</h2>
+<div class="card">
+    <p>为了让您更快地开启订阅管理，我们内置了丰富的服务模板库：</p>
+    <ul>
+        <li><strong>快速记录</strong>：点击首页“+”按钮 -> “推荐服务模板”，即可浏览并选择主流的订阅服务。</li>
+        <li><strong>全类别覆盖</strong>：涵盖影视、音乐、办公、云空间、社交、生活等 10+ 大类，包含国内外数百款知名应用。</li>
+        <li><strong>智能预设</strong>：选择模板后，系统会自动为您填入服务名称、精选图标和默认续费周期（如京东 PLUS 默认为年付），您只需输入金额即可完成记录。</li>
+    </ul>
+</div>
+
+<div class="footer">
+    2026 记得订阅 v2.0.0 | Designed for HarmonyOS Next
+</div>
 </body>
 
 </html>

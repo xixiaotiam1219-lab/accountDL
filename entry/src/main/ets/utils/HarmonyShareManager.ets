@@ -9,9 +9,7 @@ import { image } from '@kit.ImageKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { SubscriptionModel } from '../model/SubscriptionModel';
 import { SubscriptionRepository } from '../model/SubscriptionRepository';
-
-
-
+import { LocalIconManager } from './LocalIconManager';
 
 
 /**
@@ -25,10 +23,18 @@ interface SharableTargetExtended extends harmonyShare.SharableTarget {
 /**
  * 隔空传送数据包格式
  */
+// 导出数据结构
+export interface CustomIconItem {
+  name: string;
+  category: string;
+  base64: string;
+}
+
 export class ExportData {
-  version: number = 1;
+  version: number = 2;
   timestamp: number = Date.now();
   subscriptions: SubscriptionModel[] = [];
+  customIcons?: CustomIconItem[] = [];
 }
 
 /**
@@ -82,6 +88,7 @@ export class HarmonyShareManager {
       const exportSubs = await this.prepareSubscriptionsForExport(subs, true);
       const exportData = new ExportData();
       exportData.subscriptions = exportSubs;
+      exportData.customIcons = await this.prepareIconLibraryForExport(); // 确保图标库同步
       const jsonStr = JSON.stringify(exportData);
 
       // 将 Base64 编码后的数据进行 URI 编码，检查最终长度
@@ -150,6 +157,8 @@ export class HarmonyShareManager {
       const exportSubs = await this.prepareSubscriptionsForExport(subs, true);
       const exportData = new ExportData();
       exportData.subscriptions = exportSubs;
+      // [新增] 携带自定义图标库数据，确保接收端图标库同步
+      exportData.customIcons = await this.prepareIconLibraryForExport();
       const jsonStr = JSON.stringify(exportData);
 
       const base64Data = new util.Base64Helper().encodeToStringSync(new util.TextEncoder().encodeInto(jsonStr));
@@ -293,48 +302,71 @@ export class HarmonyShareManager {
            }
       }
       
+      // 2. 处理 icon (订阅图标 - 包含库图标和自定义图标)
       if (newItem.icon && newItem.icon.startsWith('file://')) {
         try {
-          const srcUri = newItem.icon;
-          const fileUriObj = new fileUri.FileUri(srcUri);
-          const realPath = fileUriObj.path;
+          const originalPath = newItem.icon;
+          const filename = (originalPath.split('/').pop() || '').split('?')[0];
+          const ctx = this.context;
+          
+          let realPath = '';
+          try {
+              realPath = new fileUri.FileUri(originalPath).path;
+          } catch (e) {
+              realPath = decodeURIComponent(originalPath.substring(7));
+          }
 
-          if (fs.accessSync(realPath)) {
-             // 核心逻辑：区分内置图标库与自定义图标
-             if (realPath.includes('/local_icons/')) {
-               // 1. 内置库图标：提取文件名，使用精简协议头，不再转码
-               const filename = realPath.substring(realPath.lastIndexOf('/') + 1);
-               newItem.icon = `builtin://${filename}`;
-               hilog.debug(this.DOMAIN, this.TAG, `Exporting library icon as builtin: ${filename}`);
-             } else if (compress) {
-               // 2. 真正自定义图标：执行压缩转换
-               const base64Str = await this.compressIconToBase64(realPath);
-               if (base64Str) {
-                 newItem.icon = `data:image/jpeg;base64,${base64Str}`;
-               } else {
-                 newItem.icon = '';
-               }
-             } else {
-               // 原样输出 (保底逻辑)
-               const file = fs.openSync(realPath, fs.OpenMode.READ_ONLY);
-               const stat = fs.statSync(file.fd);
-               if (stat.size < 1024 * 1024) { 
-                 const buf = new ArrayBuffer(stat.size);
-                 fs.readSync(file.fd, buf);
-                 const base64Str = new util.Base64Helper().encodeToStringSync(new Uint8Array(buf));
-                 newItem.icon = `data:image/png;base64,${base64Str}`;
-               }
-               fs.closeSync(file);
-             }
+          // 精准判断：内置图标库 vs 自定义导入/裁剪图标
+          const isBuiltinPath = realPath.includes('/icons/') && !realPath.includes('/imported_icons/');
+          const currentFilename = realPath.substring(realPath.lastIndexOf('/') + 1);
+          const isGeneratedFile = currentFilename.startsWith('icon_') || currentFilename.startsWith('temp_');
+
+          if (isBuiltinPath && !isGeneratedFile) {
+            newItem.icon = `builtin://${filename}`;
+          } else {
+            // 真正自定义图标：执行多路径搜索与转换
+            let foundPath = '';
+            let searchPaths: string[] = [realPath];
+            if (filename && ctx) {
+                searchPaths.push(`${ctx.filesDir}/${filename}`);
+                searchPaths.push(`${ctx.filesDir}/icons/${filename}`);
+                searchPaths.push(`${ctx.cacheDir}/${filename}`);
+                searchPaths.push(`${ctx.filesDir}/imported_icons/${filename}`);
+            }
+            const finalSearchList = Array.from(new Set(searchPaths)).filter(p => !!p);
+
+            for (const p of finalSearchList) {
+                if (fs.accessSync(p)) {
+                    foundPath = p;
+                    break;
+                }
+            }
+
+            if (foundPath) {
+                if (compress) {
+                  const base64Str = await this.compressIconToBase64(foundPath);
+                  if (base64Str) newItem.icon = `data:image/jpeg;base64,${base64Str}`;
+                } else {
+                  // 不压缩时执行普通 Base64 转换 (用于导出备份)
+                  const file = fs.openSync(foundPath, fs.OpenMode.READ_ONLY);
+                  const stat = fs.statSync(file.fd);
+                  const buf = new ArrayBuffer(stat.size);
+                  fs.readSync(file.fd, buf);
+                  fs.closeSync(file);
+                  
+                  const base64Str = new util.Base64Helper().encodeToStringSync(new Uint8Array(buf));
+                  let mime = 'image/png';
+                  if (foundPath.toLowerCase().endsWith('.jpg') || foundPath.toLowerCase().endsWith('.jpeg')) mime = 'image/jpeg';
+                  newItem.icon = `data:${mime};base64,${base64Str}`;
+                }
+            }
           }
         } catch (e) {
-          hilog.error(this.DOMAIN, this.TAG, `Failed to convert export icon: ${e}`);
-          newItem.icon = ''; 
+          hilog.error(this.DOMAIN, this.TAG, `Failed to convert export icon for ${newItem.name}: ${e}`);
         }
       }
 
-      
-      // === 处理 couponImage (团购券截图) ===
+      // 3. 处理 couponImage (团购券截图)
       if (newItem.couponImage && newItem.couponImage.startsWith('file://')) {
         try {
           const originalPath = newItem.couponImage;
@@ -348,42 +380,40 @@ export class HarmonyShareManager {
               realPath = decodeURIComponent(originalPath.substring(7));
           }
 
-          // 构造搜寻路径
+          let foundPath = '';
           let searchPaths: string[] = [realPath];
           if (filename && ctx) {
               searchPaths.push(`${ctx.filesDir}/${filename}`);
+              searchPaths.push(`${ctx.filesDir}/coupon_code/${filename}`);
               searchPaths.push(`${ctx.cacheDir}/${filename}`);
               searchPaths.push(`${ctx.tempDir}/${filename}`);
-              searchPaths.push(`${ctx.filesDir}/files/${filename}`);
+          }
+          const finalSearchList = Array.from(new Set(searchPaths)).filter(p => !!p);
+
+          for (const p of finalSearchList) {
+              if (fs.accessSync(p)) {
+                  foundPath = p;
+                  break;
+              }
           }
 
-          let base64Result = '';
-          for (const p of searchPaths) {
-              try {
-                  if (fs.accessSync(p)) {
-                      const file = fs.openSync(p, fs.OpenMode.READ_ONLY);
-                      const stat = fs.statSync(file.fd);
-                      const buf = new ArrayBuffer(stat.size);
-                      fs.readSync(file.fd, buf);
-                      fs.closeSync(file);
-                      
-                      const base64Str = new util.Base64Helper().encodeToStringSync(new Uint8Array(buf));
-                      let mime = 'image/png';
-                      if (p.toLowerCase().endsWith('.jpg') || p.toLowerCase().endsWith('.jpeg')) mime = 'image/jpeg';
-                      else if (p.toLowerCase().endsWith('.webp')) mime = 'image/webp';
-                      
-                      base64Result = `data:${mime};base64,${base64Str}`;
-                      break;
-                  }
-              } catch (e) { continue; }
-          }
-
-          if (base64Result) {
-              newItem.couponImage = base64Result;
+          if (foundPath) {
+              const file = fs.openSync(foundPath, fs.OpenMode.READ_ONLY);
+              const stat = fs.statSync(file.fd);
+              const buf = new ArrayBuffer(stat.size);
+              fs.readSync(file.fd, buf);
+              fs.closeSync(file);
+              
+              const base64Str = new util.Base64Helper().encodeToStringSync(new Uint8Array(buf));
+              let mime = 'image/png';
+              if (foundPath.toLowerCase().endsWith('.jpg') || foundPath.toLowerCase().endsWith('.jpeg')) mime = 'image/jpeg';
+              else if (foundPath.toLowerCase().endsWith('.webp')) mime = 'image/webp';
+              
+              newItem.couponImage = `data:${mime};base64,${base64Str}`;
               hilog.debug(this.DOMAIN, this.TAG, `Exported coupon image via share for ${newItem.name}`);
           }
         } catch (e) {
-           hilog.error(this.DOMAIN, this.TAG, `Failed to convert coupon image in share: ${e}`);
+           hilog.error(this.DOMAIN, this.TAG, `Failed to convert coupon image in share for ${newItem.name}: ${e}`);
         }
       }
 
@@ -422,5 +452,49 @@ export class HarmonyShareManager {
       hilog.error(this.DOMAIN, this.TAG, `Compression failed: ${e}`);
       return '';
     }
+  }
+
+  /**
+   * 准备图标库导出数据包
+   */
+  public async prepareIconLibraryForExport(): Promise<CustomIconItem[]> {
+    const exportedIcons: CustomIconItem[] = [];
+    const allApps = await LocalIconManager.getInstance().getAllApps();
+    
+    // 只挑选真正自定义的图标进行转码备份
+    const customApps = allApps.filter(a => a.isCustom === true);
+    
+    for (const app of customApps) {
+      try {
+        let realPath = '';
+        if (app.icon.startsWith('file://')) {
+          realPath = new fileUri.FileUri(app.icon).path;
+        } else {
+          realPath = app.icon;
+        }
+
+        if (fs.accessSync(realPath)) {
+          const file = fs.openSync(realPath, fs.OpenMode.READ_ONLY);
+          const stat = fs.statSync(file.fd);
+          const buf = new ArrayBuffer(stat.size);
+          fs.readSync(file.fd, buf);
+          fs.closeSync(file);
+          
+          const base64Str = new util.Base64Helper().encodeToStringSync(new Uint8Array(buf));
+          let mime = 'image/png';
+          if (realPath.toLowerCase().endsWith('.jpg') || realPath.toLowerCase().endsWith('.jpeg')) mime = 'image/jpeg';
+          
+          exportedIcons.push({
+            name: app.name,
+            category: app.category,
+            base64: `data:${mime};base64,${base64Str}`
+          });
+        }
+      } catch (e) {
+        hilog.error(this.DOMAIN, this.TAG, `Failed to encode library icon ${app.name}: ${e}`);
+      }
+    }
+    
+    return exportedIcons;
   }
 }

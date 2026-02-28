@@ -1,6 +1,9 @@
 import { webview } from '@kit.ArkWeb';
 import { ConfigurationConstant, common } from '@kit.AbilityKit';
-import { HdsNavDestination } from '@kit.UIDesignKit';
+import { HdsNavDestination, ScrollEffectType, HdsNavigationTitleBarOptions, HdsNavigationTitleBarStyle } from '@kit.UIDesignKit';
+import { LengthMetrics } from '@kit.ArkUI';
+import { deviceInfo } from '@kit.BasicServicesKit';
+
 export class WebViewParam {
   url: ResourceStr = '';
   title: string = '';
@@ -19,36 +22,45 @@ export struct WebViewPage {
   @StorageLink('topRectHeight') topRectHeight: number = 0;
   @StorageProp('currentColorMode') colorMode: number = ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT;
   controller: webview.WebviewController = new webview.WebviewController();
-
-  build() {
-    HdsNavDestination() {
-      Stack({ alignContent: Alignment.Top }) {
-        // Web Content
-        Column() {
-          Web({ src: this.url, controller: this.controller })
-            .width('100%')
-            .layoutWeight(1)
-            .domStorageAccess(true)
-            .javaScriptAccess(true)
-            .darkMode(this.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK ? WebDarkMode.On : (this.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT ? WebDarkMode.Off : WebDarkMode.Auto))
-            .forceDarkAccess(this.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK || (this.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET && (getContext(this) as common.UIAbilityContext).config.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK))
-        }
-        .width('100%')
-        .height('100%')
+  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
+  @Builder WebBuilder(){
+    Stack({ alignContent: Alignment.Top }) {
+      // Web Content
+      Column() {
+        Web({ src: this.url, controller: this.controller })
+          .width('100%')
+          .layoutWeight(1)
+          .domStorageAccess(true)
+          .javaScriptAccess(true)
+          .darkMode(this.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK ? WebDarkMode.On :
+            (this.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT ? WebDarkMode.Off :
+              WebDarkMode.Auto))
+          .forceDarkAccess(this.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK ||
+            (this.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET &&
+              (getContext(this) as common.UIAbilityContext).config.colorMode ===
+              ConfigurationConstant.ColorMode.COLOR_MODE_DARK))
       }
       .width('100%')
       .height('100%')
-      .backgroundColor($r('app.color.page_background'))
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor($r('app.color.page_background'))
+  }
+  build() {
+    HdsNavDestination() {
+      this.WebBuilder()
     }
     .titleBar({
       avoidLayoutSafeArea: true,
-      enableComponentSafeArea:true,
+      enableComponentSafeArea: true,
       content: {
         title: {
           mainTitle: this.title
         }
-      }
-    })
+      },
+
+    } as HdsNavigationTitleBarOptions)
     .backgroundColor($r('app.color.page_background'))
     .onBackPressed(() => {
       if (this.controller.accessStep(-1)) {

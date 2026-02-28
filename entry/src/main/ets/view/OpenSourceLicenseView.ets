@@ -1,5 +1,7 @@
 import { webview } from '@kit.ArkWeb';
-import { HdsNavDestination } from '@kit.UIDesignKit';
+import {  HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
+import { LengthMetrics } from '@kit.ArkUI';
+import { deviceInfo } from '@kit.BasicServicesKit';
 
 const TITLE_BAR_HEIGHT_MINI: number = 56;
 
@@ -14,7 +16,7 @@ interface LicenseItem {
 @Component
 export struct OpenSourceLicenseView {
   @Consume('pageStack') pageStack: NavPathStack;
-
+  @StorageLink('isHdsTabsEnabled') isHdsTabsEnabled: boolean = true;
   private licenses: LicenseItem[] = [
     {
       libraryName: 'image_cropper',
@@ -379,47 +381,54 @@ export struct OpenSourceLicenseView {
   ];
 
   @StorageLink('topRectHeight') topRectHeight: number = 0;
+  @Builder OpenSourceLicenseBuilder(){
+    Stack({ alignContent: Alignment.Top }) {
+      List() {
+        // Spacer for Header
+        ListItem() {
+          Column() {
+            Blank()
+              .height(TITLE_BAR_HEIGHT_MINI + this.getUIContext().px2vp(this.topRectHeight))
+          }
 
-  build() {
-    HdsNavDestination() {
-      Stack({ alignContent: Alignment.Top }) {
-        List() {
-           // Spacer for Header
-           ListItem() {
-             Column(){
-               Blank()
-               .height(TITLE_BAR_HEIGHT_MINI + this.getUIContext().px2vp(this.topRectHeight))}
-
-           }
-
-           ForEach(this.licenses, (item: LicenseItem) => {
-             ListItem() {
-               LicenseItemView({ item: item })
-             }
-             .padding({ left: 16, right: 16, top: 12 })
-           })
-           
-           // Bottom spacer
-           ListItem() { Column().height(20) }
         }
-        .width('100%')
-        .height('100%')
-        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-        .scrollBar(BarState.Off)
+
+        ForEach(this.licenses, (item: LicenseItem) => {
+          ListItem() {
+            LicenseItemView({ item: item })
+          }
+          .padding({ left: 16, right: 16, top: 12 })
+        })
+
+        // Bottom spacer
+        ListItem() {
+          Column().height(20)
+        }
       }
       .width('100%')
       .height('100%')
-      .backgroundColor($r('app.color.page_background'))
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+      .scrollBar(BarState.Off)
     }
-    .titleBar({
-      avoidLayoutSafeArea: true,
-      content: {
-        title: {
-          mainTitle: '开源许可'
-        }
-      }
-    })
+    .width('100%')
+    .height('100%')
     .backgroundColor($r('app.color.page_background'))
+  }
+  build() {
+      HdsNavDestination() {
+        this.OpenSourceLicenseBuilder()
+      }
+      .titleBar({
+        avoidLayoutSafeArea: true,
+        content: {
+          title: {
+            mainTitle: '开源许可'
+          }
+        },
+      })
+      .backgroundColor($r('app.color.page_background'))
+
+
   }
 }
 
